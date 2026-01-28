@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GFAM Agency - Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --background: #f8f9fa;
+      --foreground: #1a1a2e;
+      --card: #ffffff;
+      --border: #e5e7eb;
+      --muted: #6b7280;
+      --sidebar-bg: #1a1a2e;
+      --sidebar-hover: #2d2d44;
+      --sidebar-active: #3d3d5c;
+      --brand-sankofa: #10b981;
+      --brand-lighthouse: #8b5cf6;
+      --brand-centex: #f59e0b;
+      --brand-gfam-media: #3b82f6;
+      --status-paid: #10b981;
+      --status-pending: #f59e0b;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+      background-color: var(--background) !important;
+      color: var(--foreground) !important;
+      line-height: 1.5 !important;
+    }
+
+    /* Animations */
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes slideInLeft {
+      from { opacity: 0; transform: translateX(-10px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    @keyframes countUp {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes barGrow {
+      from { transform: scaleY(0); }
+      to { transform: scaleY(1); }
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    @keyframes notifPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+
+    .animate-fade-in-up {
+      animation: fadeInUp 0.4s ease-out forwards;
+    }
+
+    .animate-slide-in {
+      animation: slideInLeft 0.3s ease-out forwards;
+    }
+
+    .stagger-1 { animation-delay: 0.05s; }
+    .stagger-2 { animation-delay: 0.1s; }
+    .stagger-3 { animation-delay: 0.15s; }
+    .stagger-4 { animation-delay: 0.2s; }
+    .stagger-5 { animation-delay: 0.25s; }
+
+    /* Sidebar Styles */
+    .sidebar {
+      background: var(--sidebar-bg);
+      width: 260px;
+      min-height: 100vh;
+      position: fixed;
+      left: 0;
+      top: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar-link {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 20px;
+      color: #9ca3af;
+      text-decoration: none;
+      transition: all 0.15s ease;
+      border-left: 3px solid transparent;
+    }
+
+    .sidebar-link:hover {
+      background: var(--sidebar-hover);
+      color: #fff;
+      padding-left: 24px;
+    }
+
+    .sidebar-link.active {
+      background: var(--sidebar-active);
+      color: #fff;
+      border-left-color: var(--brand-sankofa);
+    }
+
+    /* Card Styles */
+    .card {
+      background: var(--card);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      transition: all 0.2s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);
+    }
+
+    /* KPI Card */
+    .kpi-card {
+      opacity: 0;
+    }
+
+    /* Brand Dot */
+    .brand-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      transition: transform 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    }
+
+    .brand-item:hover .brand-dot {
+      transform: scale(1.3);
+    }
+
+    /* Table Row */
+    .table-row {
+      transition: background-color 0.15s ease;
+      opacity: 0;
+    }
+
+    .table-row:hover {
+      background-color: #f9fafb;
+    }
+
+    /* Chart Bars */
+    .chart-bar {
+      transform-origin: bottom;
+      animation: barGrow 0.6s ease-out forwards;
+    }
+
+    .chart-bar:nth-child(1) { animation-delay: 0.1s; }
+    .chart-bar:nth-child(2) { animation-delay: 0.2s; }
+    .chart-bar:nth-child(3) { animation-delay: 0.3s; }
+    .chart-bar:nth-child(4) { animation-delay: 0.4s; }
+
+    .chart-bar:hover {
+      filter: brightness(1.1);
+      transform: translateY(-2px) scaleY(1);
+    }
+
+    /* Button Styles */
+    .btn-primary {
+      background: var(--foreground);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-primary:hover {
+      background: #2d2d44;
+      transform: scale(1.02);
+    }
+
+    .btn-primary:active {
+      transform: scale(0.95);
+    }
+
+    /* Status Badge */
+    .status-badge {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .status-paid {
+      background: rgba(16, 185, 129, 0.1);
+      color: var(--status-paid);
+    }
+
+    .status-pending {
+      background: rgba(245, 158, 11, 0.1);
+      color: var(--status-pending);
+      animation: pulse 2s infinite;
+    }
+
+    /* Search Input */
+    .search-input {
+      transition: all 0.2s ease;
+      border: 1px solid var(--border);
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: #6b7280;
+      box-shadow: 0 0 0 3px rgba(107, 114, 128, 0.1);
+    }
+
+    /* Notification Badge */
+    .notif-badge {
+      animation: notifPulse 2s infinite;
+    }
+
+    /* Quick Action Button */
+    .quick-action-btn {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      background: #f9fafb;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      width: 100%;
+      text-align: left;
+    }
+
+    .quick-action-btn:hover {
+      background: #f3f4f6;
+      border-color: #d1d5db;
+      transform: translateX(4px);
+    }
+
+    /* Main Content */
+    .main-content {
+      margin-left: 260px;
+      padding: 24px 32px;
+      min-height: 100vh;
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+      .sidebar { width: 80px; }
+      .sidebar-link span { display: none; }
+      .sidebar-link { justify-content: center; padding: 16px; }
+      .main-content { margin-left: 80px; }
+      .brand-section { display: none; }
+      .logo-text { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <!-- Logo -->
+    <div class="p-6 border-b border-gray-700">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-500 to-blue-500 flex items-center justify-center">
+          <span class="text-white font-bold text-lg">G</span>
+        </div>
+        <div class="logo-text">
+          <h1 class="text-white font-semibold text-lg">GFAM</h1>
+          <p class="text-gray-500 text-xs">Agency</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="py-4 flex-1">
+      <a href="#" class="sidebar-link active">
+        <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+        <span>Dashboard</span>
+      </a>
+      <a href="#" class="sidebar-link">
+        <i data-lucide="briefcase" class="w-5 h-5"></i>
+        <span>Services</span>
+      </a>
+      <a href="#" class="sidebar-link">
+        <i data-lucide="file-text" class="w-5 h-5"></i>
+        <span>Invoices</span>
+      </a>
+      <a href="#" class="sidebar-link">
+        <i data-lucide="users" class="w-5 h-5"></i>
+        <span>Clients</span>
+      </a>
+      <a href="#" class="sidebar-link">
+        <i data-lucide="settings" class="w-5 h-5"></i>
+        <span>Settings</span>
+      </a>
+
+      <!-- Brand Filter -->
+      <div class="brand-section mt-6 px-5">
+        <p class="text-gray-500 text-xs font-medium uppercase tracking-wider mb-3">Brands</p>
+        <div class="space-y-2">
+          <div class="brand-item flex items-center gap-3 py-2 px-3 rounded-lg bg-gray-800/50 cursor-pointer hover:bg-gray-700/50 transition-all">
+            <div class="brand-dot" style="background: var(--brand-sankofa)"></div>
+            <span class="text-gray-300 text-sm">Sankofa</span>
+          </div>
+          <div class="brand-item flex items-center gap-3 py-2 px-3 rounded-lg cursor-pointer hover:bg-gray-700/50 transition-all">
+            <div class="brand-dot" style="background: var(--brand-lighthouse)"></div>
+            <span class="text-gray-400 text-sm">Lighthouse</span>
+          </div>
+          <div class="brand-item flex items-center gap-3 py-2 px-3 rounded-lg cursor-pointer hover:bg-gray-700/50 transition-all">
+            <div class="brand-dot" style="background: var(--brand-centex)"></div>
+            <span class="text-gray-400 text-sm">Centex</span>
+          </div>
+          <div class="brand-item flex items-center gap-3 py-2 px-3 rounded-lg cursor-pointer hover:bg-gray-700/50 transition-all">
+            <div class="brand-dot" style="background: var(--brand-gfam-media)"></div>
+            <span class="text-gray-400 text-sm">GFAM Media</span>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- User Profile -->
+    <div class="p-4 border-t border-gray-700">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+          <span class="text-white text-sm font-medium">JG</span>
+        </div>
+        <div class="logo-text">
+          <p class="text-white text-sm font-medium">J. Gillis</p>
+          <p class="text-gray-500 text-xs">Admin</p>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <!-- Header -->
+    <header class="flex items-center justify-between mb-8 animate-fade-in-up">
+      <div>
+        <h1 class="text-2xl font-semibold text-gray-900">Dashboard</h1>
+        <p class="text-gray-500 text-sm mt-1">Welcome back, manage your agency services</p>
+      </div>
+      <div class="flex items-center gap-4">
+        <!-- Search -->
+        <div class="relative">
+          <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+          <input type="text" placeholder="Search..." class="search-input pl-10 pr-4 py-2 rounded-lg bg-white w-64 text-sm">
+        </div>
+        <!-- New Invoice Button -->
+        <button class="btn-primary">
+          <i data-lucide="plus" class="w-4 h-4"></i>
+          New Invoice
+        </button>
+        <!-- Notifications -->
+        <button class="relative p-2 rounded-lg hover:bg-gray-100 transition-colors">
+          <i data-lucide="bell" class="w-5 h-5 text-gray-600"></i>
+          <span class="notif-badge absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">3</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- KPI Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <!-- Revenue -->
+      <div class="card kpi-card p-6 animate-fade-in-up stagger-1">
+        <div class="flex items-center justify-between mb-4">
+          <div class="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
+            <i data-lucide="dollar-sign" class="w-5 h-5 text-emerald-600"></i>
+          </div>
+          <span class="text-emerald-600 text-sm font-medium flex items-center gap-1">
+            <i data-lucide="trending-up" class="w-4 h-4"></i>
+            12%
+          </span>
+        </div>
+        <p class="text-gray-500 text-sm">Total Revenue</p>
+        <p class="text-2xl font-semibold text-gray-900 mt-1">$24,580</p>
+      </div>
+
+      <!-- Pending Invoices -->
+      <div class="card kpi-card p-6 animate-fade-in-up stagger-2">
+        <div class="flex items-center justify-between mb-4">
+          <div class="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+            <i data-lucide="clock" class="w-5 h-5 text-amber-600"></i>
+          </div>
+          <span class="text-amber-600 text-sm font-medium">$8,420</span>
+        </div>
+        <p class="text-gray-500 text-sm">Pending Invoices</p>
+        <p class="text-2xl font-semibold text-gray-900 mt-1">12</p>
+      </div>
+
+      <!-- Active Services -->
+      <div class="card kpi-card p-6 animate-fade-in-up stagger-3">
+        <div class="flex items-center justify-between mb-4">
+          <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+            <i data-lucide="briefcase" class="w-5 h-5 text-blue-600"></i>
+          </div>
+          <span class="text-blue-600 text-sm font-medium">+4 new</span>
+        </div>
+        <p class="text-gray-500 text-sm">Active Services</p>
+        <p class="text-2xl font-semibold text-gray-900 mt-1">48</p>
+      </div>
+
+      <!-- Clients -->
+      <div class="card kpi-card p-6 animate-fade-in-up stagger-4">
+        <div class="flex items-center justify-between mb-4">
+          <div class="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
+            <i data-lucide="users" class="w-5 h-5 text-purple-600"></i>
+          </div>
+          <span class="text-purple-600 text-sm font-medium">+3</span>
+        </div>
+        <p class="text-gray-500 text-sm">Total Clients</p>
+        <p class="text-2xl font-semibold text-gray-900 mt-1">86</p>
+      </div>
+    </div>
+
+    <!-- Charts and Quick Actions Row -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+      <!-- Revenue by Brand Chart -->
+      <div class="card p-6 lg:col-span-2 animate-fade-in-up stagger-3">
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-lg font-semibold text-gray-900">Revenue by Brand</h2>
+          <select class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white">
+            <option>This Month</option>
+            <option>Last Month</option>
+            <option>This Quarter</option>
+          </select>
+        </div>
+
+        <!-- Simple Bar Chart -->
+        <div class="flex items-end justify-around h-48 px-4">
+          <div class="flex flex-col items-center gap-2">
+            <div class="chart-bar w-16 rounded-t-lg transition-all cursor-pointer" style="height: 160px; background: var(--brand-sankofa); transform: scaleY(0);"></div>
+            <span class="text-xs text-gray-500">Sankofa</span>
+            <span class="text-sm font-medium">$9.2k</span>
+          </div>
+          <div class="flex flex-col items-center gap-2">
+            <div class="chart-bar w-16 rounded-t-lg transition-all cursor-pointer" style="height: 120px; background: var(--brand-lighthouse); transform: scaleY(0);"></div>
+            <span class="text-xs text-gray-500">Lighthouse</span>
+            <span class="text-sm font-medium">$6.8k</span>
+          </div>
+          <div class="flex flex-col items-center gap-2">
+            <div class="chart-bar w-16 rounded-t-lg transition-all cursor-pointer" style="height: 80px; background: var(--brand-centex); transform: scaleY(0);"></div>
+            <span class="text-xs text-gray-500">Centex</span>
+            <span class="text-sm font-medium">$4.2k</span>
+          </div>
+          <div class="flex flex-col items-center gap-2">
+            <div class="chart-bar w-16 rounded-t-lg transition-all cursor-pointer" style="height: 100px; background: var(--brand-gfam-media); transform: scaleY(0);"></div>
+            <span class="text-xs text-gray-500">GFAM Media</span>
+            <span class="text-sm font-medium">$4.4k</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="card p-6 animate-fade-in-up stagger-4">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
+        <div class="space-y-3">
+          <button class="quick-action-btn">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: rgba(16, 185, 129, 0.1);">
+              <i data-lucide="plus" class="w-4 h-4" style="color: var(--brand-sankofa);"></i>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-gray-900">Sankofa Invoice</p>
+              <p class="text-xs text-gray-500">Marketing & Web</p>
+            </div>
+          </button>
+          <button class="quick-action-btn">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: rgba(139, 92, 246, 0.1);">
+              <i data-lucide="plus" class="w-4 h-4" style="color: var(--brand-lighthouse);"></i>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-gray-900">Lighthouse Invoice</p>
+              <p class="text-xs text-gray-500">Video & Photo</p>
+            </div>
+          </button>
+          <button class="quick-action-btn">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: rgba(245, 158, 11, 0.1);">
+              <i data-lucide="plus" class="w-4 h-4" style="color: var(--brand-centex);"></i>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-gray-900">Centex Invoice</p>
+              <p class="text-xs text-gray-500">Sports & Live</p>
+            </div>
+          </button>
+          <button class="quick-action-btn">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: rgba(59, 130, 246, 0.1);">
+              <i data-lucide="plus" class="w-4 h-4" style="color: var(--brand-gfam-media);"></i>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-gray-900">GFAM Media Invoice</p>
+              <p class="text-xs text-gray-500">Studio & Podcasts</p>
+            </div>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Invoices Table -->
+    <div class="card animate-fade-in-up stagger-5">
+      <div class="p-6 border-b border-gray-100">
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg font-semibold text-gray-900">Recent Invoices</h2>
+          <a href="#" class="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 transition-colors">
+            View All
+            <i data-lucide="arrow-right" class="w-4 h-4"></i>
+          </a>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr class="text-left text-gray-500 text-sm border-b border-gray-100">
+              <th class="px-6 py-4 font-medium">Invoice</th>
+              <th class="px-6 py-4 font-medium">Client</th>
+              <th class="px-6 py-4 font-medium">Brand</th>
+              <th class="px-6 py-4 font-medium">Amount</th>
+              <th class="px-6 py-4 font-medium">Date</th>
+              <th class="px-6 py-4 font-medium">Status</th>
+              <th class="px-6 py-4 font-medium"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="table-row animate-slide-in stagger-1">
+              <td class="px-6 py-4">
+                <span class="font-medium text-gray-900">#INV-1042</span>
+              </td>
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium">AC</div>
+                  <span class="text-gray-700">Acme Corp</span>
+                </div>
+              </td>
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full" style="background: var(--brand-sankofa);"></div>
+                  <span class="text-gray-600 text-sm">Sankofa</span>
+                </div>
+              </td>
+              <td class="px-6 py-4 font-medium text-gray-900">$2,400.00</td>
+              <td class="px-6 py-4 text-gray-500 text-sm">Jan 15, 2026</td>
+              <td class="px-6 py-4">
+                <span class="status-badge status-paid">Paid</span>
+              </td>
+              <td class="px-6 py-4">
+                <button class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                  <i data-lucide="more-horizontal" class="w-4 h-4 text-gray-400"></i>
+                </button>
+              </td>
+            </tr>
+            <tr class="table-row animate-slide-in stagger-2">
+              <td class="px-6 py-4">
+                <span class="font-medium text-gray-900">#INV-1041</span>
+              </td>
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-xs font-medium text-purple-600">TS</div>
+                  <span class="text-gray-700">TechStart Inc</span>
+                </div>
+              </td>
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full" style="background: var(--brand-lighthouse);"></div>
+                  <span class="text-gray-600 text-sm">Lighthouse</span>
+                </div>
+              </td>
+              <td class="px-6 py-4 font-medium text-gray-900">$1,850.00</td>
+              <td class="px-6 py-4 text-gray-500 text-sm">Jan 14, 2026</td>
+              <td class="px-6 py-4">
+                <span class="status-badge status-pending">Pending</span>
+              </td>
+              <td class="px-6 py-4">
+                <button class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                  <i data-lucide="more-horizontal" class="w-4 h-4 text-gray-400"></i>
+                </button>
+              </td>
+            </tr>
+            <tr class="table-row animate-slide-in stagger-3">
+              <td class="px-6 py-4">
+                <span class="font-medium text-gray-900">#INV-1040</span>
+              </td>
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-xs font-medium text-orange-600">MC</div>
+                  <span class="text-gray-700">MediaCo</span>
+                </div>
+              </td>
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full" style="background: var(--brand-centex);"></div>
+                  <span class="text-gray-600 text-sm">Centex</span>
+                </div>
+              </td>
+              <td class="px-6 py-4 font-medium text-gray-900">$3,200.00</td>
+              <td class="px-6 py-4 text-gray-500 text-sm">Jan 12, 2026</td>
+              <td class="px-6 py-4">
+                <span class="status-badge status-paid">Paid</span>
+              </td>
+              <td class="px-6 py-4">
+                <button class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                  <i data-lucide="more-horizontal" class="w-4 h-4 text-gray-400"></i>
+                </button>
+              </td>
+            </tr>
+            <tr class="table-row animate-slide-in stagger-4">
+              <td class="px-6 py-4">
+                <span class="font-medium text-gray-900">#INV-1039</span>
+              </td>
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-xs font-medium text-blue-600">SX</div>
+                  <span class="text-gray-700">StartupXYZ</span>
+                </div>
+              </td>
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full" style="background: var(--brand-gfam-media);"></div>
+                  <span class="text-gray-600 text-sm">GFAM Media</span>
+                </div>
+              </td>
+              <td class="px-6 py-4 font-medium text-gray-900">$890.00</td>
+              <td class="px-6 py-4 text-gray-500 text-sm">Jan 10, 2026</td>
+              <td class="px-6 py-4">
+                <span class="status-badge status-pending">Pending</span>
+              </td>
+              <td class="px-6 py-4">
+                <button class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                  <i data-lucide="more-horizontal" class="w-4 h-4 text-gray-400"></i>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Initialize Lucide icons
+    lucide.createIcons();
+
+    // Animate KPI cards on load
+    document.addEventListener('DOMContentLoaded', () => {
+      const kpiCards = document.querySelectorAll('.kpi-card');
+      kpiCards.forEach((card, index) => {
+        setTimeout(() => {
+          card.style.opacity = '1';
+        }, 100 * (index + 1));
+      });
+
+      const tableRows = document.querySelectorAll('.table-row');
+      tableRows.forEach((row, index) => {
+        setTimeout(() => {
+          row.style.opacity = '1';
+        }, 300 + (50 * index));
+      });
+    });
+  </script>
+</body>
+</html>

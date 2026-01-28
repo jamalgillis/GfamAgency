@@ -1,0 +1,1674 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GFAM Agency - Clients</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ===== THEME VARIABLES ===== */
+    :root {
+      --brand-sankofa: #10b981;
+      --brand-lighthouse: #8b5cf6;
+      --brand-centex: #f59e0b;
+      --brand-gfam-media: #3b82f6;
+      --status-active: #10b981;
+      --status-inactive: #6b7280;
+    }
+
+    /* Light Theme */
+    [data-theme="light"] {
+      --bg-primary: #f8f9fa;
+      --bg-secondary: #ffffff;
+      --bg-tertiary: #f3f4f6;
+      --bg-hover: #e5e7eb;
+      --text-primary: #1a1a2e;
+      --text-secondary: #4b5563;
+      --text-muted: #6b7280;
+      --text-inverse: #ffffff;
+      --border-color: #e5e7eb;
+      --border-light: #f3f4f6;
+      --sidebar-bg: #1a1a2e;
+      --sidebar-hover: #2d2d44;
+      --sidebar-active: #3d3d5c;
+      --sidebar-text: #9ca3af;
+      --sidebar-text-active: #ffffff;
+      --sidebar-border: #374151;
+      --card-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      --card-shadow-hover: 0 20px 40px -10px rgba(0,0,0,0.15);
+      --input-bg: #ffffff;
+      --tab-bg: #ffffff;
+      --tab-active-bg: #1a1a2e;
+      --tab-active-text: #ffffff;
+      --avatar-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      --row-hover: #f9fafb;
+    }
+
+    /* Dark Theme */
+    [data-theme="dark"] {
+      --bg-primary: #0f0f1a;
+      --bg-secondary: #1a1a2e;
+      --bg-tertiary: #252540;
+      --bg-hover: #2d2d4a;
+      --text-primary: #f3f4f6;
+      --text-secondary: #d1d5db;
+      --text-muted: #9ca3af;
+      --text-inverse: #1a1a2e;
+      --border-color: #2d2d4a;
+      --border-light: #252540;
+      --sidebar-bg: #0a0a14;
+      --sidebar-hover: #1a1a2e;
+      --sidebar-active: #252540;
+      --sidebar-text: #6b7280;
+      --sidebar-text-active: #ffffff;
+      --sidebar-border: #252540;
+      --card-shadow: 0 1px 3px rgba(0,0,0,0.3);
+      --card-shadow-hover: 0 20px 40px -10px rgba(0,0,0,0.5);
+      --input-bg: #252540;
+      --tab-bg: #1a1a2e;
+      --tab-active-bg: #ffffff;
+      --tab-active-text: #1a1a2e;
+      --avatar-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      --row-hover: #252540;
+    }
+
+    /* ===== BASE STYLES ===== */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+      background-color: var(--bg-primary) !important;
+      color: var(--text-primary) !important;
+      line-height: 1.5 !important;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    /* ===== ANIMATIONS ===== */
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes cardEnter {
+      from { opacity: 0; transform: translateY(30px) scale(0.95); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes rowEnter {
+      from { opacity: 0; transform: translateX(-15px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    @keyframes pillPop {
+      from { opacity: 0; transform: scale(0); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    @keyframes countUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes pendingPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-5px); }
+    }
+
+    @keyframes avatarGlow {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.4); }
+      50% { box-shadow: 0 0 0 8px rgba(102, 126, 234, 0); }
+    }
+
+    .animate-fade-in-up {
+      animation: fadeInUp 0.4s ease-out forwards;
+    }
+
+    .animate-card-enter {
+      opacity: 0;
+      animation: cardEnter 0.4s ease-out forwards;
+    }
+
+    .animate-row-enter {
+      opacity: 0;
+      animation: rowEnter 0.3s ease-out forwards;
+    }
+
+    .stagger-1 { animation-delay: 0.05s; }
+    .stagger-2 { animation-delay: 0.10s; }
+    .stagger-3 { animation-delay: 0.15s; }
+    .stagger-4 { animation-delay: 0.20s; }
+    .stagger-5 { animation-delay: 0.25s; }
+    .stagger-6 { animation-delay: 0.30s; }
+
+    /* ===== SIDEBAR ===== */
+    .sidebar {
+      background: var(--sidebar-bg);
+      width: 260px;
+      min-height: 100vh;
+      position: fixed;
+      left: 0;
+      top: 0;
+      display: flex;
+      flex-direction: column;
+      transition: background-color 0.3s ease;
+      z-index: 50;
+    }
+
+    .sidebar-link {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 20px;
+      color: var(--sidebar-text);
+      text-decoration: none;
+      transition: all 0.15s ease;
+      border-left: 3px solid transparent;
+    }
+
+    .sidebar-link:hover {
+      background: var(--sidebar-hover);
+      color: var(--sidebar-text-active);
+      padding-left: 24px;
+    }
+
+    .sidebar-link.active {
+      background: var(--sidebar-active);
+      color: var(--sidebar-text-active);
+      border-left-color: var(--brand-sankofa);
+    }
+
+    /* ===== SUMMARY CARDS ===== */
+    .summary-card {
+      background: var(--bg-secondary);
+      border-radius: 16px;
+      border: 1px solid var(--border-color);
+      box-shadow: var(--card-shadow);
+      padding: 20px 24px;
+      transition: all 0.2s ease;
+    }
+
+    .summary-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--card-shadow-hover);
+    }
+
+    .summary-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.3s ease;
+    }
+
+    .summary-card:hover .summary-icon {
+      transform: scale(1.1);
+    }
+
+    .summary-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text-primary);
+      animation: countUp 0.6s ease-out forwards;
+    }
+
+    .summary-label {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* ===== VIEW TOGGLE ===== */
+    .view-toggle {
+      display: flex;
+      background: var(--bg-tertiary);
+      border-radius: 10px;
+      padding: 4px;
+      border: 1px solid var(--border-color);
+    }
+
+    .view-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 32px;
+      border-radius: 6px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .view-btn:hover {
+      color: var(--text-primary);
+    }
+
+    .view-btn.active {
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    /* ===== FILTER BAR ===== */
+    .filter-bar {
+      background: var(--bg-secondary);
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+      padding: 16px 20px;
+    }
+
+    .tab-container {
+      display: flex;
+      gap: 6px;
+      padding: 4px;
+      background: var(--bg-tertiary);
+      border-radius: 10px;
+    }
+
+    .tab {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .tab:hover {
+      color: var(--text-primary);
+      background: var(--bg-hover);
+    }
+
+    .tab.active {
+      background: var(--tab-active-bg);
+      color: var(--tab-active-text);
+    }
+
+    .tab .tab-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    /* ===== DROPDOWN ===== */
+    .dropdown {
+      position: relative;
+    }
+
+    .dropdown-trigger {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .dropdown-trigger:hover {
+      border-color: var(--text-muted);
+    }
+
+    .dropdown-menu {
+      position: absolute;
+      top: calc(100% + 8px);
+      left: 0;
+      min-width: 160px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      box-shadow: var(--card-shadow-hover);
+      padding: 6px;
+      z-index: 100;
+      display: none;
+    }
+
+    .dropdown.open .dropdown-menu {
+      display: block;
+      animation: fadeInUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    .dropdown-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.1s ease;
+    }
+
+    .dropdown-item:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    .dropdown-item.active {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      font-weight: 500;
+    }
+
+    /* ===== CLIENT CARDS ===== */
+    .clients-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+
+    .client-card {
+      background: var(--bg-secondary);
+      border-radius: 16px;
+      border: 1px solid var(--border-color);
+      box-shadow: var(--card-shadow);
+      padding: 24px;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+
+    .client-card:hover {
+      transform: translateY(-6px);
+      box-shadow: var(--card-shadow-hover);
+    }
+
+    .client-card:active {
+      transform: translateY(-3px) scale(0.99);
+    }
+
+    /* ===== AVATAR ===== */
+    .avatar {
+      width: 56px;
+      height: 56px;
+      border-radius: 14px;
+      background: var(--avatar-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 18px;
+      color: white;
+      transition: all 0.3s ease;
+      flex-shrink: 0;
+    }
+
+    .client-card:hover .avatar {
+      transform: scale(1.08);
+      animation: avatarGlow 1.5s infinite;
+    }
+
+    .avatar-sm {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      font-size: 14px;
+    }
+
+    /* Avatar color variations */
+    .avatar-1 { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .avatar-2 { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+    .avatar-3 { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+    .avatar-4 { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
+    .avatar-5 { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
+    .avatar-6 { background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); color: #333; }
+
+    /* ===== BRAND PILLS ===== */
+    .brand-pills {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .brand-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 500;
+      animation: pillPop 0.25s ease-out forwards;
+    }
+
+    .brand-pill-sankofa { background: rgba(16, 185, 129, 0.12); color: var(--brand-sankofa); }
+    .brand-pill-lighthouse { background: rgba(139, 92, 246, 0.12); color: var(--brand-lighthouse); }
+    .brand-pill-centex { background: rgba(245, 158, 11, 0.12); color: var(--brand-centex); }
+    .brand-pill-gfam-media { background: rgba(59, 130, 246, 0.12); color: var(--brand-gfam-media); }
+
+    .brand-pill .pill-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+    }
+
+    /* ===== CLIENT STATS ===== */
+    .client-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      padding-top: 16px;
+      margin-top: 16px;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .client-stat {
+      text-align: center;
+    }
+
+    .client-stat-value {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .client-stat-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .pending-amount {
+      color: var(--brand-centex);
+      animation: pendingPulse 2s infinite;
+    }
+
+    /* ===== CARD ACTIONS ===== */
+    .card-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: all 0.2s ease;
+    }
+
+    .client-card:hover .card-actions {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .card-btn {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .card-btn:hover {
+      background: var(--text-primary);
+      color: var(--bg-primary);
+      border-color: var(--text-primary);
+    }
+
+    .card-btn.primary {
+      background: var(--text-primary);
+      color: var(--bg-primary);
+      border-color: var(--text-primary);
+    }
+
+    .card-btn.primary:hover {
+      opacity: 0.9;
+    }
+
+    /* ===== STATUS INDICATOR ===== */
+    .status-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .status-active .status-dot {
+      background: var(--status-active);
+      box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+    }
+
+    .status-inactive .status-dot {
+      background: var(--status-inactive);
+    }
+
+    /* ===== LIST VIEW ===== */
+    .clients-list {
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .clients-list.active {
+      display: flex;
+    }
+
+    .clients-grid.active {
+      display: grid;
+    }
+
+    .client-row {
+      background: var(--bg-secondary);
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+      padding: 16px 20px;
+      display: grid;
+      grid-template-columns: auto 1fr 200px 120px 100px 140px auto;
+      gap: 20px;
+      align-items: center;
+      transition: all 0.15s ease;
+      cursor: pointer;
+    }
+
+    .client-row:hover {
+      background: var(--row-hover);
+      transform: translateX(4px);
+      box-shadow: var(--card-shadow);
+    }
+
+    .row-info {
+      min-width: 0;
+    }
+
+    .row-name {
+      font-weight: 600;
+      color: var(--text-primary);
+      font-size: 14px;
+    }
+
+    .row-meta {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .row-contact {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .row-contact-secondary {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .row-revenue {
+      text-align: right;
+    }
+
+    .row-revenue-value {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--text-primary);
+    }
+
+    .row-revenue-pending {
+      font-size: 12px;
+      color: var(--brand-centex);
+      margin-top: 2px;
+    }
+
+    .row-invoices {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    .row-date {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .row-action {
+      padding: 8px;
+      border-radius: 8px;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .row-action:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    /* ===== BUTTONS ===== */
+    .btn-primary {
+      background: var(--text-primary);
+      color: var(--bg-primary);
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-primary:hover {
+      opacity: 0.9;
+      transform: scale(1.02);
+    }
+
+    /* ===== INPUTS ===== */
+    .search-input {
+      transition: all 0.2s ease;
+      border: 1px solid var(--border-color);
+      background: var(--input-bg);
+      color: var(--text-primary);
+    }
+
+    .search-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: var(--text-muted);
+      box-shadow: 0 0 0 3px rgba(107, 114, 128, 0.15);
+      width: 280px;
+    }
+
+    /* ===== THEME TOGGLE ===== */
+    .theme-toggle {
+      position: relative;
+      width: 56px;
+      height: 28px;
+      background: var(--bg-tertiary);
+      border-radius: 20px;
+      border: 1px solid var(--border-color);
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      padding: 0 4px;
+    }
+
+    .theme-toggle-thumb {
+      position: absolute;
+      width: 22px;
+      height: 22px;
+      background: var(--text-primary);
+      border-radius: 50%;
+      transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      left: 3px;
+    }
+
+    [data-theme="dark"] .theme-toggle-thumb {
+      left: calc(100% - 25px);
+    }
+
+    .theme-toggle-thumb svg {
+      width: 14px;
+      height: 14px;
+      color: var(--bg-primary);
+    }
+
+    .theme-toggle-icon {
+      position: absolute;
+      width: 14px;
+      height: 14px;
+    }
+
+    .theme-toggle .sun-icon { right: 8px; color: var(--text-muted); }
+    .theme-toggle .moon-icon { left: 8px; color: var(--text-muted); }
+
+    /* ===== LAYOUT ===== */
+    .main-content {
+      margin-left: 260px;
+      padding: 24px 32px;
+      min-height: 100vh;
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 1400px) {
+      .clients-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 1200px) {
+      .client-row {
+        grid-template-columns: auto 1fr 150px 100px 120px auto;
+      }
+      .hide-tablet { display: none !important; }
+    }
+
+    @media (max-width: 1024px) {
+      .sidebar { width: 80px; }
+      .sidebar-link span { display: none; }
+      .sidebar-link { justify-content: center; padding: 16px; }
+      .main-content { margin-left: 80px; }
+      .brand-section, .logo-text { display: none; }
+    }
+
+    @media (max-width: 768px) {
+      .main-content { padding: 16px; }
+      .clients-grid { grid-template-columns: 1fr; }
+      .summary-grid { grid-template-columns: repeat(2, 1fr) !important; }
+      .client-row {
+        grid-template-columns: auto 1fr auto;
+        gap: 12px;
+      }
+      .hide-mobile { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="p-6 border-b" style="border-color: var(--sidebar-border);">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-500 to-blue-500 flex items-center justify-center">
+          <span class="text-white font-bold text-lg">G</span>
+        </div>
+        <div class="logo-text">
+          <h1 class="text-white font-semibold text-lg">GFAM</h1>
+          <p class="text-xs" style="color: var(--sidebar-text);">Agency</p>
+        </div>
+      </div>
+    </div>
+
+    <nav class="py-4 flex-1">
+      <a href="dashboard_2.html" class="sidebar-link">
+        <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+        <span>Dashboard</span>
+      </a>
+      <a href="services_1.html" class="sidebar-link">
+        <i data-lucide="briefcase" class="w-5 h-5"></i>
+        <span>Services</span>
+      </a>
+      <a href="invoices_1.html" class="sidebar-link">
+        <i data-lucide="file-text" class="w-5 h-5"></i>
+        <span>Invoices</span>
+      </a>
+      <a href="#" class="sidebar-link active">
+        <i data-lucide="users" class="w-5 h-5"></i>
+        <span>Clients</span>
+      </a>
+      <a href="#" class="sidebar-link">
+        <i data-lucide="settings" class="w-5 h-5"></i>
+        <span>Settings</span>
+      </a>
+
+      <div class="brand-section mt-6 px-5">
+        <p class="text-xs font-medium uppercase tracking-wider mb-3" style="color: var(--sidebar-text);">Brands</p>
+        <div class="space-y-2">
+          <div class="brand-item flex items-center gap-3 py-2 px-3 rounded-lg cursor-pointer transition-all" style="background: var(--sidebar-active);">
+            <div class="w-2.5 h-2.5 rounded-full" style="background: var(--brand-sankofa)"></div>
+            <span class="text-sm" style="color: var(--sidebar-text-active);">Sankofa</span>
+          </div>
+          <div class="brand-item flex items-center gap-3 py-2 px-3 rounded-lg cursor-pointer hover:opacity-80 transition-all">
+            <div class="w-2.5 h-2.5 rounded-full" style="background: var(--brand-lighthouse)"></div>
+            <span class="text-sm" style="color: var(--sidebar-text);">Lighthouse</span>
+          </div>
+          <div class="brand-item flex items-center gap-3 py-2 px-3 rounded-lg cursor-pointer hover:opacity-80 transition-all">
+            <div class="w-2.5 h-2.5 rounded-full" style="background: var(--brand-centex)"></div>
+            <span class="text-sm" style="color: var(--sidebar-text);">Centex</span>
+          </div>
+          <div class="brand-item flex items-center gap-3 py-2 px-3 rounded-lg cursor-pointer hover:opacity-80 transition-all">
+            <div class="w-2.5 h-2.5 rounded-full" style="background: var(--brand-gfam-media)"></div>
+            <span class="text-sm" style="color: var(--sidebar-text);">GFAM Media</span>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <div class="p-4 border-t" style="border-color: var(--sidebar-border);">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+          <span class="text-white text-sm font-medium">JG</span>
+        </div>
+        <div class="logo-text">
+          <p class="text-white text-sm font-medium">J. Gillis</p>
+          <p class="text-xs" style="color: var(--sidebar-text);">Admin</p>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <!-- Header -->
+    <header class="flex items-center justify-between mb-6 animate-fade-in-up flex-wrap gap-4">
+      <div>
+        <h1 class="text-2xl font-semibold" style="color: var(--text-primary);">Clients</h1>
+        <p class="text-sm mt-1" style="color: var(--text-muted);">Manage your client relationships</p>
+      </div>
+      <div class="flex items-center gap-4">
+        <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+          <i data-lucide="sun" class="theme-toggle-icon sun-icon"></i>
+          <i data-lucide="moon" class="theme-toggle-icon moon-icon"></i>
+          <div class="theme-toggle-thumb">
+            <i data-lucide="sun" class="light-icon"></i>
+            <i data-lucide="moon" class="dark-icon" style="display: none;"></i>
+          </div>
+        </button>
+        <div class="relative">
+          <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style="color: var(--text-muted);"></i>
+          <input type="text" placeholder="Search clients..." class="search-input pl-10 pr-4 py-2.5 rounded-lg w-64 text-sm" id="searchInput">
+        </div>
+        <div class="view-toggle">
+          <button class="view-btn active" data-view="grid" title="Grid view">
+            <i data-lucide="layout-grid" class="w-4 h-4"></i>
+          </button>
+          <button class="view-btn" data-view="list" title="List view">
+            <i data-lucide="list" class="w-4 h-4"></i>
+          </button>
+        </div>
+        <button class="btn-primary">
+          <i data-lucide="plus" class="w-4 h-4"></i>
+          Add Client
+        </button>
+      </div>
+    </header>
+
+    <!-- Summary Cards -->
+    <div class="summary-grid grid grid-cols-4 gap-6 mb-6">
+      <div class="summary-card animate-card-enter stagger-1">
+        <div class="flex items-start justify-between">
+          <div class="summary-icon" style="background: var(--bg-tertiary);">
+            <i data-lucide="users" class="w-5 h-5" style="color: var(--text-primary);"></i>
+          </div>
+          <div class="status-indicator status-active">
+            <span class="status-dot"></span>
+          </div>
+        </div>
+        <div class="mt-4">
+          <div class="summary-value">86</div>
+          <div class="summary-label">Total Clients</div>
+        </div>
+      </div>
+
+      <div class="summary-card animate-card-enter stagger-2">
+        <div class="flex items-start justify-between">
+          <div class="summary-icon" style="background: rgba(16, 185, 129, 0.12);">
+            <i data-lucide="user-check" class="w-5 h-5" style="color: var(--status-active);"></i>
+          </div>
+        </div>
+        <div class="mt-4">
+          <div class="summary-value" style="color: var(--status-active);">72</div>
+          <div class="summary-label">Active Clients</div>
+        </div>
+      </div>
+
+      <div class="summary-card animate-card-enter stagger-3">
+        <div class="flex items-start justify-between">
+          <div class="summary-icon" style="background: rgba(59, 130, 246, 0.12);">
+            <i data-lucide="user-plus" class="w-5 h-5" style="color: var(--brand-gfam-media);"></i>
+          </div>
+        </div>
+        <div class="mt-4">
+          <div class="summary-value" style="color: var(--brand-gfam-media);">+8</div>
+          <div class="summary-label">New This Month</div>
+        </div>
+      </div>
+
+      <div class="summary-card animate-card-enter stagger-4">
+        <div class="flex items-start justify-between">
+          <div class="summary-icon" style="background: rgba(139, 92, 246, 0.12);">
+            <i data-lucide="trending-up" class="w-5 h-5" style="color: var(--brand-lighthouse);"></i>
+          </div>
+        </div>
+        <div class="mt-4">
+          <div class="summary-value" style="color: var(--brand-lighthouse);">$42,580</div>
+          <div class="summary-label">Revenue YTD</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar mb-6 animate-fade-in-up" style="animation-delay: 0.2s;">
+      <div class="flex items-center justify-between flex-wrap gap-4">
+        <div class="tab-container">
+          <button class="tab active" data-filter="all">All Clients</button>
+          <button class="tab" data-filter="sankofa">
+            <span class="tab-dot" style="background: var(--brand-sankofa);"></span>
+            Sankofa
+          </button>
+          <button class="tab" data-filter="lighthouse">
+            <span class="tab-dot" style="background: var(--brand-lighthouse);"></span>
+            Lighthouse
+          </button>
+          <button class="tab" data-filter="centex">
+            <span class="tab-dot" style="background: var(--brand-centex);"></span>
+            Centex
+          </button>
+          <button class="tab" data-filter="gfam-media">
+            <span class="tab-dot" style="background: var(--brand-gfam-media);"></span>
+            GFAM Media
+          </button>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <div class="dropdown" id="statusDropdown">
+            <button class="dropdown-trigger">
+              <i data-lucide="filter" class="w-4 h-4"></i>
+              Status: All
+              <i data-lucide="chevron-down" class="w-4 h-4"></i>
+            </button>
+            <div class="dropdown-menu">
+              <div class="dropdown-item active">All Clients</div>
+              <div class="dropdown-item">
+                <span class="w-2 h-2 rounded-full" style="background: var(--status-active);"></span>
+                Active
+              </div>
+              <div class="dropdown-item">
+                <span class="w-2 h-2 rounded-full" style="background: var(--status-inactive);"></span>
+                Inactive
+              </div>
+            </div>
+          </div>
+
+          <div class="dropdown" id="sortDropdown">
+            <button class="dropdown-trigger">
+              <i data-lucide="arrow-up-down" class="w-4 h-4"></i>
+              Sort: Revenue
+              <i data-lucide="chevron-down" class="w-4 h-4"></i>
+            </button>
+            <div class="dropdown-menu">
+              <div class="dropdown-item active">Revenue (High to Low)</div>
+              <div class="dropdown-item">Name (A-Z)</div>
+              <div class="dropdown-item">Recently Active</div>
+              <div class="dropdown-item">Newest First</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Clients Grid View -->
+    <div class="clients-grid active" id="clientsGrid">
+      <!-- Client 1 -->
+      <div class="client-card animate-card-enter stagger-1" data-brands="sankofa,lighthouse">
+        <div class="flex items-start gap-4 mb-4">
+          <div class="avatar avatar-1">AC</div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between">
+              <h3 class="font-semibold text-base" style="color: var(--text-primary);">Acme Corporation</h3>
+              <div class="status-indicator status-active">
+                <span class="status-dot"></span>
+              </div>
+            </div>
+            <p class="text-sm mt-1 truncate" style="color: var(--text-muted);">john.smith@acme.com</p>
+            <p class="text-xs mt-0.5" style="color: var(--text-muted);">+1 (555) 123-4567</p>
+          </div>
+        </div>
+        <div class="brand-pills mb-4">
+          <span class="brand-pill brand-pill-sankofa" style="animation-delay: 0.1s;">
+            <span class="pill-dot" style="background: var(--brand-sankofa);"></span>
+            Sankofa
+          </span>
+          <span class="brand-pill brand-pill-lighthouse" style="animation-delay: 0.15s;">
+            <span class="pill-dot" style="background: var(--brand-lighthouse);"></span>
+            Lighthouse
+          </span>
+        </div>
+        <div class="client-stats">
+          <div class="client-stat">
+            <div class="client-stat-value">$12,400</div>
+            <div class="client-stat-label">Total Spent</div>
+          </div>
+          <div class="client-stat">
+            <div class="client-stat-value">8</div>
+            <div class="client-stat-label">Invoices</div>
+          </div>
+          <div class="client-stat">
+            <div class="client-stat-value pending-amount">$2,400</div>
+            <div class="client-stat-label">Pending</div>
+          </div>
+        </div>
+        <div class="flex items-center justify-between mt-4 pt-4" style="border-top: 1px solid var(--border-color);">
+          <span class="text-xs" style="color: var(--text-muted);">Last: Jan 15, 2026</span>
+          <span class="text-xs" style="color: var(--text-muted);">Since Mar 2024</span>
+        </div>
+        <div class="card-actions">
+          <button class="card-btn">
+            <i data-lucide="eye" class="w-4 h-4"></i>
+            View
+          </button>
+          <button class="card-btn primary">
+            <i data-lucide="file-plus" class="w-4 h-4"></i>
+            Invoice
+          </button>
+        </div>
+      </div>
+
+      <!-- Client 2 -->
+      <div class="client-card animate-card-enter stagger-2" data-brands="lighthouse">
+        <div class="flex items-start gap-4 mb-4">
+          <div class="avatar avatar-2">TS</div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between">
+              <h3 class="font-semibold text-base" style="color: var(--text-primary);">TechStart Inc</h3>
+              <div class="status-indicator status-active">
+                <span class="status-dot"></span>
+              </div>
+            </div>
+            <p class="text-sm mt-1 truncate" style="color: var(--text-muted);">hello@techstart.io</p>
+            <p class="text-xs mt-0.5" style="color: var(--text-muted);">+1 (555) 987-6543</p>
+          </div>
+        </div>
+        <div class="brand-pills mb-4">
+          <span class="brand-pill brand-pill-lighthouse">
+            <span class="pill-dot" style="background: var(--brand-lighthouse);"></span>
+            Lighthouse
+          </span>
+        </div>
+        <div class="client-stats">
+          <div class="client-stat">
+            <div class="client-stat-value">$8,200</div>
+            <div class="client-stat-label">Total Spent</div>
+          </div>
+          <div class="client-stat">
+            <div class="client-stat-value">5</div>
+            <div class="client-stat-label">Invoices</div>
+          </div>
+          <div class="client-stat">
+            <div class="client-stat-value" style="color: var(--status-active);">$0</div>
+            <div class="client-stat-label">Pending</div>
+          </div>
+        </div>
+        <div class="flex items-center justify-between mt-4 pt-4" style="border-top: 1px solid var(--border-color);">
+          <span class="text-xs" style="color: var(--text-muted);">Last: Jan 10, 2026</span>
+          <span class="text-xs" style="color: var(--text-muted);">Since Jun 2024</span>
+        </div>
+        <div class="card-actions">
+          <button class="card-btn">
+            <i data-lucide="eye" class="w-4 h-4"></i>
+            View
+          </button>
+          <button class="card-btn primary">
+            <i data-lucide="file-plus" class="w-4 h-4"></i>
+            Invoice
+          </button>
+        </div>
+      </div>
+
+      <!-- Client 3 -->
+      <div class="client-card animate-card-enter stagger-3" data-brands="centex">
+        <div class="flex items-start gap-4 mb-4">
+          <div class="avatar avatar-3">MC</div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between">
+              <h3 class="font-semibold text-base" style="color: var(--text-primary);">MediaCo</h3>
+              <div class="status-indicator status-active">
+                <span class="status-dot"></span>
+              </div>
+            </div>
+            <p class="text-sm mt-1 truncate" style="color: var(--text-muted);">media@mediaco.com</p>
+            <p class="text-xs mt-0.5" style="color: var(--text-muted);">+1 (555) 456-7890</p>
+          </div>
+        </div>
+        <div class="brand-pills mb-4">
+          <span class="brand-pill brand-pill-centex">
+            <span class="pill-dot" style="background: var(--brand-centex);"></span>
+            Centex
+          </span>
+        </div>
+        <div class="client-stats">
+          <div class="client-stat">
+            <div class="client-stat-value">$6,800</div>
+            <div class="client-stat-label">Total Spent</div>
+          </div>
+          <div class="client-stat">
+            <div class="client-stat-value">4</div>
+            <div class="client-stat-label">Invoices</div>
+          </div>
+          <div class="client-stat">
+            <div class="client-stat-value pending-amount">$1,200</div>
+            <div class="client-stat-label">Pending</div>
+          </div>
+        </div>
+        <div class="flex items-center justify-between mt-4 pt-4" style="border-top: 1px solid var(--border-color);">
+          <span class="text-xs" style="color: var(--text-muted);">Last: Jan 8, 2026</span>
+          <span class="text-xs" style="color: var(--text-muted);">Since Aug 2024</span>
+        </div>
+        <div class="card-actions">
+          <button class="card-btn">
+            <i data-lucide="eye" class="w-4 h-4"></i>
+            View
+          </button>
+          <button class="card-btn primary">
+            <i data-lucide="file-plus" class="w-4 h-4"></i>
+            Invoice
+          </button>
+        </div>
+      </div>
+
+      <!-- Client 4 -->
+      <div class="client-card animate-card-enter stagger-4" data-brands="gfam-media">
+        <div class="flex items-start gap-4 mb-4">
+          <div class="avatar avatar-4">SX</div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between">
+              <h3 class="font-semibold text-base" style="color: var(--text-primary);">StartupXYZ</h3>
+              <div class="status-indicator status-active">
+                <span class="status-dot"></span>
+              </div>
+            </div>
+            <p class="text-sm mt-1 truncate" style="color: var(--text-muted);">team@startupxyz.co</p>
+            <p class="text-xs mt-0.5" style="color: var(--text-muted);">+1 (555) 321-0987</p>
+          </div>
+        </div>
+        <div class="brand-pills mb-4">
+          <span class="brand-pill brand-pill-gfam-media">
+            <span class="pill-dot" style="background: var(--brand-gfam-media);"></span>
+            GFAM Media
+          </span>
+        </div>
+        <div class="client-stats">
+          <div class="client-stat">
+            <div class="client-stat-value">$3,560</div>
+            <div class="client-stat-label">Total Spent</div>
+          </div>
+          <div class="client-stat">
+            <div class="client-stat-value">6</div>
+            <div class="client-stat-label">Invoices</div>
+          </div>
+          <div class="client-stat">
+            <div class="client-stat-value pending-amount">$890</div>
+            <div class="client-stat-label">Pending</div>
+          </div>
+        </div>
+        <div class="flex items-center justify-between mt-4 pt-4" style="border-top: 1px solid var(--border-color);">
+          <span class="text-xs" style="color: var(--text-muted);">Last: Jan 5, 2026</span>
+          <span class="text-xs" style="color: var(--text-muted);">Since Sep 2024</span>
+        </div>
+        <div class="card-actions">
+          <button class="card-btn">
+            <i data-lucide="eye" class="w-4 h-4"></i>
+            View
+          </button>
+          <button class="card-btn primary">
+            <i data-lucide="file-plus" class="w-4 h-4"></i>
+            Invoice
+          </button>
+        </div>
+      </div>
+
+      <!-- Client 5 -->
+      <div class="client-card animate-card-enter stagger-5" data-brands="sankofa">
+        <div class="flex items-start gap-4 mb-4">
+          <div class="avatar avatar-5">GC</div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between">
+              <h3 class="font-semibold text-base" style="color: var(--text-primary);">GrowthCo</h3>
+              <div class="status-indicator status-active">
+                <span class="status-dot"></span>
+              </div>
+            </div>
+            <p class="text-sm mt-1 truncate" style="color: var(--text-muted);">contact@growthco.io</p>
+            <p class="text-xs mt-0.5" style="color: var(--text-muted);">+1 (555) 654-3210</p>
+          </div>
+        </div>
+        <div class="brand-pills mb-4">
+          <span class="brand-pill brand-pill-sankofa">
+            <span class="pill-dot" style="background: var(--brand-sankofa);"></span>
+            Sankofa
+          </span>
+        </div>
+        <div class="client-stats">
+          <div class="client-stat">
+            <div class="client-stat-value">$4,800</div>
+            <div class="client-stat-label">Total Spent</div>
+          </div>
+          <div class="client-stat">
+            <div class="client-stat-value">6</div>
+            <div class="client-stat-label">Invoices</div>
+          </div>
+          <div class="client-stat">
+            <div class="client-stat-value pending-amount">$800</div>
+            <div class="client-stat-label">Pending</div>
+          </div>
+        </div>
+        <div class="flex items-center justify-between mt-4 pt-4" style="border-top: 1px solid var(--border-color);">
+          <span class="text-xs" style="color: var(--text-muted);">Last: Jan 3, 2026</span>
+          <span class="text-xs" style="color: var(--text-muted);">Since Nov 2024</span>
+        </div>
+        <div class="card-actions">
+          <button class="card-btn">
+            <i data-lucide="eye" class="w-4 h-4"></i>
+            View
+          </button>
+          <button class="card-btn primary">
+            <i data-lucide="file-plus" class="w-4 h-4"></i>
+            Invoice
+          </button>
+        </div>
+      </div>
+
+      <!-- Client 6 -->
+      <div class="client-card animate-card-enter stagger-6" data-brands="lighthouse,centex">
+        <div class="flex items-start gap-4 mb-4">
+          <div class="avatar avatar-6">EP</div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between">
+              <h3 class="font-semibold text-base" style="color: var(--text-primary);">EventPros</h3>
+              <div class="status-indicator status-inactive">
+                <span class="status-dot"></span>
+              </div>
+            </div>
+            <p class="text-sm mt-1 truncate" style="color: var(--text-muted);">hello@eventpros.com</p>
+            <p class="text-xs mt-0.5" style="color: var(--text-muted);">+1 (555) 789-0123</p>
+          </div>
+        </div>
+        <div class="brand-pills mb-4">
+          <span class="brand-pill brand-pill-lighthouse">
+            <span class="pill-dot" style="background: var(--brand-lighthouse);"></span>
+            Lighthouse
+          </span>
+          <span class="brand-pill brand-pill-centex">
+            <span class="pill-dot" style="background: var(--brand-centex);"></span>
+            Centex
+          </span>
+        </div>
+        <div class="client-stats">
+          <div class="client-stat">
+            <div class="client-stat-value">$5,200</div>
+            <div class="client-stat-label">Total Spent</div>
+          </div>
+          <div class="client-stat">
+            <div class="client-stat-value">3</div>
+            <div class="client-stat-label">Invoices</div>
+          </div>
+          <div class="client-stat">
+            <div class="client-stat-value" style="color: var(--status-active);">$0</div>
+            <div class="client-stat-label">Pending</div>
+          </div>
+        </div>
+        <div class="flex items-center justify-between mt-4 pt-4" style="border-top: 1px solid var(--border-color);">
+          <span class="text-xs" style="color: var(--text-muted);">Last: Dec 15, 2025</span>
+          <span class="text-xs" style="color: var(--text-muted);">Since Jan 2024</span>
+        </div>
+        <div class="card-actions">
+          <button class="card-btn">
+            <i data-lucide="eye" class="w-4 h-4"></i>
+            View
+          </button>
+          <button class="card-btn primary">
+            <i data-lucide="file-plus" class="w-4 h-4"></i>
+            Invoice
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Clients List View -->
+    <div class="clients-list" id="clientsList">
+      <!-- Row 1 -->
+      <div class="client-row animate-row-enter stagger-1" data-brands="sankofa,lighthouse">
+        <div class="avatar avatar-sm avatar-1">AC</div>
+        <div class="row-info">
+          <div class="row-name">Acme Corporation</div>
+          <div class="row-meta">Client since Mar 2024</div>
+        </div>
+        <div class="row-contact hide-mobile">
+          <div>john.smith@acme.com</div>
+          <div class="row-contact-secondary">+1 (555) 123-4567</div>
+        </div>
+        <div class="brand-pills hide-tablet">
+          <span class="brand-pill brand-pill-sankofa">
+            <span class="pill-dot" style="background: var(--brand-sankofa);"></span>
+            Sankofa
+          </span>
+          <span class="brand-pill brand-pill-lighthouse">
+            <span class="pill-dot" style="background: var(--brand-lighthouse);"></span>
+            Lighthouse
+          </span>
+        </div>
+        <div class="row-revenue hide-mobile">
+          <div class="row-revenue-value">$12,400</div>
+          <div class="row-revenue-pending">$2,400 pending</div>
+        </div>
+        <div class="row-invoices hide-tablet">8 invoices</div>
+        <div class="row-date hide-mobile">Jan 15, 2026</div>
+        <button class="row-action">
+          <i data-lucide="chevron-right" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Row 2 -->
+      <div class="client-row animate-row-enter stagger-2" data-brands="lighthouse">
+        <div class="avatar avatar-sm avatar-2">TS</div>
+        <div class="row-info">
+          <div class="row-name">TechStart Inc</div>
+          <div class="row-meta">Client since Jun 2024</div>
+        </div>
+        <div class="row-contact hide-mobile">
+          <div>hello@techstart.io</div>
+          <div class="row-contact-secondary">+1 (555) 987-6543</div>
+        </div>
+        <div class="brand-pills hide-tablet">
+          <span class="brand-pill brand-pill-lighthouse">
+            <span class="pill-dot" style="background: var(--brand-lighthouse);"></span>
+            Lighthouse
+          </span>
+        </div>
+        <div class="row-revenue hide-mobile">
+          <div class="row-revenue-value">$8,200</div>
+        </div>
+        <div class="row-invoices hide-tablet">5 invoices</div>
+        <div class="row-date hide-mobile">Jan 10, 2026</div>
+        <button class="row-action">
+          <i data-lucide="chevron-right" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Row 3 -->
+      <div class="client-row animate-row-enter stagger-3" data-brands="centex">
+        <div class="avatar avatar-sm avatar-3">MC</div>
+        <div class="row-info">
+          <div class="row-name">MediaCo</div>
+          <div class="row-meta">Client since Aug 2024</div>
+        </div>
+        <div class="row-contact hide-mobile">
+          <div>media@mediaco.com</div>
+          <div class="row-contact-secondary">+1 (555) 456-7890</div>
+        </div>
+        <div class="brand-pills hide-tablet">
+          <span class="brand-pill brand-pill-centex">
+            <span class="pill-dot" style="background: var(--brand-centex);"></span>
+            Centex
+          </span>
+        </div>
+        <div class="row-revenue hide-mobile">
+          <div class="row-revenue-value">$6,800</div>
+          <div class="row-revenue-pending">$1,200 pending</div>
+        </div>
+        <div class="row-invoices hide-tablet">4 invoices</div>
+        <div class="row-date hide-mobile">Jan 8, 2026</div>
+        <button class="row-action">
+          <i data-lucide="chevron-right" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Row 4 -->
+      <div class="client-row animate-row-enter stagger-4" data-brands="gfam-media">
+        <div class="avatar avatar-sm avatar-4">SX</div>
+        <div class="row-info">
+          <div class="row-name">StartupXYZ</div>
+          <div class="row-meta">Client since Sep 2024</div>
+        </div>
+        <div class="row-contact hide-mobile">
+          <div>team@startupxyz.co</div>
+          <div class="row-contact-secondary">+1 (555) 321-0987</div>
+        </div>
+        <div class="brand-pills hide-tablet">
+          <span class="brand-pill brand-pill-gfam-media">
+            <span class="pill-dot" style="background: var(--brand-gfam-media);"></span>
+            GFAM Media
+          </span>
+        </div>
+        <div class="row-revenue hide-mobile">
+          <div class="row-revenue-value">$3,560</div>
+          <div class="row-revenue-pending">$890 pending</div>
+        </div>
+        <div class="row-invoices hide-tablet">6 invoices</div>
+        <div class="row-date hide-mobile">Jan 5, 2026</div>
+        <button class="row-action">
+          <i data-lucide="chevron-right" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Row 5 -->
+      <div class="client-row animate-row-enter stagger-5" data-brands="sankofa">
+        <div class="avatar avatar-sm avatar-5">GC</div>
+        <div class="row-info">
+          <div class="row-name">GrowthCo</div>
+          <div class="row-meta">Client since Nov 2024</div>
+        </div>
+        <div class="row-contact hide-mobile">
+          <div>contact@growthco.io</div>
+          <div class="row-contact-secondary">+1 (555) 654-3210</div>
+        </div>
+        <div class="brand-pills hide-tablet">
+          <span class="brand-pill brand-pill-sankofa">
+            <span class="pill-dot" style="background: var(--brand-sankofa);"></span>
+            Sankofa
+          </span>
+        </div>
+        <div class="row-revenue hide-mobile">
+          <div class="row-revenue-value">$4,800</div>
+          <div class="row-revenue-pending">$800 pending</div>
+        </div>
+        <div class="row-invoices hide-tablet">6 invoices</div>
+        <div class="row-date hide-mobile">Jan 3, 2026</div>
+        <button class="row-action">
+          <i data-lucide="chevron-right" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Row 6 -->
+      <div class="client-row animate-row-enter stagger-6" data-brands="lighthouse,centex">
+        <div class="avatar avatar-sm avatar-6">EP</div>
+        <div class="row-info">
+          <div class="row-name">EventPros</div>
+          <div class="row-meta">Client since Jan 2024</div>
+        </div>
+        <div class="row-contact hide-mobile">
+          <div>hello@eventpros.com</div>
+          <div class="row-contact-secondary">+1 (555) 789-0123</div>
+        </div>
+        <div class="brand-pills hide-tablet">
+          <span class="brand-pill brand-pill-lighthouse">
+            <span class="pill-dot" style="background: var(--brand-lighthouse);"></span>
+            Lighthouse
+          </span>
+          <span class="brand-pill brand-pill-centex">
+            <span class="pill-dot" style="background: var(--brand-centex);"></span>
+            Centex
+          </span>
+        </div>
+        <div class="row-revenue hide-mobile">
+          <div class="row-revenue-value">$5,200</div>
+        </div>
+        <div class="row-invoices hide-tablet">3 invoices</div>
+        <div class="row-date hide-mobile">Dec 15, 2025</div>
+        <button class="row-action">
+          <i data-lucide="chevron-right" class="w-5 h-5"></i>
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Initialize Lucide icons
+    lucide.createIcons();
+
+    // Theme Toggle
+    const themeToggle = document.getElementById('themeToggle');
+    const html = document.documentElement;
+    const lightIcon = themeToggle.querySelector('.light-icon');
+    const darkIcon = themeToggle.querySelector('.dark-icon');
+
+    const savedTheme = localStorage.getItem('gfam-theme');
+    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+    if (savedTheme) {
+      html.setAttribute('data-theme', savedTheme);
+      updateToggleIcon(savedTheme);
+    } else if (systemPrefersDark) {
+      html.setAttribute('data-theme', 'dark');
+      updateToggleIcon('dark');
+    }
+
+    function updateToggleIcon(theme) {
+      if (theme === 'dark') {
+        lightIcon.style.display = 'none';
+        darkIcon.style.display = 'block';
+      } else {
+        lightIcon.style.display = 'block';
+        darkIcon.style.display = 'none';
+      }
+    }
+
+    themeToggle.addEventListener('click', () => {
+      const currentTheme = html.getAttribute('data-theme');
+      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+      html.setAttribute('data-theme', newTheme);
+      localStorage.setItem('gfam-theme', newTheme);
+      updateToggleIcon(newTheme);
+      lucide.createIcons();
+    });
+
+    // View Toggle
+    const viewBtns = document.querySelectorAll('.view-btn');
+    const clientsGrid = document.getElementById('clientsGrid');
+    const clientsList = document.getElementById('clientsList');
+
+    viewBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        viewBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        const view = btn.dataset.view;
+        if (view === 'grid') {
+          clientsGrid.classList.add('active');
+          clientsList.classList.remove('active');
+          // Re-trigger animations
+          document.querySelectorAll('.client-card').forEach((card, i) => {
+            card.style.animation = 'none';
+            card.offsetHeight;
+            card.style.animation = `cardEnter 0.4s ease-out forwards`;
+            card.style.animationDelay = `${i * 0.05}s`;
+          });
+        } else {
+          clientsGrid.classList.remove('active');
+          clientsList.classList.add('active');
+          // Re-trigger animations
+          document.querySelectorAll('.client-row').forEach((row, i) => {
+            row.style.animation = 'none';
+            row.offsetHeight;
+            row.style.animation = `rowEnter 0.3s ease-out forwards`;
+            row.style.animationDelay = `${i * 0.04}s`;
+          });
+        }
+      });
+    });
+
+    // Dropdown functionality
+    document.querySelectorAll('.dropdown').forEach(dropdown => {
+      const trigger = dropdown.querySelector('.dropdown-trigger');
+      trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.querySelectorAll('.dropdown').forEach(d => {
+          if (d !== dropdown) d.classList.remove('open');
+        });
+        dropdown.classList.toggle('open');
+      });
+    });
+
+    document.addEventListener('click', () => {
+      document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('open'));
+    });
+
+    // Tab filtering
+    const tabs = document.querySelectorAll('.tab');
+    const clientCards = document.querySelectorAll('.client-card');
+    const clientRows = document.querySelectorAll('.client-row');
+
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+
+        const filter = tab.dataset.filter;
+
+        // Filter cards
+        clientCards.forEach((card, index) => {
+          const brands = card.dataset.brands.split(',');
+          if (filter === 'all' || brands.includes(filter)) {
+            card.style.display = 'block';
+            card.style.animation = 'none';
+            card.offsetHeight;
+            card.style.animation = `cardEnter 0.4s ease-out forwards`;
+            card.style.animationDelay = `${index * 0.05}s`;
+          } else {
+            card.style.display = 'none';
+          }
+        });
+
+        // Filter rows
+        clientRows.forEach((row, index) => {
+          const brands = row.dataset.brands.split(',');
+          if (filter === 'all' || brands.includes(filter)) {
+            row.style.display = 'grid';
+            row.style.animation = 'none';
+            row.offsetHeight;
+            row.style.animation = `rowEnter 0.3s ease-out forwards`;
+            row.style.animationDelay = `${index * 0.04}s`;
+          } else {
+            row.style.display = 'none';
+          }
+        });
+      });
+    });
+
+    // Search functionality
+    const searchInput = document.getElementById('searchInput');
+    searchInput.addEventListener('input', (e) => {
+      const query = e.target.value.toLowerCase();
+
+      clientCards.forEach(card => {
+        const name = card.querySelector('h3').textContent.toLowerCase();
+        const email = card.querySelector('p').textContent.toLowerCase();
+        if (name.includes(query) || email.includes(query)) {
+          card.style.display = 'block';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+
+      clientRows.forEach(row => {
+        const name = row.querySelector('.row-name').textContent.toLowerCase();
+        const contact = row.querySelector('.row-contact')?.textContent.toLowerCase() || '';
+        if (name.includes(query) || contact.includes(query)) {
+          row.style.display = 'grid';
+        } else {
+          row.style.display = 'none';
+        }
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+[install]
+# Use exact versions for reproducible installs
+exact = true
+
+[run]
+# Silence bun's output
+silent_if_silent = true
+
+[test]
+# Test configuration
+coverage = true

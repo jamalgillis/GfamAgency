@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GFAM Agency - Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ===== THEME VARIABLES ===== */
+    :root {
+      /* Brand Colors (consistent across themes) */
+      --brand-sankofa: #10b981;
+      --brand-lighthouse: #8b5cf6;
+      --brand-centex: #f59e0b;
+      --brand-gfam-media: #3b82f6;
+      --status-paid: #10b981;
+      --status-pending: #f59e0b;
+    }
+
+    /* Light Theme */
+    [data-theme="light"] {
+      --bg-primary: #f8f9fa;
+      --bg-secondary: #ffffff;
+      --bg-tertiary: #f3f4f6;
+      --bg-hover: #e5e7eb;
+      --text-primary: #1a1a2e;
+      --text-secondary: #4b5563;
+      --text-muted: #6b7280;
+      --text-inverse: #ffffff;
+      --border-color: #e5e7eb;
+      --border-light: #f3f4f6;
+      --sidebar-bg: #1a1a2e;
+      --sidebar-hover: #2d2d44;
+      --sidebar-active: #3d3d5c;
+      --sidebar-text: #9ca3af;
+      --sidebar-text-active: #ffffff;
+      --sidebar-border: #374151;
+      --card-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      --card-shadow-hover: 0 10px 25px -5px rgba(0,0,0,0.1);
+      --input-bg: #ffffff;
+      --kpi-icon-bg-1: #d1fae5;
+      --kpi-icon-color-1: #059669;
+      --kpi-icon-bg-2: #fef3c7;
+      --kpi-icon-color-2: #d97706;
+      --kpi-icon-bg-3: #dbeafe;
+      --kpi-icon-color-3: #2563eb;
+      --kpi-icon-bg-4: #ede9fe;
+      --kpi-icon-color-4: #7c3aed;
+      --table-row-hover: #f9fafb;
+      --avatar-bg: #e5e7eb;
+    }
+
+    /* Dark Theme */
+    [data-theme="dark"] {
+      --bg-primary: #0f0f1a;
+      --bg-secondary: #1a1a2e;
+      --bg-tertiary: #252540;
+      --bg-hover: #2d2d4a;
+      --text-primary: #f3f4f6;
+      --text-secondary: #d1d5db;
+      --text-muted: #9ca3af;
+      --text-inverse: #1a1a2e;
+      --border-color: #2d2d4a;
+      --border-light: #252540;
+      --sidebar-bg: #0a0a14;
+      --sidebar-hover: #1a1a2e;
+      --sidebar-active: #252540;
+      --sidebar-text: #6b7280;
+      --sidebar-text-active: #ffffff;
+      --sidebar-border: #252540;
+      --card-shadow: 0 1px 3px rgba(0,0,0,0.3);
+      --card-shadow-hover: 0 10px 25px -5px rgba(0,0,0,0.4);
+      --input-bg: #252540;
+      --kpi-icon-bg-1: rgba(16, 185, 129, 0.15);
+      --kpi-icon-color-1: #34d399;
+      --kpi-icon-bg-2: rgba(245, 158, 11, 0.15);
+      --kpi-icon-color-2: #fbbf24;
+      --kpi-icon-bg-3: rgba(59, 130, 246, 0.15);
+      --kpi-icon-color-3: #60a5fa;
+      --kpi-icon-bg-4: rgba(139, 92, 246, 0.15);
+      --kpi-icon-color-4: #a78bfa;
+      --table-row-hover: #252540;
+      --avatar-bg: #2d2d4a;
+    }
+
+    /* ===== BASE STYLES ===== */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+      background-color: var(--bg-primary) !important;
+      color: var(--text-primary) !important;
+      line-height: 1.5 !important;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    /* ===== ANIMATIONS ===== */
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes slideInLeft {
+      from { opacity: 0; transform: translateX(-10px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    @keyframes barGrow {
+      from { transform: scaleY(0); }
+      to { transform: scaleY(1); }
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    @keyframes notifPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+
+    @keyframes themeSwitch {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .animate-fade-in-up {
+      animation: fadeInUp 0.4s ease-out forwards;
+    }
+
+    .animate-slide-in {
+      animation: slideInLeft 0.3s ease-out forwards;
+    }
+
+    .stagger-1 { animation-delay: 0.05s; }
+    .stagger-2 { animation-delay: 0.1s; }
+    .stagger-3 { animation-delay: 0.15s; }
+    .stagger-4 { animation-delay: 0.2s; }
+    .stagger-5 { animation-delay: 0.25s; }
+
+    /* ===== SIDEBAR ===== */
+    .sidebar {
+      background: var(--sidebar-bg);
+      width: 260px;
+      min-height: 100vh;
+      position: fixed;
+      left: 0;
+      top: 0;
+      display: flex;
+      flex-direction: column;
+      transition: background-color 0.3s ease;
+    }
+
+    .sidebar-link {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 20px;
+      color: var(--sidebar-text);
+      text-decoration: none;
+      transition: all 0.15s ease;
+      border-left: 3px solid transparent;
+    }
+
+    .sidebar-link:hover {
+      background: var(--sidebar-hover);
+      color: var(--sidebar-text-active);
+      padding-left: 24px;
+    }
+
+    .sidebar-link.active {
+      background: var(--sidebar-active);
+      color: var(--sidebar-text-active);
+      border-left-color: var(--brand-sankofa);
+    }
+
+    /* ===== CARDS ===== */
+    .card {
+      background: var(--bg-secondary);
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+      box-shadow: var(--card-shadow);
+      transition: all 0.3s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--card-shadow-hover);
+    }
+
+    .kpi-card {
+      opacity: 0;
+    }
+
+    /* ===== BRAND DOTS ===== */
+    .brand-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      transition: transform 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    }
+
+    .brand-item:hover .brand-dot {
+      transform: scale(1.3);
+    }
+
+    /* ===== TABLE ===== */
+    .table-row {
+      transition: background-color 0.15s ease;
+      opacity: 0;
+    }
+
+    .table-row:hover {
+      background-color: var(--table-row-hover);
+    }
+
+    /* ===== CHART BARS ===== */
+    .chart-bar {
+      transform-origin: bottom;
+      animation: barGrow 0.6s ease-out forwards;
+      transition: filter 0.2s ease, transform 0.2s ease;
+    }
+
+    .chart-bar:nth-child(1) { animation-delay: 0.1s; }
+    .chart-bar:nth-child(2) { animation-delay: 0.2s; }
+    .chart-bar:nth-child(3) { animation-delay: 0.3s; }
+    .chart-bar:nth-child(4) { animation-delay: 0.4s; }
+
+    .chart-bar:hover {
+      filter: brightness(1.15);
+      transform: translateY(-4px) scaleY(1);
+    }
+
+    /* ===== BUTTONS ===== */
+    .btn-primary {
+      background: var(--text-primary);
+      color: var(--bg-primary);
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-primary:hover {
+      opacity: 0.9;
+      transform: scale(1.02);
+    }
+
+    .btn-primary:active {
+      transform: scale(0.95);
+    }
+
+    /* ===== STATUS BADGES ===== */
+    .status-badge {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .status-paid {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--status-paid);
+    }
+
+    .status-pending {
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--status-pending);
+      animation: pulse 2s infinite;
+    }
+
+    /* ===== INPUTS ===== */
+    .search-input {
+      transition: all 0.2s ease;
+      border: 1px solid var(--border-color);
+      background: var(--input-bg);
+      color: var(--text-primary);
+    }
+
+    .search-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: var(--text-muted);
+      box-shadow: 0 0 0 3px rgba(107, 114, 128, 0.15);
+    }
+
+    /* ===== NOTIFICATIONS ===== */
+    .notif-badge {
+      animation: notifPulse 2s infinite;
+    }
+
+    /* ===== QUICK ACTIONS ===== */
+    .quick-action-btn {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      width: 100%;
+      text-align: left;
+      color: var(--text-primary);
+    }
+
+    .quick-action-btn:hover {
+      background: var(--bg-hover);
+      border-color: var(--border-color);
+      transform: translateX(4px);
+    }
+
+    /* ===== THEME TOGGLE ===== */
+    .theme-toggle {
+      position: relative;
+      width: 56px;
+      height: 28px;
+      background: var(--bg-tertiary);
+      border-radius: 20px;
+      border: 1px solid var(--border-color);
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      padding: 0 4px;
+    }
+
+    .theme-toggle:hover {
+      border-color: var(--text-muted);
+    }
+
+    .theme-toggle-thumb {
+      position: absolute;
+      width: 22px;
+      height: 22px;
+      background: var(--text-primary);
+      border-radius: 50%;
+      transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      left: 3px;
+    }
+
+    [data-theme="dark"] .theme-toggle-thumb {
+      left: calc(100% - 25px);
+    }
+
+    .theme-toggle-thumb svg {
+      width: 14px;
+      height: 14px;
+      color: var(--bg-primary);
+    }
+
+    .theme-toggle-icon {
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      transition: opacity 0.3s ease;
+    }
+
+    .theme-toggle .sun-icon {
+      right: 8px;
+      color: var(--text-muted);
+      opacity: 1;
+    }
+
+    .theme-toggle .moon-icon {
+      left: 8px;
+      color: var(--text-muted);
+      opacity: 1;
+    }
+
+    [data-theme="dark"] .theme-toggle .sun-icon {
+      opacity: 1;
+    }
+
+    [data-theme="dark"] .theme-toggle .moon-icon {
+      opacity: 1;
+    }
+
+    /* ===== LAYOUT ===== */
+    .main-content {
+      margin-left: 260px;
+      padding: 24px 32px;
+      min-height: 100vh;
+      transition: background-color 0.3s ease;
+    }
+
+    /* ===== TEXT COLORS ===== */
+    .text-primary { color: var(--text-primary) !important; }
+    .text-secondary { color: var(--text-secondary) !important; }
+    .text-muted { color: var(--text-muted) !important; }
+    .bg-tertiary { background: var(--bg-tertiary) !important; }
+    .border-theme { border-color: var(--border-color) !important; }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 1024px) {
+      .sidebar { width: 80px; }
+      .sidebar-link span { display: none; }
+      .sidebar-link { justify-content: center; padding: 16px; }
+      .main-content { margin-left: 80px; }
+      .brand-section { display: none; }
+      .logo-text { display: none; }
+    }
+
+    @media (max-width: 768px) {
+      .main-content { padding: 16px; }
+      .header-actions { flex-wrap: wrap; gap: 12px; }
+      .search-wrapper { width: 100%; order: 3; }
+      .search-input { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <!-- Logo -->
+    <div class="p-6 border-b" style="border-color: var(--sidebar-border);">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-500 to-blue-500 flex items-center justify-center">
+          <span class="text-white font-bold text-lg">G</span>
+        </div>
+        <div class="logo-text">
+          <h1 class="text-white font-semibold text-lg">GFAM</h1>
+          <p class="text-xs" style="color: var(--sidebar-text);">Agency</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="py-4 flex-1">
+      <a href="#" class="sidebar-link active">
+        <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+        <span>Dashboard</span>
+      </a>
+      <a href="#" class="sidebar-link">
+        <i data-lucide="briefcase" class="w-5 h-5"></i>
+        <span>Services</span>
+      </a>
+      <a href="#" class="sidebar-link">
+        <i data-lucide="file-text" class="w-5 h-5"></i>
+        <span>Invoices</span>
+      </a>
+      <a href="#" class="sidebar-link">
+        <i data-lucide="users" class="w-5 h-5"></i>
+        <span>Clients</span>
+      </a>
+      <a href="#" class="sidebar-link">
+        <i data-lucide="settings" class="w-5 h-5"></i>
+        <span>Settings</span>
+      </a>
+
+      <!-- Brand Filter -->
+      <div class="brand-section mt-6 px-5">
+        <p class="text-xs font-medium uppercase tracking-wider mb-3" style="color: var(--sidebar-text);">Brands</p>
+        <div class="space-y-2">
+          <div class="brand-item flex items-center gap-3 py-2 px-3 rounded-lg cursor-pointer transition-all" style="background: var(--sidebar-active);">
+            <div class="brand-dot" style="background: var(--brand-sankofa)"></div>
+            <span class="text-sm" style="color: var(--sidebar-text-active);">Sankofa</span>
+          </div>
+          <div class="brand-item flex items-center gap-3 py-2 px-3 rounded-lg cursor-pointer hover:opacity-80 transition-all">
+            <div class="brand-dot" style="background: var(--brand-lighthouse)"></div>
+            <span class="text-sm" style="color: var(--sidebar-text);">Lighthouse</span>
+          </div>
+          <div class="brand-item flex items-center gap-3 py-2 px-3 rounded-lg cursor-pointer hover:opacity-80 transition-all">
+            <div class="brand-dot" style="background: var(--brand-centex)"></div>
+            <span class="text-sm" style="color: var(--sidebar-text);">Centex</span>
+          </div>
+          <div class="brand-item flex items-center gap-3 py-2 px-3 rounded-lg cursor-pointer hover:opacity-80 transition-all">
+            <div class="brand-dot" style="background: var(--brand-gfam-media)"></div>
+            <span class="text-sm" style="color: var(--sidebar-text);">GFAM Media</span>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- User Profile -->
+    <div class="p-4 border-t" style="border-color: var(--sidebar-border);">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+          <span class="text-white text-sm font-medium">JG</span>
+        </div>
+        <div class="logo-text">
+          <p class="text-white text-sm font-medium">J. Gillis</p>
+          <p class="text-xs" style="color: var(--sidebar-text);">Admin</p>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <!-- Header -->
+    <header class="flex items-center justify-between mb-8 animate-fade-in-up flex-wrap gap-4">
+      <div>
+        <h1 class="text-2xl font-semibold text-primary">Dashboard</h1>
+        <p class="text-muted text-sm mt-1">Welcome back, manage your agency services</p>
+      </div>
+      <div class="flex items-center gap-4 header-actions">
+        <!-- Theme Toggle -->
+        <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+          <i data-lucide="sun" class="theme-toggle-icon sun-icon"></i>
+          <i data-lucide="moon" class="theme-toggle-icon moon-icon"></i>
+          <div class="theme-toggle-thumb">
+            <i data-lucide="sun" class="light-icon"></i>
+            <i data-lucide="moon" class="dark-icon" style="display: none;"></i>
+          </div>
+        </button>
+        <!-- Search -->
+        <div class="relative search-wrapper">
+          <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted"></i>
+          <input type="text" placeholder="Search..." class="search-input pl-10 pr-4 py-2 rounded-lg w-64 text-sm">
+        </div>
+        <!-- New Invoice Button -->
+        <button class="btn-primary">
+          <i data-lucide="plus" class="w-4 h-4"></i>
+          New Invoice
+        </button>
+        <!-- Notifications -->
+        <button class="relative p-2 rounded-lg transition-colors" style="background: var(--bg-tertiary);">
+          <i data-lucide="bell" class="w-5 h-5 text-muted"></i>
+          <span class="notif-badge absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">3</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- KPI Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <!-- Revenue -->
+      <div class="card kpi-card p-6 animate-fade-in-up stagger-1">
+        <div class="flex items-center justify-between mb-4">
+          <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background: var(--kpi-icon-bg-1);">
+            <i data-lucide="dollar-sign" class="w-5 h-5" style="color: var(--kpi-icon-color-1);"></i>
+          </div>
+          <span class="text-sm font-medium flex items-center gap-1" style="color: var(--kpi-icon-color-1);">
+            <i data-lucide="trending-up" class="w-4 h-4"></i>
+            12%
+          </span>
+        </div>
+        <p class="text-muted text-sm">Total Revenue</p>
+        <p class="text-2xl font-semibold text-primary mt-1">$24,580</p>
+      </div>
+
+      <!-- Pending Invoices -->
+      <div class="card kpi-card p-6 animate-fade-in-up stagger-2">
+        <div class="flex items-center justify-between mb-4">
+          <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background: var(--kpi-icon-bg-2);">
+            <i data-lucide="clock" class="w-5 h-5" style="color: var(--kpi-icon-color-2);"></i>
+          </div>
+          <span class="text-sm font-medium" style="color: var(--kpi-icon-color-2);">$8,420</span>
+        </div>
+        <p class="text-muted text-sm">Pending Invoices</p>
+        <p class="text-2xl font-semibold text-primary mt-1">12</p>
+      </div>
+
+      <!-- Active Services -->
+      <div class="card kpi-card p-6 animate-fade-in-up stagger-3">
+        <div class="flex items-center justify-between mb-4">
+          <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background: var(--kpi-icon-bg-3);">
+            <i data-lucide="briefcase" class="w-5 h-5" style="color: var(--kpi-icon-color-3);"></i>
+          </div>
+          <span class="text-sm font-medium" style="color: var(--kpi-icon-color-3);">+4 new</span>
+        </div>
+        <p class="text-muted text-sm">Active Services</p>
+        <p class="text-2xl font-semibold text-primary mt-1">48</p>
+      </div>
+
+      <!-- Clients -->
+      <div class="card kpi-card p-6 animate-fade-in-up stagger-4">
+        <div class="flex items-center justify-between mb-4">
+          <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background: var(--kpi-icon-bg-4);">
+            <i data-lucide="users" class="w-5 h-5" style="color: var(--kpi-icon-color-4);"></i>
+          </div>
+          <span class="text-sm font-medium" style="color: var(--kpi-icon-color-4);">+3</span>
+        </div>
+        <p class="text-muted text-sm">Total Clients</p>
+        <p class="text-2xl font-semibold text-primary mt-1">86</p>
+      </div>
+    </div>
+
+    <!-- Charts and Quick Actions Row -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+      <!-- Revenue by Brand Chart -->
+      <div class="card p-6 lg:col-span-2 animate-fade-in-up stagger-3">
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-lg font-semibold text-primary">Revenue by Brand</h2>
+          <select class="text-sm rounded-lg px-3 py-1.5" style="background: var(--bg-tertiary); border: 1px solid var(--border-color); color: var(--text-primary);">
+            <option>This Month</option>
+            <option>Last Month</option>
+            <option>This Quarter</option>
+          </select>
+        </div>
+
+        <!-- Simple Bar Chart -->
+        <div class="flex items-end justify-around h-48 px-4">
+          <div class="flex flex-col items-center gap-2">
+            <div class="chart-bar w-16 rounded-t-lg cursor-pointer" style="height: 160px; background: var(--brand-sankofa); transform: scaleY(0);"></div>
+            <span class="text-xs text-muted">Sankofa</span>
+            <span class="text-sm font-medium text-primary">$9.2k</span>
+          </div>
+          <div class="flex flex-col items-center gap-2">
+            <div class="chart-bar w-16 rounded-t-lg cursor-pointer" style="height: 120px; background: var(--brand-lighthouse); transform: scaleY(0);"></div>
+            <span class="text-xs text-muted">Lighthouse</span>
+            <span class="text-sm font-medium text-primary">$6.8k</span>
+          </div>
+          <div class="flex flex-col items-center gap-2">
+            <div class="chart-bar w-16 rounded-t-lg cursor-pointer" style="height: 80px; background: var(--brand-centex); transform: scaleY(0);"></div>
+            <span class="text-xs text-muted">Centex</span>
+            <span class="text-sm font-medium text-primary">$4.2k</span>
+          </div>
+          <div class="flex flex-col items-center gap-2">
+            <div class="chart-bar w-16 rounded-t-lg cursor-pointer" style="height: 100px; background: var(--brand-gfam-media); transform: scaleY(0);"></div>
+            <span class="text-xs text-muted">GFAM Media</span>
+            <span class="text-sm font-medium text-primary">$4.4k</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="card p-6 animate-fade-in-up stagger-4">
+        <h2 class="text-lg font-semibold text-primary mb-4">Quick Actions</h2>
+        <div class="space-y-3">
+          <button class="quick-action-btn">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: rgba(16, 185, 129, 0.15);">
+              <i data-lucide="plus" class="w-4 h-4" style="color: var(--brand-sankofa);"></i>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-primary">Sankofa Invoice</p>
+              <p class="text-xs text-muted">Marketing & Web</p>
+            </div>
+          </button>
+          <button class="quick-action-btn">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: rgba(139, 92, 246, 0.15);">
+              <i data-lucide="plus" class="w-4 h-4" style="color: var(--brand-lighthouse);"></i>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-primary">Lighthouse Invoice</p>
+              <p class="text-xs text-muted">Video & Photo</p>
+            </div>
+          </button>
+          <button class="quick-action-btn">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: rgba(245, 158, 11, 0.15);">
+              <i data-lucide="plus" class="w-4 h-4" style="color: var(--brand-centex);"></i>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-primary">Centex Invoice</p>
+              <p class="text-xs text-muted">Sports & Live</p>
+            </div>
+          </button>
+          <button class="quick-action-btn">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: rgba(59, 130, 246, 0.15);">
+              <i data-lucide="plus" class="w-4 h-4" style="color: var(--brand-gfam-media);"></i>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-primary">GFAM Media Invoice</p>
+              <p class="text-xs text-muted">Studio & Podcasts</p>
+            </div>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Invoices Table -->
+    <div class="card animate-fade-in-up stagger-5">
+      <div class="p-6 border-b border-theme">
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg font-semibold text-primary">Recent Invoices</h2>
+          <a href="#" class="text-sm text-muted hover:opacity-80 flex items-center gap-1 transition-colors">
+            View All
+            <i data-lucide="arrow-right" class="w-4 h-4"></i>
+          </a>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr class="text-left text-muted text-sm border-b border-theme">
+              <th class="px-6 py-4 font-medium">Invoice</th>
+              <th class="px-6 py-4 font-medium">Client</th>
+              <th class="px-6 py-4 font-medium">Brand</th>
+              <th class="px-6 py-4 font-medium">Amount</th>
+              <th class="px-6 py-4 font-medium">Date</th>
+              <th class="px-6 py-4 font-medium">Status</th>
+              <th class="px-6 py-4 font-medium"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="table-row animate-slide-in stagger-1 border-b border-theme">
+              <td class="px-6 py-4">
+                <span class="font-medium text-primary">#INV-1042</span>
+              </td>
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium" style="background: var(--avatar-bg); color: var(--text-secondary);">AC</div>
+                  <span class="text-secondary">Acme Corp</span>
+                </div>
+              </td>
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full" style="background: var(--brand-sankofa);"></div>
+                  <span class="text-secondary text-sm">Sankofa</span>
+                </div>
+              </td>
+              <td class="px-6 py-4 font-medium text-primary">$2,400.00</td>
+              <td class="px-6 py-4 text-muted text-sm">Jan 15, 2026</td>
+              <td class="px-6 py-4">
+                <span class="status-badge status-paid">Paid</span>
+              </td>
+              <td class="px-6 py-4">
+                <button class="p-2 rounded-lg transition-colors" style="background: transparent;" onmouseover="this.style.background='var(--bg-tertiary)'" onmouseout="this.style.background='transparent'">
+                  <i data-lucide="more-horizontal" class="w-4 h-4 text-muted"></i>
+                </button>
+              </td>
+            </tr>
+            <tr class="table-row animate-slide-in stagger-2 border-b border-theme">
+              <td class="px-6 py-4">
+                <span class="font-medium text-primary">#INV-1041</span>
+              </td>
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium" style="background: rgba(139, 92, 246, 0.15); color: var(--brand-lighthouse);">TS</div>
+                  <span class="text-secondary">TechStart Inc</span>
+                </div>
+              </td>
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full" style="background: var(--brand-lighthouse);"></div>
+                  <span class="text-secondary text-sm">Lighthouse</span>
+                </div>
+              </td>
+              <td class="px-6 py-4 font-medium text-primary">$1,850.00</td>
+              <td class="px-6 py-4 text-muted text-sm">Jan 14, 2026</td>
+              <td class="px-6 py-4">
+                <span class="status-badge status-pending">Pending</span>
+              </td>
+              <td class="px-6 py-4">
+                <button class="p-2 rounded-lg transition-colors" style="background: transparent;" onmouseover="this.style.background='var(--bg-tertiary)'" onmouseout="this.style.background='transparent'">
+                  <i data-lucide="more-horizontal" class="w-4 h-4 text-muted"></i>
+                </button>
+              </td>
+            </tr>
+            <tr class="table-row animate-slide-in stagger-3 border-b border-theme">
+              <td class="px-6 py-4">
+                <span class="font-medium text-primary">#INV-1040</span>
+              </td>
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium" style="background: rgba(245, 158, 11, 0.15); color: var(--brand-centex);">MC</div>
+                  <span class="text-secondary">MediaCo</span>
+                </div>
+              </td>
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full" style="background: var(--brand-centex);"></div>
+                  <span class="text-secondary text-sm">Centex</span>
+                </div>
+              </td>
+              <td class="px-6 py-4 font-medium text-primary">$3,200.00</td>
+              <td class="px-6 py-4 text-muted text-sm">Jan 12, 2026</td>
+              <td class="px-6 py-4">
+                <span class="status-badge status-paid">Paid</span>
+              </td>
+              <td class="px-6 py-4">
+                <button class="p-2 rounded-lg transition-colors" style="background: transparent;" onmouseover="this.style.background='var(--bg-tertiary)'" onmouseout="this.style.background='transparent'">
+                  <i data-lucide="more-horizontal" class="w-4 h-4 text-muted"></i>
+                </button>
+              </td>
+            </tr>
+            <tr class="table-row animate-slide-in stagger-4">
+              <td class="px-6 py-4">
+                <span class="font-medium text-primary">#INV-1039</span>
+              </td>
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium" style="background: rgba(59, 130, 246, 0.15); color: var(--brand-gfam-media);">SX</div>
+                  <span class="text-secondary">StartupXYZ</span>
+                </div>
+              </td>
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full" style="background: var(--brand-gfam-media);"></div>
+                  <span class="text-secondary text-sm">GFAM Media</span>
+                </div>
+              </td>
+              <td class="px-6 py-4 font-medium text-primary">$890.00</td>
+              <td class="px-6 py-4 text-muted text-sm">Jan 10, 2026</td>
+              <td class="px-6 py-4">
+                <span class="status-badge status-pending">Pending</span>
+              </td>
+              <td class="px-6 py-4">
+                <button class="p-2 rounded-lg transition-colors" style="background: transparent;" onmouseover="this.style.background='var(--bg-tertiary)'" onmouseout="this.style.background='transparent'">
+                  <i data-lucide="more-horizontal" class="w-4 h-4 text-muted"></i>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Initialize Lucide icons
+    lucide.createIcons();
+
+    // Theme Toggle Functionality
+    const themeToggle = document.getElementById('themeToggle');
+    const html = document.documentElement;
+    const lightIcon = themeToggle.querySelector('.light-icon');
+    const darkIcon = themeToggle.querySelector('.dark-icon');
+
+    // Check for saved theme preference or default to system preference
+    const savedTheme = localStorage.getItem('gfam-theme');
+    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+    if (savedTheme) {
+      html.setAttribute('data-theme', savedTheme);
+      updateToggleIcon(savedTheme);
+    } else if (systemPrefersDark) {
+      html.setAttribute('data-theme', 'dark');
+      updateToggleIcon('dark');
+    }
+
+    function updateToggleIcon(theme) {
+      if (theme === 'dark') {
+        lightIcon.style.display = 'none';
+        darkIcon.style.display = 'block';
+      } else {
+        lightIcon.style.display = 'block';
+        darkIcon.style.display = 'none';
+      }
+    }
+
+    themeToggle.addEventListener('click', () => {
+      const currentTheme = html.getAttribute('data-theme');
+      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+
+      html.setAttribute('data-theme', newTheme);
+      localStorage.setItem('gfam-theme', newTheme);
+      updateToggleIcon(newTheme);
+
+      // Reinitialize icons after theme change
+      lucide.createIcons();
+    });
+
+    // Listen for system theme changes
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+      if (!localStorage.getItem('gfam-theme')) {
+        const newTheme = e.matches ? 'dark' : 'light';
+        html.setAttribute('data-theme', newTheme);
+        updateToggleIcon(newTheme);
+      }
+    });
+
+    // Animate KPI cards on load
+    document.addEventListener('DOMContentLoaded', () => {
+      const kpiCards = document.querySelectorAll('.kpi-card');
+      kpiCards.forEach((card, index) => {
+        setTimeout(() => {
+          card.style.opacity = '1';
+        }, 100 * (index + 1));
+      });
+
+      const tableRows = document.querySelectorAll('.table-row');
+      tableRows.forEach((row, index) => {
+        setTimeout(() => {
+          row.style.opacity = '1';
+        }, 300 + (50 * index));
+      });
+    });
+  </script>
+</body>
+</html>

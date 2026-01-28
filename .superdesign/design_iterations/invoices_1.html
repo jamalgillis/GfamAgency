@@ -1,0 +1,1594 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GFAM Agency - Invoices</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ===== THEME VARIABLES ===== */
+    :root {
+      --brand-sankofa: #10b981;
+      --brand-lighthouse: #8b5cf6;
+      --brand-centex: #f59e0b;
+      --brand-gfam-media: #3b82f6;
+      --status-paid: #10b981;
+      --status-pending: #f59e0b;
+      --status-overdue: #ef4444;
+    }
+
+    /* Light Theme */
+    [data-theme="light"] {
+      --bg-primary: #f8f9fa;
+      --bg-secondary: #ffffff;
+      --bg-tertiary: #f3f4f6;
+      --bg-hover: #e5e7eb;
+      --bg-selected: #eff6ff;
+      --text-primary: #1a1a2e;
+      --text-secondary: #4b5563;
+      --text-muted: #6b7280;
+      --text-inverse: #ffffff;
+      --border-color: #e5e7eb;
+      --border-light: #f3f4f6;
+      --sidebar-bg: #1a1a2e;
+      --sidebar-hover: #2d2d44;
+      --sidebar-active: #3d3d5c;
+      --sidebar-text: #9ca3af;
+      --sidebar-text-active: #ffffff;
+      --sidebar-border: #374151;
+      --card-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      --card-shadow-hover: 0 20px 40px -10px rgba(0,0,0,0.15);
+      --input-bg: #ffffff;
+      --tab-bg: #ffffff;
+      --tab-active-bg: #1a1a2e;
+      --tab-active-text: #ffffff;
+      --table-header-bg: #f9fafb;
+      --table-row-hover: #f3f4f6;
+      --table-row-selected: #eff6ff;
+    }
+
+    /* Dark Theme */
+    [data-theme="dark"] {
+      --bg-primary: #0f0f1a;
+      --bg-secondary: #1a1a2e;
+      --bg-tertiary: #252540;
+      --bg-hover: #2d2d4a;
+      --bg-selected: #1e3a5f;
+      --text-primary: #f3f4f6;
+      --text-secondary: #d1d5db;
+      --text-muted: #9ca3af;
+      --text-inverse: #1a1a2e;
+      --border-color: #2d2d4a;
+      --border-light: #252540;
+      --sidebar-bg: #0a0a14;
+      --sidebar-hover: #1a1a2e;
+      --sidebar-active: #252540;
+      --sidebar-text: #6b7280;
+      --sidebar-text-active: #ffffff;
+      --sidebar-border: #252540;
+      --card-shadow: 0 1px 3px rgba(0,0,0,0.3);
+      --card-shadow-hover: 0 20px 40px -10px rgba(0,0,0,0.5);
+      --input-bg: #252540;
+      --tab-bg: #1a1a2e;
+      --tab-active-bg: #ffffff;
+      --tab-active-text: #1a1a2e;
+      --table-header-bg: #252540;
+      --table-row-hover: #252540;
+      --table-row-selected: #1e3a5f;
+    }
+
+    /* ===== BASE STYLES ===== */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+      background-color: var(--bg-primary) !important;
+      color: var(--text-primary) !important;
+      line-height: 1.5 !important;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    /* ===== ANIMATIONS ===== */
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes cardEnter {
+      from { opacity: 0; transform: translateY(30px) scale(0.95); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes rowEnter {
+      from { opacity: 0; transform: translateX(-10px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    @keyframes overduePulse {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+      50% { transform: scale(1.05); box-shadow: 0 0 0 4px rgba(239, 68, 68, 0); }
+    }
+
+    @keyframes checkDraw {
+      from { stroke-dashoffset: 24; }
+      to { stroke-dashoffset: 0; }
+    }
+
+    @keyframes countUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(50px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes dropdownOpen {
+      from { opacity: 0; transform: translateY(-8px) scale(0.95); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .animate-fade-in-up {
+      animation: fadeInUp 0.4s ease-out forwards;
+    }
+
+    .animate-card-enter {
+      opacity: 0;
+      animation: cardEnter 0.5s ease-out forwards;
+    }
+
+    .animate-row-enter {
+      opacity: 0;
+      animation: rowEnter 0.3s ease-out forwards;
+    }
+
+    .stagger-1 { animation-delay: 0.08s; }
+    .stagger-2 { animation-delay: 0.16s; }
+    .stagger-3 { animation-delay: 0.24s; }
+    .stagger-4 { animation-delay: 0.32s; }
+    .stagger-5 { animation-delay: 0.40s; }
+    .stagger-6 { animation-delay: 0.48s; }
+    .stagger-7 { animation-delay: 0.56s; }
+    .stagger-8 { animation-delay: 0.64s; }
+
+    /* ===== SIDEBAR ===== */
+    .sidebar {
+      background: var(--sidebar-bg);
+      width: 260px;
+      min-height: 100vh;
+      position: fixed;
+      left: 0;
+      top: 0;
+      display: flex;
+      flex-direction: column;
+      transition: background-color 0.3s ease;
+      z-index: 50;
+    }
+
+    .sidebar-link {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 20px;
+      color: var(--sidebar-text);
+      text-decoration: none;
+      transition: all 0.15s ease;
+      border-left: 3px solid transparent;
+    }
+
+    .sidebar-link:hover {
+      background: var(--sidebar-hover);
+      color: var(--sidebar-text-active);
+      padding-left: 24px;
+    }
+
+    .sidebar-link.active {
+      background: var(--sidebar-active);
+      color: var(--sidebar-text-active);
+      border-left-color: var(--brand-sankofa);
+    }
+
+    /* ===== SUMMARY CARDS ===== */
+    .summary-card {
+      background: var(--bg-secondary);
+      border-radius: 16px;
+      border: 1px solid var(--border-color);
+      box-shadow: var(--card-shadow);
+      padding: 20px 24px;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+
+    .summary-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--card-shadow-hover);
+    }
+
+    .summary-card.active {
+      border-color: var(--text-primary);
+      box-shadow: var(--card-shadow-hover);
+    }
+
+    .summary-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.3s ease;
+    }
+
+    .summary-card:hover .summary-icon {
+      transform: scale(1.1);
+    }
+
+    .summary-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text-primary);
+      animation: countUp 0.6s ease-out forwards;
+    }
+
+    .summary-label {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .summary-count {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid var(--border-color);
+    }
+
+    /* ===== FILTER BAR ===== */
+    .filter-bar {
+      background: var(--bg-secondary);
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+      padding: 16px 20px;
+    }
+
+    .tab-container {
+      display: flex;
+      gap: 6px;
+      padding: 4px;
+      background: var(--bg-tertiary);
+      border-radius: 10px;
+    }
+
+    .tab {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .tab:hover {
+      color: var(--text-primary);
+      background: var(--bg-hover);
+    }
+
+    .tab.active {
+      background: var(--tab-active-bg);
+      color: var(--tab-active-text);
+    }
+
+    .tab .tab-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    /* ===== DROPDOWN ===== */
+    .dropdown {
+      position: relative;
+    }
+
+    .dropdown-trigger {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .dropdown-trigger:hover {
+      border-color: var(--text-muted);
+    }
+
+    .dropdown-menu {
+      position: absolute;
+      top: calc(100% + 8px);
+      left: 0;
+      min-width: 180px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      box-shadow: var(--card-shadow-hover);
+      padding: 6px;
+      z-index: 100;
+      display: none;
+      animation: dropdownOpen 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    .dropdown.open .dropdown-menu {
+      display: block;
+    }
+
+    .dropdown-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.1s ease;
+    }
+
+    .dropdown-item:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    .dropdown-item.active {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      font-weight: 500;
+    }
+
+    /* ===== TABLE ===== */
+    .invoice-table {
+      background: var(--bg-secondary);
+      border-radius: 16px;
+      border: 1px solid var(--border-color);
+      overflow: hidden;
+    }
+
+    .table-header {
+      display: grid;
+      grid-template-columns: 50px 1fr 1.2fr 120px 140px 140px 120px 100px;
+      gap: 12px;
+      padding: 14px 20px;
+      background: var(--table-header-bg);
+      border-bottom: 1px solid var(--border-color);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .table-row {
+      display: grid;
+      grid-template-columns: 50px 1fr 1.2fr 120px 140px 140px 120px 100px;
+      gap: 12px;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-color);
+      align-items: center;
+      transition: background-color 0.15s ease;
+      cursor: pointer;
+    }
+
+    .table-row:last-child {
+      border-bottom: none;
+    }
+
+    .table-row:hover {
+      background: var(--table-row-hover);
+    }
+
+    .table-row.selected {
+      background: var(--table-row-selected);
+    }
+
+    .table-row.expanded {
+      background: var(--table-row-hover);
+    }
+
+    /* ===== CHECKBOX ===== */
+    .checkbox {
+      width: 18px;
+      height: 18px;
+      border-radius: 5px;
+      border: 2px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .checkbox:hover {
+      border-color: var(--text-muted);
+    }
+
+    .checkbox.checked {
+      background: var(--text-primary);
+      border-color: var(--text-primary);
+    }
+
+    .checkbox.checked svg {
+      stroke-dasharray: 24;
+      stroke-dashoffset: 0;
+      animation: checkDraw 0.3s ease-out forwards;
+    }
+
+    /* ===== INVOICE INFO ===== */
+    .invoice-number {
+      font-weight: 600;
+      color: var(--text-primary);
+      font-size: 14px;
+    }
+
+    .invoice-service {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .client-name {
+      font-weight: 500;
+      color: var(--text-primary);
+      font-size: 14px;
+    }
+
+    .client-email {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* ===== BRAND BADGE ===== */
+    .brand-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .brand-badge-sankofa { background: rgba(16, 185, 129, 0.12); color: var(--brand-sankofa); }
+    .brand-badge-lighthouse { background: rgba(139, 92, 246, 0.12); color: var(--brand-lighthouse); }
+    .brand-badge-centex { background: rgba(245, 158, 11, 0.12); color: var(--brand-centex); }
+    .brand-badge-gfam-media { background: rgba(59, 130, 246, 0.12); color: var(--brand-gfam-media); }
+
+    .brand-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+
+    /* ===== STATUS BADGE ===== */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .status-paid {
+      background: rgba(16, 185, 129, 0.12);
+      color: var(--status-paid);
+    }
+
+    .status-pending {
+      background: rgba(245, 158, 11, 0.12);
+      color: var(--status-pending);
+      animation: pulse 1.5s infinite;
+    }
+
+    .status-overdue {
+      background: rgba(239, 68, 68, 0.12);
+      color: var(--status-overdue);
+      animation: overduePulse 1s infinite;
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+
+    /* ===== AMOUNT ===== */
+    .amount {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--text-primary);
+    }
+
+    .amount-due {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* ===== ROW ACTIONS ===== */
+    .row-actions {
+      display: flex;
+      gap: 4px;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+    }
+
+    .table-row:hover .row-actions {
+      opacity: 1;
+    }
+
+    .action-btn {
+      padding: 6px;
+      border-radius: 6px;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: all 0.15s ease;
+    }
+
+    .action-btn:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    /* ===== EXPANDED ROW ===== */
+    .row-expanded-content {
+      display: none;
+      grid-column: 1 / -1;
+      padding: 16px 20px;
+      background: var(--bg-tertiary);
+      border-top: 1px solid var(--border-color);
+      margin: 0 -20px -16px -20px;
+      margin-top: 16px;
+    }
+
+    .table-row.expanded .row-expanded-content {
+      display: block;
+      animation: fadeInUp 0.25s ease-out forwards;
+    }
+
+    .expanded-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .expanded-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .expanded-btn:hover {
+      background: var(--text-primary);
+      color: var(--bg-primary);
+      border-color: var(--text-primary);
+    }
+
+    .expanded-btn.primary {
+      background: var(--text-primary);
+      color: var(--bg-primary);
+      border-color: var(--text-primary);
+    }
+
+    .expanded-btn.primary:hover {
+      opacity: 0.9;
+    }
+
+    /* ===== PAGINATION ===== */
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .pagination-info {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .pagination-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .page-btn {
+      min-width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      background: transparent;
+      border: 1px solid var(--border-color);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .page-btn:hover {
+      background: var(--bg-tertiary);
+      border-color: var(--text-muted);
+    }
+
+    .page-btn.active {
+      background: var(--text-primary);
+      color: var(--bg-primary);
+      border-color: var(--text-primary);
+    }
+
+    .page-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* ===== BULK ACTIONS BAR ===== */
+    .bulk-actions-bar {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(calc(-50% + 130px));
+      background: var(--text-primary);
+      color: var(--bg-primary);
+      padding: 12px 20px;
+      border-radius: 12px;
+      display: none;
+      align-items: center;
+      gap: 16px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+      z-index: 100;
+      animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    .bulk-actions-bar.visible {
+      display: flex;
+    }
+
+    .bulk-count {
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .bulk-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      background: rgba(255,255,255,0.15);
+      border: none;
+      color: inherit;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .bulk-btn:hover {
+      background: rgba(255,255,255,0.25);
+    }
+
+    /* ===== BUTTONS ===== */
+    .btn-primary {
+      background: var(--text-primary);
+      color: var(--bg-primary);
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-primary:hover {
+      opacity: 0.9;
+      transform: scale(1.02);
+    }
+
+    .btn-secondary {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.15s ease;
+      border: 1px solid var(--border-color);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-secondary:hover {
+      background: var(--bg-hover);
+    }
+
+    /* ===== INPUTS ===== */
+    .search-input {
+      transition: all 0.2s ease;
+      border: 1px solid var(--border-color);
+      background: var(--input-bg);
+      color: var(--text-primary);
+    }
+
+    .search-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: var(--text-muted);
+      box-shadow: 0 0 0 3px rgba(107, 114, 128, 0.15);
+    }
+
+    /* ===== THEME TOGGLE ===== */
+    .theme-toggle {
+      position: relative;
+      width: 56px;
+      height: 28px;
+      background: var(--bg-tertiary);
+      border-radius: 20px;
+      border: 1px solid var(--border-color);
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      padding: 0 4px;
+    }
+
+    .theme-toggle-thumb {
+      position: absolute;
+      width: 22px;
+      height: 22px;
+      background: var(--text-primary);
+      border-radius: 50%;
+      transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      left: 3px;
+    }
+
+    [data-theme="dark"] .theme-toggle-thumb {
+      left: calc(100% - 25px);
+    }
+
+    .theme-toggle-thumb svg {
+      width: 14px;
+      height: 14px;
+      color: var(--bg-primary);
+    }
+
+    .theme-toggle-icon {
+      position: absolute;
+      width: 14px;
+      height: 14px;
+    }
+
+    .theme-toggle .sun-icon { right: 8px; color: var(--text-muted); }
+    .theme-toggle .moon-icon { left: 8px; color: var(--text-muted); }
+
+    /* ===== LAYOUT ===== */
+    .main-content {
+      margin-left: 260px;
+      padding: 24px 32px;
+      min-height: 100vh;
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 1400px) {
+      .table-header, .table-row {
+        grid-template-columns: 50px 1fr 1fr 100px 120px 120px 100px 80px;
+      }
+    }
+
+    @media (max-width: 1024px) {
+      .sidebar { width: 80px; }
+      .sidebar-link span { display: none; }
+      .sidebar-link { justify-content: center; padding: 16px; }
+      .main-content { margin-left: 80px; }
+      .brand-section, .logo-text { display: none; }
+      .bulk-actions-bar { transform: translateX(calc(-50% + 40px)); }
+    }
+
+    @media (max-width: 768px) {
+      .main-content { padding: 16px; }
+      .summary-grid { grid-template-columns: repeat(2, 1fr) !important; }
+      .table-header, .table-row {
+        grid-template-columns: 40px 1fr 100px 100px;
+      }
+      .hide-mobile { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="p-6 border-b" style="border-color: var(--sidebar-border);">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-500 to-blue-500 flex items-center justify-center">
+          <span class="text-white font-bold text-lg">G</span>
+        </div>
+        <div class="logo-text">
+          <h1 class="text-white font-semibold text-lg">GFAM</h1>
+          <p class="text-xs" style="color: var(--sidebar-text);">Agency</p>
+        </div>
+      </div>
+    </div>
+
+    <nav class="py-4 flex-1">
+      <a href="dashboard_2.html" class="sidebar-link">
+        <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+        <span>Dashboard</span>
+      </a>
+      <a href="services_1.html" class="sidebar-link">
+        <i data-lucide="briefcase" class="w-5 h-5"></i>
+        <span>Services</span>
+      </a>
+      <a href="#" class="sidebar-link active">
+        <i data-lucide="file-text" class="w-5 h-5"></i>
+        <span>Invoices</span>
+      </a>
+      <a href="#" class="sidebar-link">
+        <i data-lucide="users" class="w-5 h-5"></i>
+        <span>Clients</span>
+      </a>
+      <a href="#" class="sidebar-link">
+        <i data-lucide="settings" class="w-5 h-5"></i>
+        <span>Settings</span>
+      </a>
+
+      <div class="brand-section mt-6 px-5">
+        <p class="text-xs font-medium uppercase tracking-wider mb-3" style="color: var(--sidebar-text);">Brands</p>
+        <div class="space-y-2">
+          <div class="brand-item flex items-center gap-3 py-2 px-3 rounded-lg cursor-pointer transition-all" style="background: var(--sidebar-active);">
+            <div class="w-2.5 h-2.5 rounded-full" style="background: var(--brand-sankofa)"></div>
+            <span class="text-sm" style="color: var(--sidebar-text-active);">Sankofa</span>
+          </div>
+          <div class="brand-item flex items-center gap-3 py-2 px-3 rounded-lg cursor-pointer hover:opacity-80 transition-all">
+            <div class="w-2.5 h-2.5 rounded-full" style="background: var(--brand-lighthouse)"></div>
+            <span class="text-sm" style="color: var(--sidebar-text);">Lighthouse</span>
+          </div>
+          <div class="brand-item flex items-center gap-3 py-2 px-3 rounded-lg cursor-pointer hover:opacity-80 transition-all">
+            <div class="w-2.5 h-2.5 rounded-full" style="background: var(--brand-centex)"></div>
+            <span class="text-sm" style="color: var(--sidebar-text);">Centex</span>
+          </div>
+          <div class="brand-item flex items-center gap-3 py-2 px-3 rounded-lg cursor-pointer hover:opacity-80 transition-all">
+            <div class="w-2.5 h-2.5 rounded-full" style="background: var(--brand-gfam-media)"></div>
+            <span class="text-sm" style="color: var(--sidebar-text);">GFAM Media</span>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <div class="p-4 border-t" style="border-color: var(--sidebar-border);">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+          <span class="text-white text-sm font-medium">JG</span>
+        </div>
+        <div class="logo-text">
+          <p class="text-white text-sm font-medium">J. Gillis</p>
+          <p class="text-xs" style="color: var(--sidebar-text);">Admin</p>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <!-- Header -->
+    <header class="flex items-center justify-between mb-6 animate-fade-in-up flex-wrap gap-4">
+      <div>
+        <h1 class="text-2xl font-semibold" style="color: var(--text-primary);">Invoices</h1>
+        <p class="text-sm mt-1" style="color: var(--text-muted);">Track and manage invoices across all brands</p>
+      </div>
+      <div class="flex items-center gap-4">
+        <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+          <i data-lucide="sun" class="theme-toggle-icon sun-icon"></i>
+          <i data-lucide="moon" class="theme-toggle-icon moon-icon"></i>
+          <div class="theme-toggle-thumb">
+            <i data-lucide="sun" class="light-icon"></i>
+            <i data-lucide="moon" class="dark-icon" style="display: none;"></i>
+          </div>
+        </button>
+        <div class="relative">
+          <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style="color: var(--text-muted);"></i>
+          <input type="text" placeholder="Search invoices..." class="search-input pl-10 pr-4 py-2.5 rounded-lg w-64 text-sm">
+        </div>
+        <button class="btn-secondary">
+          <i data-lucide="calendar" class="w-4 h-4"></i>
+          Jan 1 - Jan 20
+        </button>
+        <button class="btn-primary">
+          <i data-lucide="plus" class="w-4 h-4"></i>
+          New Invoice
+        </button>
+      </div>
+    </header>
+
+    <!-- Summary Cards -->
+    <div class="summary-grid grid grid-cols-4 gap-6 mb-6">
+      <div class="summary-card animate-card-enter stagger-1" data-filter="all">
+        <div class="flex items-start justify-between">
+          <div class="summary-icon" style="background: var(--bg-tertiary);">
+            <i data-lucide="receipt" class="w-5 h-5" style="color: var(--text-primary);"></i>
+          </div>
+        </div>
+        <div class="mt-4">
+          <div class="summary-value">$42,580</div>
+          <div class="summary-label">Total Revenue</div>
+          <div class="summary-count">86 invoices</div>
+        </div>
+      </div>
+
+      <div class="summary-card animate-card-enter stagger-2" data-filter="paid">
+        <div class="flex items-start justify-between">
+          <div class="summary-icon" style="background: rgba(16, 185, 129, 0.12);">
+            <i data-lucide="check-circle" class="w-5 h-5" style="color: var(--status-paid);"></i>
+          </div>
+        </div>
+        <div class="mt-4">
+          <div class="summary-value" style="color: var(--status-paid);">$34,160</div>
+          <div class="summary-label">Paid</div>
+          <div class="summary-count">68 invoices</div>
+        </div>
+      </div>
+
+      <div class="summary-card animate-card-enter stagger-3" data-filter="pending">
+        <div class="flex items-start justify-between">
+          <div class="summary-icon" style="background: rgba(245, 158, 11, 0.12);">
+            <i data-lucide="clock" class="w-5 h-5" style="color: var(--status-pending);"></i>
+          </div>
+        </div>
+        <div class="mt-4">
+          <div class="summary-value" style="color: var(--status-pending);">$6,420</div>
+          <div class="summary-label">Pending</div>
+          <div class="summary-count">14 invoices</div>
+        </div>
+      </div>
+
+      <div class="summary-card animate-card-enter stagger-4" data-filter="overdue">
+        <div class="flex items-start justify-between">
+          <div class="summary-icon" style="background: rgba(239, 68, 68, 0.12);">
+            <i data-lucide="alert-circle" class="w-5 h-5" style="color: var(--status-overdue);"></i>
+          </div>
+        </div>
+        <div class="mt-4">
+          <div class="summary-value" style="color: var(--status-overdue);">$2,000</div>
+          <div class="summary-label">Overdue</div>
+          <div class="summary-count">4 invoices</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar mb-6 animate-fade-in-up" style="animation-delay: 0.2s;">
+      <div class="flex items-center justify-between flex-wrap gap-4">
+        <div class="tab-container">
+          <button class="tab active" data-filter="all">All</button>
+          <button class="tab" data-filter="sankofa">
+            <span class="tab-dot" style="background: var(--brand-sankofa);"></span>
+            Sankofa
+          </button>
+          <button class="tab" data-filter="lighthouse">
+            <span class="tab-dot" style="background: var(--brand-lighthouse);"></span>
+            Lighthouse
+          </button>
+          <button class="tab" data-filter="centex">
+            <span class="tab-dot" style="background: var(--brand-centex);"></span>
+            Centex
+          </button>
+          <button class="tab" data-filter="gfam-media">
+            <span class="tab-dot" style="background: var(--brand-gfam-media);"></span>
+            GFAM Media
+          </button>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <!-- Status Dropdown -->
+          <div class="dropdown" id="statusDropdown">
+            <button class="dropdown-trigger">
+              <i data-lucide="filter" class="w-4 h-4"></i>
+              Status: All
+              <i data-lucide="chevron-down" class="w-4 h-4"></i>
+            </button>
+            <div class="dropdown-menu">
+              <div class="dropdown-item active">
+                <span>All Statuses</span>
+              </div>
+              <div class="dropdown-item">
+                <span class="w-2 h-2 rounded-full" style="background: var(--status-paid);"></span>
+                <span>Paid</span>
+              </div>
+              <div class="dropdown-item">
+                <span class="w-2 h-2 rounded-full" style="background: var(--status-pending);"></span>
+                <span>Pending</span>
+              </div>
+              <div class="dropdown-item">
+                <span class="w-2 h-2 rounded-full" style="background: var(--status-overdue);"></span>
+                <span>Overdue</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Date Dropdown -->
+          <div class="dropdown" id="dateDropdown">
+            <button class="dropdown-trigger">
+              <i data-lucide="calendar" class="w-4 h-4"></i>
+              This Month
+              <i data-lucide="chevron-down" class="w-4 h-4"></i>
+            </button>
+            <div class="dropdown-menu">
+              <div class="dropdown-item">This Week</div>
+              <div class="dropdown-item active">This Month</div>
+              <div class="dropdown-item">This Quarter</div>
+              <div class="dropdown-item">This Year</div>
+              <div class="dropdown-item">Custom Range</div>
+            </div>
+          </div>
+
+          <button class="btn-secondary">
+            <i data-lucide="download" class="w-4 h-4"></i>
+            Export
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Invoice Table -->
+    <div class="invoice-table animate-fade-in-up" style="animation-delay: 0.25s;">
+      <div class="table-header">
+        <div class="flex items-center">
+          <div class="checkbox" id="selectAll">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="display: none;">
+              <path d="M2 6L5 9L10 3" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+        </div>
+        <div>Invoice</div>
+        <div>Client</div>
+        <div>Brand</div>
+        <div>Amount</div>
+        <div class="hide-mobile">Date</div>
+        <div>Status</div>
+        <div></div>
+      </div>
+
+      <!-- Row 1 -->
+      <div class="table-row animate-row-enter stagger-1" data-brand="sankofa" data-status="paid">
+        <div class="flex items-center">
+          <div class="checkbox row-checkbox">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="display: none;">
+              <path d="M2 6L5 9L10 3" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+        </div>
+        <div>
+          <div class="invoice-number">#INV-1042</div>
+          <div class="invoice-service">Website Design & Dev</div>
+        </div>
+        <div>
+          <div class="client-name">Acme Corp</div>
+          <div class="client-email">billing@acme.com</div>
+        </div>
+        <div>
+          <span class="brand-badge brand-badge-sankofa">
+            <span class="brand-dot" style="background: var(--brand-sankofa);"></span>
+            Sankofa
+          </span>
+        </div>
+        <div>
+          <div class="amount">$2,400.00</div>
+        </div>
+        <div class="hide-mobile">
+          <div style="color: var(--text-secondary); font-size: 13px;">Jan 15, 2026</div>
+          <div class="amount-due">Due: Jan 30</div>
+        </div>
+        <div>
+          <span class="status-badge status-paid">
+            <span class="status-dot" style="background: var(--status-paid);"></span>
+            Paid
+          </span>
+        </div>
+        <div class="row-actions">
+          <button class="action-btn" title="View"><i data-lucide="eye" class="w-4 h-4"></i></button>
+          <button class="action-btn" title="More"><i data-lucide="more-horizontal" class="w-4 h-4"></i></button>
+        </div>
+      </div>
+
+      <!-- Row 2 -->
+      <div class="table-row animate-row-enter stagger-2" data-brand="lighthouse" data-status="pending">
+        <div class="flex items-center">
+          <div class="checkbox row-checkbox">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="display: none;">
+              <path d="M2 6L5 9L10 3" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+        </div>
+        <div>
+          <div class="invoice-number">#INV-1041</div>
+          <div class="invoice-service">Video Editing Package</div>
+        </div>
+        <div>
+          <div class="client-name">TechStart Inc</div>
+          <div class="client-email">accounts@techstart.io</div>
+        </div>
+        <div>
+          <span class="brand-badge brand-badge-lighthouse">
+            <span class="brand-dot" style="background: var(--brand-lighthouse);"></span>
+            Lighthouse
+          </span>
+        </div>
+        <div>
+          <div class="amount">$1,850.00</div>
+        </div>
+        <div class="hide-mobile">
+          <div style="color: var(--text-secondary); font-size: 13px;">Jan 14, 2026</div>
+          <div class="amount-due">Due: Jan 28</div>
+        </div>
+        <div>
+          <span class="status-badge status-pending">
+            <span class="status-dot" style="background: var(--status-pending);"></span>
+            Pending
+          </span>
+        </div>
+        <div class="row-actions">
+          <button class="action-btn" title="View"><i data-lucide="eye" class="w-4 h-4"></i></button>
+          <button class="action-btn" title="More"><i data-lucide="more-horizontal" class="w-4 h-4"></i></button>
+        </div>
+      </div>
+
+      <!-- Row 3 -->
+      <div class="table-row animate-row-enter stagger-3" data-brand="centex" data-status="paid">
+        <div class="flex items-center">
+          <div class="checkbox row-checkbox">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="display: none;">
+              <path d="M2 6L5 9L10 3" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+        </div>
+        <div>
+          <div class="invoice-number">#INV-1040</div>
+          <div class="invoice-service">Live Stream Production</div>
+        </div>
+        <div>
+          <div class="client-name">MediaCo</div>
+          <div class="client-email">finance@mediaco.com</div>
+        </div>
+        <div>
+          <span class="brand-badge brand-badge-centex">
+            <span class="brand-dot" style="background: var(--brand-centex);"></span>
+            Centex
+          </span>
+        </div>
+        <div>
+          <div class="amount">$3,200.00</div>
+        </div>
+        <div class="hide-mobile">
+          <div style="color: var(--text-secondary); font-size: 13px;">Jan 12, 2026</div>
+          <div class="amount-due">Due: Jan 26</div>
+        </div>
+        <div>
+          <span class="status-badge status-paid">
+            <span class="status-dot" style="background: var(--status-paid);"></span>
+            Paid
+          </span>
+        </div>
+        <div class="row-actions">
+          <button class="action-btn" title="View"><i data-lucide="eye" class="w-4 h-4"></i></button>
+          <button class="action-btn" title="More"><i data-lucide="more-horizontal" class="w-4 h-4"></i></button>
+        </div>
+      </div>
+
+      <!-- Row 4 - Overdue -->
+      <div class="table-row animate-row-enter stagger-4" data-brand="gfam-media" data-status="overdue">
+        <div class="flex items-center">
+          <div class="checkbox row-checkbox">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="display: none;">
+              <path d="M2 6L5 9L10 3" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+        </div>
+        <div>
+          <div class="invoice-number">#INV-1039</div>
+          <div class="invoice-service">Studio Rental (8hrs)</div>
+        </div>
+        <div>
+          <div class="client-name">StartupXYZ</div>
+          <div class="client-email">pay@startupxyz.co</div>
+        </div>
+        <div>
+          <span class="brand-badge brand-badge-gfam-media">
+            <span class="brand-dot" style="background: var(--brand-gfam-media);"></span>
+            GFAM Media
+          </span>
+        </div>
+        <div>
+          <div class="amount">$890.00</div>
+        </div>
+        <div class="hide-mobile">
+          <div style="color: var(--text-secondary); font-size: 13px;">Jan 5, 2026</div>
+          <div class="amount-due" style="color: var(--status-overdue);">Due: Jan 19 (1d)</div>
+        </div>
+        <div>
+          <span class="status-badge status-overdue">
+            <span class="status-dot" style="background: var(--status-overdue);"></span>
+            Overdue
+          </span>
+        </div>
+        <div class="row-actions">
+          <button class="action-btn" title="View"><i data-lucide="eye" class="w-4 h-4"></i></button>
+          <button class="action-btn" title="More"><i data-lucide="more-horizontal" class="w-4 h-4"></i></button>
+        </div>
+      </div>
+
+      <!-- Row 5 -->
+      <div class="table-row animate-row-enter stagger-5" data-brand="sankofa" data-status="pending">
+        <div class="flex items-center">
+          <div class="checkbox row-checkbox">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="display: none;">
+              <path d="M2 6L5 9L10 3" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+        </div>
+        <div>
+          <div class="invoice-number">#INV-1038</div>
+          <div class="invoice-service">Social Media Management</div>
+        </div>
+        <div>
+          <div class="client-name">GrowthCo</div>
+          <div class="client-email">ap@growthco.io</div>
+        </div>
+        <div>
+          <span class="brand-badge brand-badge-sankofa">
+            <span class="brand-dot" style="background: var(--brand-sankofa);"></span>
+            Sankofa
+          </span>
+        </div>
+        <div>
+          <div class="amount">$800.00</div>
+        </div>
+        <div class="hide-mobile">
+          <div style="color: var(--text-secondary); font-size: 13px;">Jan 3, 2026</div>
+          <div class="amount-due">Due: Feb 3</div>
+        </div>
+        <div>
+          <span class="status-badge status-pending">
+            <span class="status-dot" style="background: var(--status-pending);"></span>
+            Pending
+          </span>
+        </div>
+        <div class="row-actions">
+          <button class="action-btn" title="View"><i data-lucide="eye" class="w-4 h-4"></i></button>
+          <button class="action-btn" title="More"><i data-lucide="more-horizontal" class="w-4 h-4"></i></button>
+        </div>
+      </div>
+
+      <!-- Row 6 -->
+      <div class="table-row animate-row-enter stagger-6" data-brand="lighthouse" data-status="paid">
+        <div class="flex items-center">
+          <div class="checkbox row-checkbox">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="display: none;">
+              <path d="M2 6L5 9L10 3" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+        </div>
+        <div>
+          <div class="invoice-number">#INV-1037</div>
+          <div class="invoice-service">Photography Package</div>
+        </div>
+        <div>
+          <div class="client-name">EventPros</div>
+          <div class="client-email">billing@eventpros.com</div>
+        </div>
+        <div>
+          <span class="brand-badge brand-badge-lighthouse">
+            <span class="brand-dot" style="background: var(--brand-lighthouse);"></span>
+            Lighthouse
+          </span>
+        </div>
+        <div>
+          <div class="amount">$1,500.00</div>
+        </div>
+        <div class="hide-mobile">
+          <div style="color: var(--text-secondary); font-size: 13px;">Jan 2, 2026</div>
+          <div class="amount-due">Due: Jan 16</div>
+        </div>
+        <div>
+          <span class="status-badge status-paid">
+            <span class="status-dot" style="background: var(--status-paid);"></span>
+            Paid
+          </span>
+        </div>
+        <div class="row-actions">
+          <button class="action-btn" title="View"><i data-lucide="eye" class="w-4 h-4"></i></button>
+          <button class="action-btn" title="More"><i data-lucide="more-horizontal" class="w-4 h-4"></i></button>
+        </div>
+      </div>
+
+      <!-- Pagination -->
+      <div class="pagination">
+        <div class="pagination-info">
+          Showing <strong>1-6</strong> of <strong>86</strong> invoices
+        </div>
+        <div class="pagination-controls">
+          <button class="page-btn" disabled>
+            <i data-lucide="chevron-left" class="w-4 h-4"></i>
+          </button>
+          <button class="page-btn active">1</button>
+          <button class="page-btn">2</button>
+          <button class="page-btn">3</button>
+          <span style="color: var(--text-muted);">...</span>
+          <button class="page-btn">15</button>
+          <button class="page-btn">
+            <i data-lucide="chevron-right" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Bulk Actions Bar -->
+  <div class="bulk-actions-bar" id="bulkActionsBar">
+    <span class="bulk-count"><span id="selectedCount">0</span> selected</span>
+    <button class="bulk-btn">
+      <i data-lucide="mail" class="w-4 h-4"></i>
+      Send Reminder
+    </button>
+    <button class="bulk-btn">
+      <i data-lucide="download" class="w-4 h-4"></i>
+      Download PDFs
+    </button>
+    <button class="bulk-btn">
+      <i data-lucide="x" class="w-4 h-4"></i>
+      Clear
+    </button>
+  </div>
+
+  <script>
+    // Initialize Lucide icons
+    lucide.createIcons();
+
+    // Theme Toggle
+    const themeToggle = document.getElementById('themeToggle');
+    const html = document.documentElement;
+    const lightIcon = themeToggle.querySelector('.light-icon');
+    const darkIcon = themeToggle.querySelector('.dark-icon');
+
+    const savedTheme = localStorage.getItem('gfam-theme');
+    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+    if (savedTheme) {
+      html.setAttribute('data-theme', savedTheme);
+      updateToggleIcon(savedTheme);
+    } else if (systemPrefersDark) {
+      html.setAttribute('data-theme', 'dark');
+      updateToggleIcon('dark');
+    }
+
+    function updateToggleIcon(theme) {
+      if (theme === 'dark') {
+        lightIcon.style.display = 'none';
+        darkIcon.style.display = 'block';
+      } else {
+        lightIcon.style.display = 'block';
+        darkIcon.style.display = 'none';
+      }
+    }
+
+    themeToggle.addEventListener('click', () => {
+      const currentTheme = html.getAttribute('data-theme');
+      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+      html.setAttribute('data-theme', newTheme);
+      localStorage.setItem('gfam-theme', newTheme);
+      updateToggleIcon(newTheme);
+      lucide.createIcons();
+    });
+
+    // Dropdown functionality
+    document.querySelectorAll('.dropdown').forEach(dropdown => {
+      const trigger = dropdown.querySelector('.dropdown-trigger');
+      trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.querySelectorAll('.dropdown').forEach(d => {
+          if (d !== dropdown) d.classList.remove('open');
+        });
+        dropdown.classList.toggle('open');
+      });
+    });
+
+    document.addEventListener('click', () => {
+      document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('open'));
+    });
+
+    // Tab filtering
+    const tabs = document.querySelectorAll('.tab');
+    const tableRows = document.querySelectorAll('.table-row');
+
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+
+        const filter = tab.dataset.filter;
+
+        tableRows.forEach((row, index) => {
+          const brand = row.dataset.brand;
+          if (filter === 'all' || brand === filter) {
+            row.style.display = 'grid';
+            row.style.animation = 'none';
+            row.offsetHeight;
+            row.style.animation = `rowEnter 0.3s ease-out forwards`;
+            row.style.animationDelay = `${index * 0.04}s`;
+          } else {
+            row.style.display = 'none';
+          }
+        });
+      });
+    });
+
+    // Checkbox selection
+    const checkboxes = document.querySelectorAll('.row-checkbox');
+    const selectAllCheckbox = document.getElementById('selectAll');
+    const bulkActionsBar = document.getElementById('bulkActionsBar');
+    const selectedCountEl = document.getElementById('selectedCount');
+    let selectedRows = new Set();
+
+    checkboxes.forEach((checkbox, index) => {
+      checkbox.addEventListener('click', (e) => {
+        e.stopPropagation();
+        checkbox.classList.toggle('checked');
+        const svg = checkbox.querySelector('svg');
+        svg.style.display = checkbox.classList.contains('checked') ? 'block' : 'none';
+
+        const row = checkbox.closest('.table-row');
+        if (checkbox.classList.contains('checked')) {
+          selectedRows.add(index);
+          row.classList.add('selected');
+        } else {
+          selectedRows.delete(index);
+          row.classList.remove('selected');
+        }
+
+        updateBulkActions();
+      });
+    });
+
+    selectAllCheckbox.addEventListener('click', () => {
+      const isChecked = selectAllCheckbox.classList.toggle('checked');
+      selectAllCheckbox.querySelector('svg').style.display = isChecked ? 'block' : 'none';
+
+      checkboxes.forEach((checkbox, index) => {
+        checkbox.classList.toggle('checked', isChecked);
+        checkbox.querySelector('svg').style.display = isChecked ? 'block' : 'none';
+        const row = checkbox.closest('.table-row');
+        row.classList.toggle('selected', isChecked);
+
+        if (isChecked) {
+          selectedRows.add(index);
+        } else {
+          selectedRows.delete(index);
+        }
+      });
+
+      updateBulkActions();
+    });
+
+    function updateBulkActions() {
+      selectedCountEl.textContent = selectedRows.size;
+      if (selectedRows.size > 0) {
+        bulkActionsBar.classList.add('visible');
+      } else {
+        bulkActionsBar.classList.remove('visible');
+      }
+    }
+
+    // Clear selection
+    document.querySelector('.bulk-btn:last-child').addEventListener('click', () => {
+      checkboxes.forEach(checkbox => {
+        checkbox.classList.remove('checked');
+        checkbox.querySelector('svg').style.display = 'none';
+        checkbox.closest('.table-row').classList.remove('selected');
+      });
+      selectAllCheckbox.classList.remove('checked');
+      selectAllCheckbox.querySelector('svg').style.display = 'none';
+      selectedRows.clear();
+      updateBulkActions();
+    });
+
+    // Summary card click filtering
+    document.querySelectorAll('.summary-card').forEach(card => {
+      card.addEventListener('click', () => {
+        document.querySelectorAll('.summary-card').forEach(c => c.classList.remove('active'));
+        card.classList.add('active');
+
+        const filter = card.dataset.filter;
+        tableRows.forEach((row, index) => {
+          const status = row.dataset.status;
+          if (filter === 'all' || status === filter) {
+            row.style.display = 'grid';
+            row.style.animation = 'none';
+            row.offsetHeight;
+            row.style.animation = `rowEnter 0.3s ease-out forwards`;
+            row.style.animationDelay = `${index * 0.04}s`;
+          } else {
+            row.style.display = 'none';
+          }
+        });
+      });
+    });
+
+    // Search functionality
+    const searchInput = document.querySelector('.search-input');
+    searchInput.addEventListener('input', (e) => {
+      const query = e.target.value.toLowerCase();
+
+      tableRows.forEach(row => {
+        const invoiceNum = row.querySelector('.invoice-number').textContent.toLowerCase();
+        const service = row.querySelector('.invoice-service').textContent.toLowerCase();
+        const client = row.querySelector('.client-name').textContent.toLowerCase();
+
+        if (invoiceNum.includes(query) || service.includes(query) || client.includes(query)) {
+          row.style.display = 'grid';
+        } else {
+          row.style.display = 'none';
+        }
+      });
+    });
+  </script>
+</body>
+</html>

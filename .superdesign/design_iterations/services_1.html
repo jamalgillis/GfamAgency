@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GFAM Agency - Services</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ===== THEME VARIABLES ===== */
+    :root {
+      --brand-sankofa: #10b981;
+      --brand-lighthouse: #8b5cf6;
+      --brand-centex: #f59e0b;
+      --brand-gfam-media: #3b82f6;
+      --status-active: #10b981;
+      --status-inactive: #6b7280;
+    }
+
+    /* Light Theme */
+    [data-theme="light"] {
+      --bg-primary: #f8f9fa;
+      --bg-secondary: #ffffff;
+      --bg-tertiary: #f3f4f6;
+      --bg-hover: #e5e7eb;
+      --text-primary: #1a1a2e;
+      --text-secondary: #4b5563;
+      --text-muted: #6b7280;
+      --text-inverse: #ffffff;
+      --border-color: #e5e7eb;
+      --border-light: #f3f4f6;
+      --sidebar-bg: #1a1a2e;
+      --sidebar-hover: #2d2d44;
+      --sidebar-active: #3d3d5c;
+      --sidebar-text: #9ca3af;
+      --sidebar-text-active: #ffffff;
+      --sidebar-border: #374151;
+      --card-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      --card-shadow-hover: 0 20px 40px -10px rgba(0,0,0,0.15);
+      --input-bg: #ffffff;
+      --tab-bg: #ffffff;
+      --tab-active-bg: #1a1a2e;
+      --tab-active-text: #ffffff;
+    }
+
+    /* Dark Theme */
+    [data-theme="dark"] {
+      --bg-primary: #0f0f1a;
+      --bg-secondary: #1a1a2e;
+      --bg-tertiary: #252540;
+      --bg-hover: #2d2d4a;
+      --text-primary: #f3f4f6;
+      --text-secondary: #d1d5db;
+      --text-muted: #9ca3af;
+      --text-inverse: #1a1a2e;
+      --border-color: #2d2d4a;
+      --border-light: #252540;
+      --sidebar-bg: #0a0a14;
+      --sidebar-hover: #1a1a2e;
+      --sidebar-active: #252540;
+      --sidebar-text: #6b7280;
+      --sidebar-text-active: #ffffff;
+      --sidebar-border: #252540;
+      --card-shadow: 0 1px 3px rgba(0,0,0,0.3);
+      --card-shadow-hover: 0 20px 40px -10px rgba(0,0,0,0.5);
+      --input-bg: #252540;
+      --tab-bg: #1a1a2e;
+      --tab-active-bg: #ffffff;
+      --tab-active-text: #1a1a2e;
+    }
+
+    /* ===== BASE STYLES ===== */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+      background-color: var(--bg-primary) !important;
+      color: var(--text-primary) !important;
+      line-height: 1.5 !important;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    /* ===== ANIMATIONS ===== */
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes cardEnter {
+      from { opacity: 0; transform: translateY(30px) scale(0.95); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(-10px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    @keyframes bounce {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.15); }
+    }
+
+    @keyframes glow {
+      0%, 100% { opacity: 1; filter: drop-shadow(0 0 2px currentColor); }
+      50% { opacity: 0.7; filter: drop-shadow(0 0 4px currentColor); }
+    }
+
+    @keyframes tabSlide {
+      from { transform: scaleX(0); }
+      to { transform: scaleX(1); }
+    }
+
+    .animate-fade-in-up {
+      animation: fadeInUp 0.4s ease-out forwards;
+    }
+
+    .animate-card-enter {
+      opacity: 0;
+      animation: cardEnter 0.4s ease-out forwards;
+    }
+
+    .stagger-1 { animation-delay: 0.06s; }
+    .stagger-2 { animation-delay: 0.12s; }
+    .stagger-3 { animation-delay: 0.18s; }
+    .stagger-4 { animation-delay: 0.24s; }
+    .stagger-5 { animation-delay: 0.30s; }
+    .stagger-6 { animation-delay: 0.36s; }
+
+    /* ===== SIDEBAR ===== */
+    .sidebar {
+      background: var(--sidebar-bg);
+      width: 260px;
+      min-height: 100vh;
+      position: fixed;
+      left: 0;
+      top: 0;
+      display: flex;
+      flex-direction: column;
+      transition: background-color 0.3s ease;
+      z-index: 50;
+    }
+
+    .sidebar-link {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 20px;
+      color: var(--sidebar-text);
+      text-decoration: none;
+      transition: all 0.15s ease;
+      border-left: 3px solid transparent;
+    }
+
+    .sidebar-link:hover {
+      background: var(--sidebar-hover);
+      color: var(--sidebar-text-active);
+      padding-left: 24px;
+    }
+
+    .sidebar-link.active {
+      background: var(--sidebar-active);
+      color: var(--sidebar-text-active);
+      border-left-color: var(--brand-sankofa);
+    }
+
+    /* ===== CARDS ===== */
+    .card {
+      background: var(--bg-secondary);
+      border-radius: 16px;
+      border: 1px solid var(--border-color);
+      box-shadow: var(--card-shadow);
+      transition: all 0.2s ease;
+    }
+
+    .service-card {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .service-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--card-shadow-hover);
+    }
+
+    .service-card:active {
+      transform: translateY(-2px) scale(0.99);
+    }
+
+    /* ===== BRAND BADGE ===== */
+    .brand-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+      animation: slideIn 0.3s ease-out forwards;
+    }
+
+    .brand-badge-sankofa {
+      background: rgba(16, 185, 129, 0.12);
+      color: var(--brand-sankofa);
+    }
+
+    .brand-badge-lighthouse {
+      background: rgba(139, 92, 246, 0.12);
+      color: var(--brand-lighthouse);
+    }
+
+    .brand-badge-centex {
+      background: rgba(245, 158, 11, 0.12);
+      color: var(--brand-centex);
+    }
+
+    .brand-badge-gfam-media {
+      background: rgba(59, 130, 246, 0.12);
+      color: var(--brand-gfam-media);
+    }
+
+    .brand-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+
+    /* ===== TABS ===== */
+    .tab-container {
+      display: flex;
+      gap: 8px;
+      padding: 6px;
+      background: var(--bg-tertiary);
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+    }
+
+    .tab {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-muted);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+
+    .tab:hover {
+      color: var(--text-primary);
+      background: var(--bg-hover);
+      transform: translateY(-1px);
+    }
+
+    .tab.active {
+      background: var(--tab-active-bg);
+      color: var(--tab-active-text);
+    }
+
+    .tab .tab-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      transition: transform 0.25s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    }
+
+    .tab:hover .tab-dot {
+      transform: scale(1.2);
+    }
+
+    .tab.active .tab-dot {
+      animation: bounce 0.3s ease-out;
+    }
+
+    /* ===== STATUS ===== */
+    .status-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      animation: bounce 0.4s ease-out;
+    }
+
+    .status-active .status-dot {
+      background: var(--status-active);
+      box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+    }
+
+    .status-inactive .status-dot {
+      background: var(--status-inactive);
+    }
+
+    /* ===== STRIPE INDICATOR ===== */
+    .stripe-synced {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      color: #635bff;
+      font-size: 12px;
+      animation: glow 2s infinite;
+    }
+
+    /* ===== BUTTONS ===== */
+    .btn-primary {
+      background: var(--text-primary);
+      color: var(--bg-primary);
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-primary:hover {
+      opacity: 0.9;
+      transform: scale(1.02);
+    }
+
+    .btn-primary:active {
+      transform: scale(0.95);
+    }
+
+    .btn-secondary {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.15s ease;
+      border: 1px solid var(--border-color);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-secondary:hover {
+      background: var(--text-primary);
+      color: var(--bg-primary);
+      border-color: var(--text-primary);
+    }
+
+    .btn-icon {
+      padding: 8px;
+      border-radius: 8px;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: all 0.15s ease;
+    }
+
+    .btn-icon:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    /* ===== INPUTS ===== */
+    .search-input {
+      transition: all 0.2s ease;
+      border: 1px solid var(--border-color);
+      background: var(--input-bg);
+      color: var(--text-primary);
+    }
+
+    .search-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: var(--text-muted);
+      box-shadow: 0 0 0 3px rgba(107, 114, 128, 0.15);
+      width: 320px;
+    }
+
+    /* ===== TAGS ===== */
+    .tag {
+      display: inline-flex;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 500;
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-color);
+    }
+
+    /* ===== THEME TOGGLE ===== */
+    .theme-toggle {
+      position: relative;
+      width: 56px;
+      height: 28px;
+      background: var(--bg-tertiary);
+      border-radius: 20px;
+      border: 1px solid var(--border-color);
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      padding: 0 4px;
+    }
+
+    .theme-toggle:hover {
+      border-color: var(--text-muted);
+    }
+
+    .theme-toggle-thumb {
+      position: absolute;
+      width: 22px;
+      height: 22px;
+      background: var(--text-primary);
+      border-radius: 50%;
+      transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      left: 3px;
+    }
+
+    [data-theme="dark"] .theme-toggle-thumb {
+      left: calc(100% - 25px);
+    }
+
+    .theme-toggle-thumb svg {
+      width: 14px;
+      height: 14px;
+      color: var(--bg-primary);
+    }
+
+    .theme-toggle-icon {
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      transition: opacity 0.3s ease;
+    }
+
+    .theme-toggle .sun-icon { right: 8px; color: var(--text-muted); }
+    .theme-toggle .moon-icon { left: 8px; color: var(--text-muted); }
+
+    /* ===== LAYOUT ===== */
+    .main-content {
+      margin-left: 260px;
+      padding: 24px 32px;
+      min-height: 100vh;
+      transition: background-color 0.3s ease;
+    }
+
+    /* ===== STATS BAR ===== */
+    .stats-bar {
+      display: flex;
+      gap: 24px;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 24px;
+    }
+
+    .stat-item {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .stat-label {
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    .stat-divider {
+      width: 1px;
+      height: 24px;
+      background: var(--border-color);
+      align-self: center;
+    }
+
+    /* ===== PRICE ===== */
+    .price {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .price-suffix {
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--text-muted);
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 1280px) {
+      .services-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+      }
+    }
+
+    @media (max-width: 1024px) {
+      .sidebar { width: 80px; }
+      .sidebar-link span { display: none; }
+      .sidebar-link { justify-content: center; padding: 16px; }
+      .main-content { margin-left: 80px; }
+      .brand-section { display: none; }
+      .logo-text { display: none; }
+    }
+
+    @media (max-width: 768px) {
+      .main-content { padding: 16px; }
+      .services-grid { grid-template-columns: 1fr !important; }
+      .tab-container { overflow-x: auto; }
+      .header-actions { flex-wrap: wrap; }
+      .search-input { width: 100% !important; }
+      .search-input:focus { width: 100% !important; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="p-6 border-b" style="border-color: var(--sidebar-border);">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-500 to-blue-500 flex items-center justify-center">
+          <span class="text-white font-bold text-lg">G</span>
+        </div>
+        <div class="logo-text">
+          <h1 class="text-white font-semibold text-lg">GFAM</h1>
+          <p class="text-xs" style="color: var(--sidebar-text);">Agency</p>
+        </div>
+      </div>
+    </div>
+
+    <nav class="py-4 flex-1">
+      <a href="dashboard_2.html" class="sidebar-link">
+        <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+        <span>Dashboard</span>
+      </a>
+      <a href="#" class="sidebar-link active">
+        <i data-lucide="briefcase" class="w-5 h-5"></i>
+        <span>Services</span>
+      </a>
+      <a href="#" class="sidebar-link">
+        <i data-lucide="file-text" class="w-5 h-5"></i>
+        <span>Invoices</span>
+      </a>
+      <a href="#" class="sidebar-link">
+        <i data-lucide="users" class="w-5 h-5"></i>
+        <span>Clients</span>
+      </a>
+      <a href="#" class="sidebar-link">
+        <i data-lucide="settings" class="w-5 h-5"></i>
+        <span>Settings</span>
+      </a>
+
+      <div class="brand-section mt-6 px-5">
+        <p class="text-xs font-medium uppercase tracking-wider mb-3" style="color: var(--sidebar-text);">Brands</p>
+        <div class="space-y-2">
+          <div class="brand-item flex items-center gap-3 py-2 px-3 rounded-lg cursor-pointer transition-all" style="background: var(--sidebar-active);">
+            <div class="w-2.5 h-2.5 rounded-full" style="background: var(--brand-sankofa)"></div>
+            <span class="text-sm" style="color: var(--sidebar-text-active);">Sankofa</span>
+          </div>
+          <div class="brand-item flex items-center gap-3 py-2 px-3 rounded-lg cursor-pointer hover:opacity-80 transition-all">
+            <div class="w-2.5 h-2.5 rounded-full" style="background: var(--brand-lighthouse)"></div>
+            <span class="text-sm" style="color: var(--sidebar-text);">Lighthouse</span>
+          </div>
+          <div class="brand-item flex items-center gap-3 py-2 px-3 rounded-lg cursor-pointer hover:opacity-80 transition-all">
+            <div class="w-2.5 h-2.5 rounded-full" style="background: var(--brand-centex)"></div>
+            <span class="text-sm" style="color: var(--sidebar-text);">Centex</span>
+          </div>
+          <div class="brand-item flex items-center gap-3 py-2 px-3 rounded-lg cursor-pointer hover:opacity-80 transition-all">
+            <div class="w-2.5 h-2.5 rounded-full" style="background: var(--brand-gfam-media)"></div>
+            <span class="text-sm" style="color: var(--sidebar-text);">GFAM Media</span>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <div class="p-4 border-t" style="border-color: var(--sidebar-border);">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+          <span class="text-white text-sm font-medium">JG</span>
+        </div>
+        <div class="logo-text">
+          <p class="text-white text-sm font-medium">J. Gillis</p>
+          <p class="text-xs" style="color: var(--sidebar-text);">Admin</p>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <!-- Header -->
+    <header class="flex items-center justify-between mb-6 animate-fade-in-up flex-wrap gap-4">
+      <div>
+        <h1 class="text-2xl font-semibold" style="color: var(--text-primary);">Services</h1>
+        <p class="text-sm mt-1" style="color: var(--text-muted);">Manage your service catalog across all brands</p>
+      </div>
+      <div class="flex items-center gap-4 header-actions">
+        <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+          <i data-lucide="sun" class="theme-toggle-icon sun-icon"></i>
+          <i data-lucide="moon" class="theme-toggle-icon moon-icon"></i>
+          <div class="theme-toggle-thumb">
+            <i data-lucide="sun" class="light-icon"></i>
+            <i data-lucide="moon" class="dark-icon" style="display: none;"></i>
+          </div>
+        </button>
+        <div class="relative">
+          <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style="color: var(--text-muted);"></i>
+          <input type="text" placeholder="Search services..." class="search-input pl-10 pr-4 py-2.5 rounded-lg w-64 text-sm">
+        </div>
+        <button class="btn-primary">
+          <i data-lucide="plus" class="w-4 h-4"></i>
+          Add Service
+        </button>
+      </div>
+    </header>
+
+    <!-- Brand Filter Tabs -->
+    <div class="animate-fade-in-up" style="animation-delay: 0.1s;">
+      <div class="tab-container inline-flex">
+        <button class="tab active" data-filter="all">
+          All Services
+        </button>
+        <button class="tab" data-filter="sankofa">
+          <span class="tab-dot" style="background: var(--brand-sankofa);"></span>
+          Sankofa
+        </button>
+        <button class="tab" data-filter="lighthouse">
+          <span class="tab-dot" style="background: var(--brand-lighthouse);"></span>
+          Lighthouse
+        </button>
+        <button class="tab" data-filter="centex">
+          <span class="tab-dot" style="background: var(--brand-centex);"></span>
+          Centex
+        </button>
+        <button class="tab" data-filter="gfam-media">
+          <span class="tab-dot" style="background: var(--brand-gfam-media);"></span>
+          GFAM Media
+        </button>
+      </div>
+    </div>
+
+    <!-- Stats Bar -->
+    <div class="stats-bar animate-fade-in-up" style="animation-delay: 0.15s;">
+      <div class="stat-item">
+        <span class="stat-value">48</span>
+        <span class="stat-label">Services</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-item">
+        <span class="stat-value" style="color: var(--status-active);">42</span>
+        <span class="stat-label">Active</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-item">
+        <span class="stat-value" style="color: var(--text-muted);">6</span>
+        <span class="stat-label">Inactive</span>
+      </div>
+    </div>
+
+    <!-- Services Grid -->
+    <div class="services-grid grid grid-cols-3 gap-6">
+      <!-- Service Card 1 - Sankofa -->
+      <div class="card service-card p-6 animate-card-enter stagger-1">
+        <div class="flex items-start justify-between mb-4">
+          <span class="brand-badge brand-badge-sankofa">
+            <span class="brand-dot" style="background: var(--brand-sankofa);"></span>
+            Sankofa
+          </span>
+          <button class="btn-icon">
+            <i data-lucide="more-vertical" class="w-4 h-4"></i>
+          </button>
+        </div>
+        <h3 class="text-lg font-semibold mb-2" style="color: var(--text-primary);">Website Design & Dev</h3>
+        <p class="text-sm mb-4" style="color: var(--text-muted);">Full website design and development with responsive layouts and modern tech stack.</p>
+        <div class="flex gap-2 mb-4">
+          <span class="tag">Web Dev</span>
+          <span class="tag">Design</span>
+        </div>
+        <div class="price mb-4">
+          $2,500 - $5,000
+        </div>
+        <div class="flex items-center justify-between pt-4" style="border-top: 1px solid var(--border-color);">
+          <div class="flex items-center gap-4">
+            <div class="status-indicator status-active">
+              <span class="status-dot"></span>
+              <span style="color: var(--status-active);">Active</span>
+            </div>
+            <span class="stripe-synced">
+              <i data-lucide="zap" class="w-3 h-3"></i>
+              Stripe
+            </span>
+          </div>
+          <button class="btn-secondary">
+            <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+            Edit
+          </button>
+        </div>
+      </div>
+
+      <!-- Service Card 2 - Sankofa -->
+      <div class="card service-card p-6 animate-card-enter stagger-2">
+        <div class="flex items-start justify-between mb-4">
+          <span class="brand-badge brand-badge-sankofa">
+            <span class="brand-dot" style="background: var(--brand-sankofa);"></span>
+            Sankofa
+          </span>
+          <button class="btn-icon">
+            <i data-lucide="more-vertical" class="w-4 h-4"></i>
+          </button>
+        </div>
+        <h3 class="text-lg font-semibold mb-2" style="color: var(--text-primary);">Social Media Management</h3>
+        <p class="text-sm mb-4" style="color: var(--text-muted);">Monthly social media content creation, scheduling, and community management.</p>
+        <div class="flex gap-2 mb-4">
+          <span class="tag">Marketing</span>
+          <span class="tag">Social</span>
+        </div>
+        <div class="price mb-4">
+          $800<span class="price-suffix">/month</span>
+        </div>
+        <div class="flex items-center justify-between pt-4" style="border-top: 1px solid var(--border-color);">
+          <div class="flex items-center gap-4">
+            <div class="status-indicator status-active">
+              <span class="status-dot"></span>
+              <span style="color: var(--status-active);">Active</span>
+            </div>
+            <span class="stripe-synced">
+              <i data-lucide="zap" class="w-3 h-3"></i>
+              Stripe
+            </span>
+          </div>
+          <button class="btn-secondary">
+            <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+            Edit
+          </button>
+        </div>
+      </div>
+
+      <!-- Service Card 3 - Lighthouse -->
+      <div class="card service-card p-6 animate-card-enter stagger-3">
+        <div class="flex items-start justify-between mb-4">
+          <span class="brand-badge brand-badge-lighthouse">
+            <span class="brand-dot" style="background: var(--brand-lighthouse);"></span>
+            Lighthouse
+          </span>
+          <button class="btn-icon">
+            <i data-lucide="more-vertical" class="w-4 h-4"></i>
+          </button>
+        </div>
+        <h3 class="text-lg font-semibold mb-2" style="color: var(--text-primary);">Video Editing</h3>
+        <p class="text-sm mb-4" style="color: var(--text-muted);">Professional video editing with color grading, motion graphics, and sound design.</p>
+        <div class="flex gap-2 mb-4">
+          <span class="tag">Video</span>
+          <span class="tag">Post-Prod</span>
+        </div>
+        <div class="price mb-4">
+          $150<span class="price-suffix">/hour</span>
+        </div>
+        <div class="flex items-center justify-between pt-4" style="border-top: 1px solid var(--border-color);">
+          <div class="flex items-center gap-4">
+            <div class="status-indicator status-active">
+              <span class="status-dot"></span>
+              <span style="color: var(--status-active);">Active</span>
+            </div>
+            <span class="stripe-synced">
+              <i data-lucide="zap" class="w-3 h-3"></i>
+              Stripe
+            </span>
+          </div>
+          <button class="btn-secondary">
+            <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+            Edit
+          </button>
+        </div>
+      </div>
+
+      <!-- Service Card 4 - Lighthouse -->
+      <div class="card service-card p-6 animate-card-enter stagger-4">
+        <div class="flex items-start justify-between mb-4">
+          <span class="brand-badge brand-badge-lighthouse">
+            <span class="brand-dot" style="background: var(--brand-lighthouse);"></span>
+            Lighthouse
+          </span>
+          <button class="btn-icon">
+            <i data-lucide="more-vertical" class="w-4 h-4"></i>
+          </button>
+        </div>
+        <h3 class="text-lg font-semibold mb-2" style="color: var(--text-primary);">Photography Package</h3>
+        <p class="text-sm mb-4" style="color: var(--text-muted);">Event and product photography with professional editing and delivery.</p>
+        <div class="flex gap-2 mb-4">
+          <span class="tag">Photo</span>
+          <span class="tag">Events</span>
+        </div>
+        <div class="price mb-4">
+          $500 - $2,000
+        </div>
+        <div class="flex items-center justify-between pt-4" style="border-top: 1px solid var(--border-color);">
+          <div class="flex items-center gap-4">
+            <div class="status-indicator status-active">
+              <span class="status-dot"></span>
+              <span style="color: var(--status-active);">Active</span>
+            </div>
+            <span class="stripe-synced">
+              <i data-lucide="zap" class="w-3 h-3"></i>
+              Stripe
+            </span>
+          </div>
+          <button class="btn-secondary">
+            <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+            Edit
+          </button>
+        </div>
+      </div>
+
+      <!-- Service Card 5 - Centex -->
+      <div class="card service-card p-6 animate-card-enter stagger-5">
+        <div class="flex items-start justify-between mb-4">
+          <span class="brand-badge brand-badge-centex">
+            <span class="brand-dot" style="background: var(--brand-centex);"></span>
+            Centex
+          </span>
+          <button class="btn-icon">
+            <i data-lucide="more-vertical" class="w-4 h-4"></i>
+          </button>
+        </div>
+        <h3 class="text-lg font-semibold mb-2" style="color: var(--text-primary);">Live Stream Production</h3>
+        <p class="text-sm mb-4" style="color: var(--text-muted);">Full sports event live streaming with multi-camera setup and graphics.</p>
+        <div class="flex gap-2 mb-4">
+          <span class="tag">Live</span>
+          <span class="tag">Sports</span>
+        </div>
+        <div class="price mb-4">
+          $1,500<span class="price-suffix">/event</span>
+        </div>
+        <div class="flex items-center justify-between pt-4" style="border-top: 1px solid var(--border-color);">
+          <div class="flex items-center gap-4">
+            <div class="status-indicator status-active">
+              <span class="status-dot"></span>
+              <span style="color: var(--status-active);">Active</span>
+            </div>
+            <span class="stripe-synced">
+              <i data-lucide="zap" class="w-3 h-3"></i>
+              Stripe
+            </span>
+          </div>
+          <button class="btn-secondary">
+            <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+            Edit
+          </button>
+        </div>
+      </div>
+
+      <!-- Service Card 6 - GFAM Media -->
+      <div class="card service-card p-6 animate-card-enter stagger-6">
+        <div class="flex items-start justify-between mb-4">
+          <span class="brand-badge brand-badge-gfam-media">
+            <span class="brand-dot" style="background: var(--brand-gfam-media);"></span>
+            GFAM Media
+          </span>
+          <button class="btn-icon">
+            <i data-lucide="more-vertical" class="w-4 h-4"></i>
+          </button>
+        </div>
+        <h3 class="text-lg font-semibold mb-2" style="color: var(--text-primary);">Studio Rental</h3>
+        <p class="text-sm mb-4" style="color: var(--text-muted);">Professional podcast and photography studio rental with equipment included.</p>
+        <div class="flex gap-2 mb-4">
+          <span class="tag">Studio</span>
+          <span class="tag">Rental</span>
+        </div>
+        <div class="price mb-4">
+          $75<span class="price-suffix">/hour</span>
+        </div>
+        <div class="flex items-center justify-between pt-4" style="border-top: 1px solid var(--border-color);">
+          <div class="flex items-center gap-4">
+            <div class="status-indicator status-active">
+              <span class="status-dot"></span>
+              <span style="color: var(--status-active);">Active</span>
+            </div>
+            <span class="stripe-synced">
+              <i data-lucide="zap" class="w-3 h-3"></i>
+              Stripe
+            </span>
+          </div>
+          <button class="btn-secondary">
+            <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+            Edit
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Initialize Lucide icons
+    lucide.createIcons();
+
+    // Theme Toggle
+    const themeToggle = document.getElementById('themeToggle');
+    const html = document.documentElement;
+    const lightIcon = themeToggle.querySelector('.light-icon');
+    const darkIcon = themeToggle.querySelector('.dark-icon');
+
+    const savedTheme = localStorage.getItem('gfam-theme');
+    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+    if (savedTheme) {
+      html.setAttribute('data-theme', savedTheme);
+      updateToggleIcon(savedTheme);
+    } else if (systemPrefersDark) {
+      html.setAttribute('data-theme', 'dark');
+      updateToggleIcon('dark');
+    }
+
+    function updateToggleIcon(theme) {
+      if (theme === 'dark') {
+        lightIcon.style.display = 'none';
+        darkIcon.style.display = 'block';
+      } else {
+        lightIcon.style.display = 'block';
+        darkIcon.style.display = 'none';
+      }
+    }
+
+    themeToggle.addEventListener('click', () => {
+      const currentTheme = html.getAttribute('data-theme');
+      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+      html.setAttribute('data-theme', newTheme);
+      localStorage.setItem('gfam-theme', newTheme);
+      updateToggleIcon(newTheme);
+      lucide.createIcons();
+    });
+
+    // Tab Filter
+    const tabs = document.querySelectorAll('.tab');
+    const serviceCards = document.querySelectorAll('.service-card');
+
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        // Update active tab
+        tabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+
+        const filter = tab.dataset.filter;
+
+        // Filter cards
+        serviceCards.forEach((card, index) => {
+          const brandBadge = card.querySelector('.brand-badge');
+          const brand = brandBadge.classList[1].replace('brand-badge-', '');
+
+          if (filter === 'all' || brand === filter) {
+            card.style.display = 'block';
+            card.style.animation = 'none';
+            card.offsetHeight; // Trigger reflow
+            card.style.animation = `cardEnter 0.4s ease-out forwards`;
+            card.style.animationDelay = `${index * 0.06}s`;
+          } else {
+            card.style.display = 'none';
+          }
+        });
+      });
+    });
+
+    // Search functionality
+    const searchInput = document.querySelector('.search-input');
+    searchInput.addEventListener('input', (e) => {
+      const query = e.target.value.toLowerCase();
+
+      serviceCards.forEach(card => {
+        const title = card.querySelector('h3').textContent.toLowerCase();
+        const description = card.querySelector('p').textContent.toLowerCase();
+        const tags = Array.from(card.querySelectorAll('.tag')).map(t => t.textContent.toLowerCase()).join(' ');
+
+        if (title.includes(query) || description.includes(query) || tags.includes(query)) {
+          card.style.display = 'block';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    });
+  </script>
+</body>
+</html>

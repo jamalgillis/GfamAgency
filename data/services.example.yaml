@@ -1,0 +1,117 @@
+# GFAM Agency Services Template
+# Copy this file to services.yaml and fill in your Stripe Price IDs
+#
+# Brand Mapping Rules:
+# - website, social-media → Sankofa
+# - video, bundle, photography → Lighthouse
+# - podcast (with sports/live-event tags) → Centex
+# - podcast (standard), studio-rental → GFAM Media Studios
+
+services:
+  # ═══════════════════════════════════════════════════════
+  # SANKOFA - Marketing & Web Development
+  # ═══════════════════════════════════════════════════════
+
+  - name: "Starter Website Package"
+    description: "5-page responsive website with SEO optimization and CMS"
+    baseRate: 1500
+    stripePriceId: "price_XXXXXXXXXXXXXXXX"
+    category: "website"
+
+  - name: "Professional Website Package"
+    description: "10-page custom website with advanced features and e-commerce ready"
+    baseRate: 3500
+    stripePriceId: "price_XXXXXXXXXXXXXXXX"
+    category: "website"
+
+  - name: "Social Media Management (Monthly)"
+    description: "Content creation, scheduling, and analytics for 3 platforms"
+    baseRate: 800
+    stripePriceId: "price_XXXXXXXXXXXXXXXX"
+    category: "social-media"
+
+  # ═══════════════════════════════════════════════════════
+  # LIGHTHOUSE - Post-Production, Video, Photography
+  # ═══════════════════════════════════════════════════════
+
+  - name: "Video Editing (Per Hour)"
+    description: "Professional video editing with color grading and audio mixing"
+    baseRate: 75
+    stripePriceId: "price_XXXXXXXXXXXXXXXX"
+    category: "video"
+
+  - name: "Drone Footage Add-On"
+    description: "Aerial videography with licensed pilot"
+    baseRate: 350
+    stripePriceId: "price_XXXXXXXXXXXXXXXX"
+    category: "video"
+
+  - name: "Photography Session (2 Hours)"
+    description: "Professional photography with edited deliverables"
+    baseRate: 400
+    stripePriceId: "price_XXXXXXXXXXXXXXXX"
+    category: "photography"
+
+  - name: "Content Creator Bundle"
+    description: "Video + photo + social media graphics package"
+    baseRate: 1200
+    stripePriceId: "price_XXXXXXXXXXXXXXXX"
+    category: "bundle"
+
+  # ═══════════════════════════════════════════════════════
+  # GFAM MEDIA STUDIOS - Podcasts & Studio Rentals
+  # ═══════════════════════════════════════════════════════
+
+  - name: "Podcast Episode (Audio Only)"
+    description: "Single episode recording with editing and mastering"
+    baseRate: 150
+    stripePriceId: "price_XXXXXXXXXXXXXXXX"
+    category: "podcast"
+
+  - name: "Podcast Episode (Video)"
+    description: "Single episode with multi-camera video recording"
+    baseRate: 350
+    stripePriceId: "price_XXXXXXXXXXXXXXXX"
+    category: "podcast"
+
+  - name: "Studio Rental (Hourly)"
+    description: "Access to podcast studio with equipment"
+    baseRate: 75
+    stripePriceId: "price_XXXXXXXXXXXXXXXX"
+    category: "studio-rental"
+
+  - name: "Studio Rental (Half Day)"
+    description: "4-hour studio rental with engineer support"
+    baseRate: 250
+    stripePriceId: "price_XXXXXXXXXXXXXXXX"
+    category: "studio-rental"
+
+  # ═══════════════════════════════════════════════════════
+  # CENTEX - Sports Podcasts & Live Production
+  # ═══════════════════════════════════════════════════════
+
+  - name: "Live Event Streaming"
+    description: "Multi-camera live broadcast with graphics and switching"
+    baseRate: 1500
+    stripePriceId: "price_XXXXXXXXXXXXXXXX"
+    category: "podcast"
+    tags:
+      - live-event
+      - streaming
+
+  - name: "Sports Podcast Production"
+    description: "Weekly sports podcast with highlight integration"
+    baseRate: 500
+    stripePriceId: "price_XXXXXXXXXXXXXXXX"
+    category: "podcast"
+    tags:
+      - sports
+
+  - name: "Game Day Coverage Package"
+    description: "Full production coverage for sporting events"
+    baseRate: 2500
+    stripePriceId: "price_XXXXXXXXXXXXXXXX"
+    category: "podcast"
+    tags:
+      - sports
+      - live-event
