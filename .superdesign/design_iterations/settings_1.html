@@ -1,1654 +1,2191 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en" data-theme="light">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GFAM Agency - Settings</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <style>
-    /* ===== THEME VARIABLES ===== */
-    :root {
-      --brand-sankofa: #10b981;
-      --brand-lighthouse: #8b5cf6;
-      --brand-centex: #f59e0b;
-      --brand-gfam-media: #3b82f6;
-    }
-
-    /* Light Theme */
-    [data-theme="light"] {
-      --bg-primary: #f8f9fa;
-      --bg-secondary: #ffffff;
-      --bg-tertiary: #f3f4f6;
-      --bg-hover: #e5e7eb;
-      --text-primary: #1a1a2e;
-      --text-secondary: #4b5563;
-      --text-muted: #6b7280;
-      --text-inverse: #ffffff;
-      --border-color: #e5e7eb;
-      --border-light: #f3f4f6;
-      --sidebar-bg: #1a1a2e;
-      --sidebar-hover: #2d2d44;
-      --sidebar-active: #3d3d5c;
-      --sidebar-text: #9ca3af;
-      --sidebar-text-active: #ffffff;
-      --sidebar-border: #374151;
-      --card-shadow: 0 1px 3px rgba(0,0,0,0.08);
-      --card-shadow-hover: 0 10px 30px -10px rgba(0,0,0,0.15);
-      --input-bg: #ffffff;
-      --input-border: #d1d5db;
-      --input-focus: #1a1a2e;
-      --success-color: #10b981;
-      --error-color: #ef4444;
-      --warning-color: #f59e0b;
-      --settings-nav-bg: #ffffff;
-      --settings-nav-active: #f3f4f6;
-    }
-
-    /* Dark Theme */
-    [data-theme="dark"] {
-      --bg-primary: #0f0f1a;
-      --bg-secondary: #1a1a2e;
-      --bg-tertiary: #252540;
-      --bg-hover: #2d2d4a;
-      --text-primary: #f3f4f6;
-      --text-secondary: #d1d5db;
-      --text-muted: #9ca3af;
-      --text-inverse: #1a1a2e;
-      --border-color: #2d2d4a;
-      --border-light: #252540;
-      --sidebar-bg: #0a0a14;
-      --sidebar-hover: #1a1a2e;
-      --sidebar-active: #252540;
-      --sidebar-text: #6b7280;
-      --sidebar-text-active: #ffffff;
-      --sidebar-border: #252540;
-      --card-shadow: 0 1px 3px rgba(0,0,0,0.3);
-      --card-shadow-hover: 0 10px 30px -10px rgba(0,0,0,0.5);
-      --input-bg: #252540;
-      --input-border: #3d3d5c;
-      --input-focus: #ffffff;
-      --success-color: #34d399;
-      --error-color: #f87171;
-      --warning-color: #fbbf24;
-      --settings-nav-bg: #1a1a2e;
-      --settings-nav-active: #252540;
-    }
-
-    /* ===== BASE STYLES ===== */
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
-      background-color: var(--bg-primary) !important;
-      color: var(--text-primary) !important;
-      line-height: 1.5 !important;
-      transition: background-color 0.3s ease, color 0.3s ease;
-    }
-
-    /* ===== ANIMATIONS ===== */
-    @keyframes fadeInUp {
-      from { opacity: 0; transform: translateY(20px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    @keyframes fadeInLeft {
-      from { opacity: 0; transform: translateX(-20px); }
-      to { opacity: 1; transform: translateX(0); }
-    }
-
-    @keyframes slideIn {
-      from { opacity: 0; transform: translateX(-10px); }
-      to { opacity: 1; transform: translateX(0); }
-    }
-
-    @keyframes shake {
-      0%, 100% { transform: translateX(0); }
-      25% { transform: translateX(-4px); }
-      75% { transform: translateX(4px); }
-    }
-
-    @keyframes checkDraw {
-      from { stroke-dashoffset: 24; }
-      to { stroke-dashoffset: 0; }
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
-      50% { opacity: 0.8; box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
-    }
-
-    @keyframes spin {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
-    }
-
-    @keyframes toastEnter {
-      from { opacity: 0; transform: translateY(100px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    .animate-fade-in-up {
-      animation: fadeInUp 0.4s ease-out forwards;
-    }
-
-    .animate-fade-in-left {
-      animation: fadeInLeft 0.3s ease-out forwards;
-    }
-
-    .stagger-1 { animation-delay: 0.05s; }
-    .stagger-2 { animation-delay: 0.10s; }
-    .stagger-3 { animation-delay: 0.15s; }
-    .stagger-4 { animation-delay: 0.20s; }
-    .stagger-5 { animation-delay: 0.25s; }
-    .stagger-6 { animation-delay: 0.30s; }
-
-    /* ===== SIDEBAR ===== */
-    .sidebar {
-      background: var(--sidebar-bg);
-      width: 260px;
-      min-height: 100vh;
-      position: fixed;
-      left: 0;
-      top: 0;
-      display: flex;
-      flex-direction: column;
-      transition: background-color 0.3s ease;
-      z-index: 50;
-    }
-
-    .sidebar-link {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px 20px;
-      color: var(--sidebar-text);
-      text-decoration: none;
-      transition: all 0.15s ease;
-      border-left: 3px solid transparent;
-    }
-
-    .sidebar-link:hover {
-      background: var(--sidebar-hover);
-      color: var(--sidebar-text-active);
-      padding-left: 24px;
-    }
-
-    .sidebar-link.active {
-      background: var(--sidebar-active);
-      color: var(--sidebar-text-active);
-      border-left-color: var(--brand-sankofa);
-    }
-
-    /* ===== SETTINGS LAYOUT ===== */
-    .main-content {
-      margin-left: 260px;
-      padding: 24px 32px;
-      min-height: 100vh;
-    }
-
-    .settings-container {
-      display: grid;
-      grid-template-columns: 220px 1fr;
-      gap: 32px;
-      max-width: 1200px;
-    }
-
-    /* ===== SETTINGS NAV ===== */
-    .settings-nav {
-      background: var(--settings-nav-bg);
-      border-radius: 12px;
-      border: 1px solid var(--border-color);
-      padding: 8px;
-      height: fit-content;
-      position: sticky;
-      top: 24px;
-    }
-
-    .settings-nav-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px 16px;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: 500;
-      color: var(--text-secondary);
-      cursor: pointer;
-      transition: all 0.15s ease;
-      border: none;
-      background: transparent;
-      width: 100%;
-      text-align: left;
-    }
-
-    .settings-nav-item:hover {
-      background: var(--bg-hover);
-      color: var(--text-primary);
-      transform: translateX(4px);
-    }
-
-    .settings-nav-item.active {
-      background: var(--settings-nav-active);
-      color: var(--text-primary);
-      transform: translateX(6px);
-    }
-
-    .settings-nav-item.active::before {
-      content: '';
-      position: absolute;
-      left: 0;
-      width: 3px;
-      height: 24px;
-      background: var(--brand-sankofa);
-      border-radius: 0 2px 2px 0;
-    }
-
-    /* ===== SETTINGS CONTENT ===== */
-    .settings-content {
-      min-width: 0;
-    }
-
-    .settings-section {
-      display: none;
-    }
-
-    .settings-section.active {
-      display: block;
-      animation: fadeInUp 0.4s ease-out forwards;
-    }
-
-    .section-header {
-      margin-bottom: 24px;
-    }
-
-    .section-title {
-      font-size: 20px;
-      font-weight: 600;
-      color: var(--text-primary);
-    }
-
-    .section-description {
-      font-size: 14px;
-      color: var(--text-muted);
-      margin-top: 4px;
-    }
-
-    /* ===== CARDS ===== */
-    .settings-card {
-      background: var(--bg-secondary);
-      border-radius: 12px;
-      border: 1px solid var(--border-color);
-      padding: 24px;
-      margin-bottom: 20px;
-      transition: all 0.2s ease;
-    }
-
-    .settings-card:hover {
-      box-shadow: var(--card-shadow-hover);
-    }
-
-    .card-title {
-      font-size: 16px;
-      font-weight: 600;
-      color: var(--text-primary);
-      margin-bottom: 20px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .card-title-icon {
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
-      background: var(--bg-tertiary);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    /* ===== FORM ELEMENTS ===== */
-    .form-group {
-      margin-bottom: 20px;
-    }
-
-    .form-group:last-child {
-      margin-bottom: 0;
-    }
-
-    .form-label {
-      display: block;
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--text-secondary);
-      margin-bottom: 8px;
-    }
-
-    .form-input {
-      width: 100%;
-      padding: 12px 16px;
-      border-radius: 8px;
-      border: 1px solid var(--input-border);
-      background: var(--input-bg);
-      color: var(--text-primary);
-      font-size: 14px;
-      transition: all 0.2s ease;
-    }
-
-    .form-input:focus {
-      outline: none;
-      border-color: var(--input-focus);
-      box-shadow: 0 0 0 3px rgba(26, 26, 46, 0.1);
-    }
-
-    .form-input::placeholder {
-      color: var(--text-muted);
-    }
-
-    .form-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-    }
-
-    .form-hint {
-      font-size: 12px;
-      color: var(--text-muted);
-      margin-top: 6px;
-    }
-
-    /* ===== UPLOAD AREA ===== */
-    .upload-area {
-      display: flex;
-      align-items: center;
-      gap: 20px;
-      padding: 20px;
-      border: 2px dashed var(--border-color);
-      border-radius: 12px;
-      transition: all 0.2s ease;
-    }
-
-    .upload-area:hover {
-      border-color: var(--text-muted);
-      background: var(--bg-tertiary);
-    }
-
-    .upload-preview {
-      width: 80px;
-      height: 80px;
-      border-radius: 12px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 24px;
-      font-weight: 700;
-      color: white;
-      flex-shrink: 0;
-    }
-
-    .upload-actions {
-      display: flex;
-      gap: 12px;
-      margin-top: 12px;
-    }
-
-    /* ===== BUTTONS ===== */
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 18px;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.15s ease;
-      border: none;
-    }
-
-    .btn-primary {
-      background: var(--text-primary);
-      color: var(--bg-primary);
-    }
-
-    .btn-primary:hover {
-      opacity: 0.9;
-      transform: scale(1.02);
-    }
-
-    .btn-primary:active {
-      transform: scale(0.98);
-    }
-
-    .btn-secondary {
-      background: var(--bg-tertiary);
-      color: var(--text-secondary);
-      border: 1px solid var(--border-color);
-    }
-
-    .btn-secondary:hover {
-      background: var(--bg-hover);
-      color: var(--text-primary);
-    }
-
-    .btn-danger {
-      background: rgba(239, 68, 68, 0.1);
-      color: var(--error-color);
-    }
-
-    .btn-danger:hover {
-      background: var(--error-color);
-      color: white;
-    }
-
-    .btn-sm {
-      padding: 8px 14px;
-      font-size: 13px;
-    }
-
-    /* ===== BRAND CARDS ===== */
-    .brand-card {
-      background: var(--bg-secondary);
-      border-radius: 12px;
-      border: 1px solid var(--border-color);
-      padding: 20px;
-      margin-bottom: 16px;
-      transition: all 0.2s ease;
-      cursor: pointer;
-    }
-
-    .brand-card:hover {
-      transform: translateY(-2px);
-      box-shadow: var(--card-shadow-hover);
-    }
-
-    .brand-card:hover .brand-actions {
-      opacity: 1;
-    }
-
-    .brand-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 12px;
-    }
-
-    .brand-info {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .brand-color {
-      width: 40px;
-      height: 40px;
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: transform 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-    }
-
-    .brand-card:hover .brand-color {
-      transform: scale(1.1);
-    }
-
-    .brand-name {
-      font-weight: 600;
-      color: var(--text-primary);
-    }
-
-    .brand-description {
-      font-size: 13px;
-      color: var(--text-muted);
-      margin-top: 2px;
-    }
-
-    .brand-actions {
-      display: flex;
-      gap: 8px;
-      opacity: 0;
-      transition: opacity 0.2s ease;
-    }
-
-    .brand-stats {
-      display: flex;
-      gap: 24px;
-      padding-top: 16px;
-      margin-top: 16px;
-      border-top: 1px solid var(--border-color);
-    }
-
-    .brand-stat {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .brand-stat-label {
-      font-size: 12px;
-      color: var(--text-muted);
-    }
-
-    .brand-stat-value {
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--text-primary);
-    }
-
-    /* ===== TOGGLE SWITCH ===== */
-    .toggle-group {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 16px 0;
-      border-bottom: 1px solid var(--border-color);
-    }
-
-    .toggle-group:last-child {
-      border-bottom: none;
-      padding-bottom: 0;
-    }
-
-    .toggle-info {
-      flex: 1;
-    }
-
-    .toggle-label {
-      font-size: 14px;
-      font-weight: 500;
-      color: var(--text-primary);
-    }
-
-    .toggle-description {
-      font-size: 13px;
-      color: var(--text-muted);
-      margin-top: 2px;
-    }
-
-    .toggle-switch {
-      position: relative;
-      width: 48px;
-      height: 26px;
-      background: var(--bg-tertiary);
-      border-radius: 20px;
-      cursor: pointer;
-      transition: all 0.25s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-      border: 1px solid var(--border-color);
-    }
-
-    .toggle-switch.active {
-      background: var(--success-color);
-      border-color: var(--success-color);
-    }
-
-    .toggle-thumb {
-      position: absolute;
-      top: 2px;
-      left: 2px;
-      width: 20px;
-      height: 20px;
-      background: white;
-      border-radius: 50%;
-      transition: all 0.25s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-    }
-
-    .toggle-switch.active .toggle-thumb {
-      left: calc(100% - 22px);
-    }
-
-    /* ===== API KEY FIELD ===== */
-    .api-key-field {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .api-key-input {
-      flex: 1;
-      padding: 12px 16px;
-      border-radius: 8px;
-      border: 1px solid var(--input-border);
-      background: var(--input-bg);
-      color: var(--text-primary);
-      font-size: 14px;
-      font-family: 'JetBrains Mono', monospace;
-    }
-
-    .api-key-btn {
-      padding: 12px;
-      border-radius: 8px;
-      background: var(--bg-tertiary);
-      border: 1px solid var(--border-color);
-      color: var(--text-muted);
-      cursor: pointer;
-      transition: all 0.15s ease;
-    }
-
-    .api-key-btn:hover {
-      background: var(--bg-hover);
-      color: var(--text-primary);
-    }
-
-    .api-key-btn.copied {
-      background: rgba(16, 185, 129, 0.1);
-      color: var(--success-color);
-      border-color: var(--success-color);
-    }
-
-    /* ===== STATUS INDICATOR ===== */
-    .status-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 12px;
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: 500;
-    }
-
-    .status-connected {
-      background: rgba(16, 185, 129, 0.1);
-      color: var(--success-color);
-    }
-
-    .status-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: currentColor;
-      animation: pulse 2s infinite;
-    }
-
-    /* ===== WEBHOOK STATUS ===== */
-    .webhook-status {
-      background: var(--bg-tertiary);
-      border-radius: 10px;
-      padding: 16px;
-      margin-top: 16px;
-    }
-
-    .webhook-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 12px;
-    }
-
-    .webhook-endpoint {
-      font-size: 13px;
-      font-family: 'JetBrains Mono', monospace;
-      color: var(--text-muted);
-      background: var(--bg-secondary);
-      padding: 10px 14px;
-      border-radius: 6px;
-      word-break: break-all;
-    }
-
-    .webhook-meta {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      margin-top: 12px;
-      font-size: 13px;
-      color: var(--text-muted);
-    }
-
-    /* ===== TEAM MEMBER ===== */
-    .team-member {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 16px;
-      background: var(--bg-secondary);
-      border: 1px solid var(--border-color);
-      border-radius: 10px;
-      margin-bottom: 12px;
-      transition: all 0.15s ease;
-    }
-
-    .team-member:hover {
-      border-color: var(--text-muted);
-    }
-
-    .team-member-info {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-    }
-
-    .team-avatar {
-      width: 44px;
-      height: 44px;
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 600;
-      font-size: 14px;
-      color: white;
-    }
-
-    .team-name {
-      font-weight: 500;
-      color: var(--text-primary);
-    }
-
-    .team-email {
-      font-size: 13px;
-      color: var(--text-muted);
-      margin-top: 2px;
-    }
-
-    .team-role {
-      padding: 6px 12px;
-      border-radius: 6px;
-      font-size: 12px;
-      font-weight: 500;
-      background: var(--bg-tertiary);
-      color: var(--text-secondary);
-    }
-
-    .team-role.admin {
-      background: rgba(139, 92, 246, 0.1);
-      color: var(--brand-lighthouse);
-    }
-
-    /* ===== THEME TOGGLE (Header) ===== */
-    .theme-toggle {
-      position: relative;
-      width: 56px;
-      height: 28px;
-      background: var(--bg-tertiary);
-      border-radius: 20px;
-      border: 1px solid var(--border-color);
-      cursor: pointer;
-      transition: all 0.3s ease;
-      display: flex;
-      align-items: center;
-      padding: 0 4px;
-    }
-
-    .theme-toggle-thumb {
-      position: absolute;
-      width: 22px;
-      height: 22px;
-      background: var(--text-primary);
-      border-radius: 50%;
-      transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      left: 3px;
-    }
-
-    [data-theme="dark"] .theme-toggle-thumb {
-      left: calc(100% - 25px);
-    }
-
-    .theme-toggle-thumb svg {
-      width: 14px;
-      height: 14px;
-      color: var(--bg-primary);
-    }
-
-    .theme-toggle-icon {
-      position: absolute;
-      width: 14px;
-      height: 14px;
-    }
-
-    .theme-toggle .sun-icon { right: 8px; color: var(--text-muted); }
-    .theme-toggle .moon-icon { left: 8px; color: var(--text-muted); }
-
-    /* ===== SAVE BAR ===== */
-    .save-bar {
-      position: fixed;
-      bottom: 24px;
-      left: 50%;
-      transform: translateX(calc(-50% + 130px));
-      background: var(--bg-secondary);
-      border: 1px solid var(--border-color);
-      padding: 12px 20px;
-      border-radius: 12px;
-      display: none;
-      align-items: center;
-      gap: 16px;
-      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-      z-index: 100;
-      animation: toastEnter 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-    }
-
-    .save-bar.visible {
-      display: flex;
-    }
-
-    .save-bar-text {
-      font-size: 14px;
-      color: var(--text-secondary);
-    }
-
-    /* ===== RESPONSIVE ===== */
-    @media (max-width: 1024px) {
-      .sidebar { width: 80px; }
-      .sidebar-link span { display: none; }
-      .sidebar-link { justify-content: center; padding: 16px; }
-      .main-content { margin-left: 80px; }
-      .brand-section, .logo-text { display: none; }
-      .settings-container { grid-template-columns: 1fr; }
-      .settings-nav { position: relative; top: 0; margin-bottom: 24px; }
-      .save-bar { transform: translateX(calc(-50% + 40px)); }
-    }
-
-    @media (max-width: 768px) {
-      .main-content { padding: 16px; }
-      .form-row { grid-template-columns: 1fr; }
-      .brand-stats { flex-wrap: wrap; gap: 16px; }
-    }
-  </style>
-</head>
-<body>
-  <!-- Sidebar -->
-  <aside class="sidebar">
-    <div class="p-6 border-b" style="border-color: var(--sidebar-border);">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-500 to-blue-500 flex items-center justify-center">
-          <span class="text-white font-bold text-lg">G</span>
-        </div>
-        <div class="logo-text">
-          <h1 class="text-white font-semibold text-lg">GFAM</h1>
-          <p class="text-xs" style="color: var(--sidebar-text);">Agency</p>
-        </div>
-      </div>
-    </div>
-
-    <nav class="py-4 flex-1">
-      <a href="dashboard_2.html" class="sidebar-link">
-        <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
-        <span>Dashboard</span>
-      </a>
-      <a href="services_1.html" class="sidebar-link">
-        <i data-lucide="briefcase" class="w-5 h-5"></i>
-        <span>Services</span>
-      </a>
-      <a href="invoices_1.html" class="sidebar-link">
-        <i data-lucide="file-text" class="w-5 h-5"></i>
-        <span>Invoices</span>
-      </a>
-      <a href="clients_1.html" class="sidebar-link">
-        <i data-lucide="users" class="w-5 h-5"></i>
-        <span>Clients</span>
-      </a>
-      <a href="#" class="sidebar-link active">
-        <i data-lucide="settings" class="w-5 h-5"></i>
-        <span>Settings</span>
-      </a>
-    </nav>
-
-    <div class="p-4 border-t" style="border-color: var(--sidebar-border);">
-      <div class="flex items-center gap-3">
-        <div class="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-          <span class="text-white text-sm font-medium">JG</span>
-        </div>
-        <div class="logo-text">
-          <p class="text-white text-sm font-medium">J. Gillis</p>
-          <p class="text-xs" style="color: var(--sidebar-text);">Admin</p>
-        </div>
-      </div>
-    </div>
-  </aside>
-
-  <!-- Main Content -->
-  <main class="main-content">
-    <!-- Header -->
-    <header class="flex items-center justify-between mb-8 animate-fade-in-up">
-      <div>
-        <h1 class="text-2xl font-semibold" style="color: var(--text-primary);">Settings</h1>
-        <p class="text-sm mt-1" style="color: var(--text-muted);">Configure your agency preferences</p>
-      </div>
-      <div class="flex items-center gap-4">
-        <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
-          <i data-lucide="sun" class="theme-toggle-icon sun-icon"></i>
-          <i data-lucide="moon" class="theme-toggle-icon moon-icon"></i>
-          <div class="theme-toggle-thumb">
-            <i data-lucide="sun" class="light-icon"></i>
-            <i data-lucide="moon" class="dark-icon" style="display: none;"></i>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GFAM Agency - Settings</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* ===== THEME VARIABLES ===== */
+      :root {
+        --brand-sankofa: #10b981;
+        --brand-lighthouse: #8b5cf6;
+        --brand-centex: #f59e0b;
+        --brand-gfam-media: #3b82f6;
+      }
+
+      /* Light Theme */
+      [data-theme="light"] {
+        --bg-primary: #f8f9fa;
+        --bg-secondary: #ffffff;
+        --bg-tertiary: #f3f4f6;
+        --bg-hover: #e5e7eb;
+        --text-primary: #1a1a2e;
+        --text-secondary: #4b5563;
+        --text-muted: #6b7280;
+        --text-inverse: #ffffff;
+        --border-color: #e5e7eb;
+        --border-light: #f3f4f6;
+        --sidebar-bg: #1a1a2e;
+        --sidebar-hover: #2d2d44;
+        --sidebar-active: #3d3d5c;
+        --sidebar-text: #9ca3af;
+        --sidebar-text-active: #ffffff;
+        --sidebar-border: #374151;
+        --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        --card-shadow-hover: 0 10px 30px -10px rgba(0, 0, 0, 0.15);
+        --input-bg: #ffffff;
+        --input-border: #d1d5db;
+        --input-focus: #1a1a2e;
+        --success-color: #10b981;
+        --error-color: #ef4444;
+        --warning-color: #f59e0b;
+        --settings-nav-bg: #ffffff;
+        --settings-nav-active: #f3f4f6;
+      }
+
+      /* Dark Theme */
+      [data-theme="dark"] {
+        --bg-primary: #0f0f1a;
+        --bg-secondary: #1a1a2e;
+        --bg-tertiary: #252540;
+        --bg-hover: #2d2d4a;
+        --text-primary: #f3f4f6;
+        --text-secondary: #d1d5db;
+        --text-muted: #9ca3af;
+        --text-inverse: #1a1a2e;
+        --border-color: #2d2d4a;
+        --border-light: #252540;
+        --sidebar-bg: #0a0a14;
+        --sidebar-hover: #1a1a2e;
+        --sidebar-active: #252540;
+        --sidebar-text: #6b7280;
+        --sidebar-text-active: #ffffff;
+        --sidebar-border: #252540;
+        --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        --card-shadow-hover: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+        --input-bg: #252540;
+        --input-border: #3d3d5c;
+        --input-focus: #ffffff;
+        --success-color: #34d399;
+        --error-color: #f87171;
+        --warning-color: #fbbf24;
+        --settings-nav-bg: #1a1a2e;
+        --settings-nav-active: #252540;
+      }
+
+      /* ===== BASE STYLES ===== */
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family:
+          "Inter",
+          -apple-system,
+          BlinkMacSystemFont,
+          sans-serif !important;
+        background-color: var(--bg-primary) !important;
+        color: var(--text-primary) !important;
+        line-height: 1.5 !important;
+        transition:
+          background-color 0.3s ease,
+          color 0.3s ease;
+      }
+
+      /* ===== ANIMATIONS ===== */
+      @keyframes fadeInUp {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes fadeInLeft {
+        from {
+          opacity: 0;
+          transform: translateX(-20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(0);
+        }
+      }
+
+      @keyframes slideIn {
+        from {
+          opacity: 0;
+          transform: translateX(-10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(0);
+        }
+      }
+
+      @keyframes shake {
+        0%,
+        100% {
+          transform: translateX(0);
+        }
+        25% {
+          transform: translateX(-4px);
+        }
+        75% {
+          transform: translateX(4px);
+        }
+      }
+
+      @keyframes checkDraw {
+        from {
+          stroke-dashoffset: 24;
+        }
+        to {
+          stroke-dashoffset: 0;
+        }
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+          box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+        }
+        50% {
+          opacity: 0.8;
+          box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+        }
+      }
+
+      @keyframes spin {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      @keyframes toastEnter {
+        from {
+          opacity: 0;
+          transform: translateY(100px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .animate-fade-in-up {
+        animation: fadeInUp 0.4s ease-out forwards;
+      }
+
+      .animate-fade-in-left {
+        animation: fadeInLeft 0.3s ease-out forwards;
+      }
+
+      .stagger-1 {
+        animation-delay: 0.05s;
+      }
+      .stagger-2 {
+        animation-delay: 0.1s;
+      }
+      .stagger-3 {
+        animation-delay: 0.15s;
+      }
+      .stagger-4 {
+        animation-delay: 0.2s;
+      }
+      .stagger-5 {
+        animation-delay: 0.25s;
+      }
+      .stagger-6 {
+        animation-delay: 0.3s;
+      }
+
+      /* ===== SIDEBAR ===== */
+      .sidebar {
+        background: var(--sidebar-bg);
+        width: 260px;
+        min-height: 100vh;
+        position: fixed;
+        left: 0;
+        top: 0;
+        display: flex;
+        flex-direction: column;
+        transition: background-color 0.3s ease;
+        z-index: 50;
+      }
+
+      .sidebar-link {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 20px;
+        color: var(--sidebar-text);
+        text-decoration: none;
+        transition: all 0.15s ease;
+        border-left: 3px solid transparent;
+      }
+
+      .sidebar-link:hover {
+        background: var(--sidebar-hover);
+        color: var(--sidebar-text-active);
+        padding-left: 24px;
+      }
+
+      .sidebar-link.active {
+        background: var(--sidebar-active);
+        color: var(--sidebar-text-active);
+        border-left-color: var(--brand-sankofa);
+      }
+
+      /* ===== SETTINGS LAYOUT ===== */
+      .main-content {
+        margin-left: 260px;
+        padding: 24px 32px;
+        min-height: 100vh;
+      }
+
+      .settings-container {
+        display: grid;
+        grid-template-columns: 220px 1fr;
+        gap: 32px;
+        max-width: 1200px;
+      }
+
+      /* ===== SETTINGS NAV ===== */
+      .settings-nav {
+        background: var(--settings-nav-bg);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        padding: 8px;
+        height: fit-content;
+        position: sticky;
+        top: 24px;
+      }
+
+      .settings-nav-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: all 0.15s ease;
+        border: none;
+        background: transparent;
+        width: 100%;
+        text-align: left;
+      }
+
+      .settings-nav-item:hover {
+        background: var(--bg-hover);
+        color: var(--text-primary);
+        transform: translateX(4px);
+      }
+
+      .settings-nav-item.active {
+        background: var(--settings-nav-active);
+        color: var(--text-primary);
+        transform: translateX(6px);
+      }
+
+      .settings-nav-item.active::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        width: 3px;
+        height: 24px;
+        background: var(--brand-sankofa);
+        border-radius: 0 2px 2px 0;
+      }
+
+      /* ===== SETTINGS CONTENT ===== */
+      .settings-content {
+        min-width: 0;
+      }
+
+      .settings-section {
+        display: none;
+      }
+
+      .settings-section.active {
+        display: block;
+        animation: fadeInUp 0.4s ease-out forwards;
+      }
+
+      .section-header {
+        margin-bottom: 24px;
+      }
+
+      .section-title {
+        font-size: 20px;
+        font-weight: 600;
+        color: var(--text-primary);
+      }
+
+      .section-description {
+        font-size: 14px;
+        color: var(--text-muted);
+        margin-top: 4px;
+      }
+
+      /* ===== CARDS ===== */
+      .settings-card {
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        padding: 24px;
+        margin-bottom: 20px;
+        transition: all 0.2s ease;
+      }
+
+      .settings-card:hover {
+        box-shadow: var(--card-shadow-hover);
+      }
+
+      .card-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .card-title-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        background: var(--bg-tertiary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      /* ===== FORM ELEMENTS ===== */
+      .form-group {
+        margin-bottom: 20px;
+      }
+
+      .form-group:last-child {
+        margin-bottom: 0;
+      }
+
+      .form-label {
+        display: block;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text-secondary);
+        margin-bottom: 8px;
+      }
+
+      .form-input {
+        width: 100%;
+        padding: 12px 16px;
+        border-radius: 8px;
+        border: 1px solid var(--input-border);
+        background: var(--input-bg);
+        color: var(--text-primary);
+        font-size: 14px;
+        transition: all 0.2s ease;
+      }
+
+      .form-input:focus {
+        outline: none;
+        border-color: var(--input-focus);
+        box-shadow: 0 0 0 3px rgba(26, 26, 46, 0.1);
+      }
+
+      .form-input::placeholder {
+        color: var(--text-muted);
+      }
+
+      .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+
+      .form-hint {
+        font-size: 12px;
+        color: var(--text-muted);
+        margin-top: 6px;
+      }
+
+      /* ===== UPLOAD AREA ===== */
+      .upload-area {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        padding: 20px;
+        border: 2px dashed var(--border-color);
+        border-radius: 12px;
+        transition: all 0.2s ease;
+      }
+
+      .upload-area:hover {
+        border-color: var(--text-muted);
+        background: var(--bg-tertiary);
+      }
+
+      .upload-preview {
+        width: 80px;
+        height: 80px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        font-weight: 700;
+        color: white;
+        flex-shrink: 0;
+      }
+
+      .upload-actions {
+        display: flex;
+        gap: 12px;
+        margin-top: 12px;
+      }
+
+      /* ===== BUTTONS ===== */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 18px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        border: none;
+      }
+
+      .btn-primary {
+        background: var(--text-primary);
+        color: var(--bg-primary);
+      }
+
+      .btn-primary:hover {
+        opacity: 0.9;
+        transform: scale(1.02);
+      }
+
+      .btn-primary:active {
+        transform: scale(0.98);
+      }
+
+      .btn-secondary {
+        background: var(--bg-tertiary);
+        color: var(--text-secondary);
+        border: 1px solid var(--border-color);
+      }
+
+      .btn-secondary:hover {
+        background: var(--bg-hover);
+        color: var(--text-primary);
+      }
+
+      .btn-danger {
+        background: rgba(239, 68, 68, 0.1);
+        color: var(--error-color);
+      }
+
+      .btn-danger:hover {
+        background: var(--error-color);
+        color: white;
+      }
+
+      .btn-sm {
+        padding: 8px 14px;
+        font-size: 13px;
+      }
+
+      /* ===== BRAND CARDS ===== */
+      .brand-card {
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        padding: 20px;
+        margin-bottom: 16px;
+        transition: all 0.2s ease;
+        cursor: pointer;
+      }
+
+      .brand-card:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--card-shadow-hover);
+      }
+
+      .brand-card:hover .brand-actions {
+        opacity: 1;
+      }
+
+      .brand-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+      }
+
+      .brand-info {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .brand-color {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+      }
+
+      .brand-card:hover .brand-color {
+        transform: scale(1.1);
+      }
+
+      .brand-name {
+        font-weight: 600;
+        color: var(--text-primary);
+      }
+
+      .brand-description {
+        font-size: 13px;
+        color: var(--text-muted);
+        margin-top: 2px;
+      }
+
+      .brand-actions {
+        display: flex;
+        gap: 8px;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+      }
+
+      .brand-stats {
+        display: flex;
+        gap: 24px;
+        padding-top: 16px;
+        margin-top: 16px;
+        border-top: 1px solid var(--border-color);
+      }
+
+      .brand-stat {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .brand-stat-label {
+        font-size: 12px;
+        color: var(--text-muted);
+      }
+
+      .brand-stat-value {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text-primary);
+      }
+
+      /* ===== TOGGLE SWITCH ===== */
+      .toggle-group {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 0;
+        border-bottom: 1px solid var(--border-color);
+      }
+
+      .toggle-group:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+      }
+
+      .toggle-info {
+        flex: 1;
+      }
+
+      .toggle-label {
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--text-primary);
+      }
+
+      .toggle-description {
+        font-size: 13px;
+        color: var(--text-muted);
+        margin-top: 2px;
+      }
+
+      .toggle-switch {
+        position: relative;
+        width: 48px;
+        height: 26px;
+        background: var(--bg-tertiary);
+        border-radius: 20px;
+        cursor: pointer;
+        transition: all 0.25s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        border: 1px solid var(--border-color);
+      }
+
+      .toggle-switch.active {
+        background: var(--success-color);
+        border-color: var(--success-color);
+      }
+
+      .toggle-thumb {
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 20px;
+        height: 20px;
+        background: white;
+        border-radius: 50%;
+        transition: all 0.25s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+      }
+
+      .toggle-switch.active .toggle-thumb {
+        left: calc(100% - 22px);
+      }
+
+      /* ===== API KEY FIELD ===== */
+      .api-key-field {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .api-key-input {
+        flex: 1;
+        padding: 12px 16px;
+        border-radius: 8px;
+        border: 1px solid var(--input-border);
+        background: var(--input-bg);
+        color: var(--text-primary);
+        font-size: 14px;
+        font-family: "JetBrains Mono", monospace;
+      }
+
+      .api-key-btn {
+        padding: 12px;
+        border-radius: 8px;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        color: var(--text-muted);
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+
+      .api-key-btn:hover {
+        background: var(--bg-hover);
+        color: var(--text-primary);
+      }
+
+      .api-key-btn.copied {
+        background: rgba(16, 185, 129, 0.1);
+        color: var(--success-color);
+        border-color: var(--success-color);
+      }
+
+      /* ===== STATUS INDICATOR ===== */
+      .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 500;
+      }
+
+      .status-connected {
+        background: rgba(16, 185, 129, 0.1);
+        color: var(--success-color);
+      }
+
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: currentColor;
+        animation: pulse 2s infinite;
+      }
+
+      /* ===== WEBHOOK STATUS ===== */
+      .webhook-status {
+        background: var(--bg-tertiary);
+        border-radius: 10px;
+        padding: 16px;
+        margin-top: 16px;
+      }
+
+      .webhook-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+      }
+
+      .webhook-endpoint {
+        font-size: 13px;
+        font-family: "JetBrains Mono", monospace;
+        color: var(--text-muted);
+        background: var(--bg-secondary);
+        padding: 10px 14px;
+        border-radius: 6px;
+        word-break: break-all;
+      }
+
+      .webhook-meta {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-top: 12px;
+        font-size: 13px;
+        color: var(--text-muted);
+      }
+
+      /* ===== TEAM MEMBER ===== */
+      .team-member {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        margin-bottom: 12px;
+        transition: all 0.15s ease;
+      }
+
+      .team-member:hover {
+        border-color: var(--text-muted);
+      }
+
+      .team-member-info {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+
+      .team-avatar {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 14px;
+        color: white;
+      }
+
+      .team-name {
+        font-weight: 500;
+        color: var(--text-primary);
+      }
+
+      .team-email {
+        font-size: 13px;
+        color: var(--text-muted);
+        margin-top: 2px;
+      }
+
+      .team-role {
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 500;
+        background: var(--bg-tertiary);
+        color: var(--text-secondary);
+      }
+
+      .team-role.admin {
+        background: rgba(139, 92, 246, 0.1);
+        color: var(--brand-lighthouse);
+      }
+
+      /* ===== THEME TOGGLE (Header) ===== */
+      .theme-toggle {
+        position: relative;
+        width: 56px;
+        height: 28px;
+        background: var(--bg-tertiary);
+        border-radius: 20px;
+        border: 1px solid var(--border-color);
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        padding: 0 4px;
+      }
+
+      .theme-toggle-thumb {
+        position: absolute;
+        width: 22px;
+        height: 22px;
+        background: var(--text-primary);
+        border-radius: 50%;
+        transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        left: 3px;
+      }
+
+      [data-theme="dark"] .theme-toggle-thumb {
+        left: calc(100% - 25px);
+      }
+
+      .theme-toggle-thumb svg {
+        width: 14px;
+        height: 14px;
+        color: var(--bg-primary);
+      }
+
+      .theme-toggle-icon {
+        position: absolute;
+        width: 14px;
+        height: 14px;
+      }
+
+      .theme-toggle .sun-icon {
+        right: 8px;
+        color: var(--text-muted);
+      }
+      .theme-toggle .moon-icon {
+        left: 8px;
+        color: var(--text-muted);
+      }
+
+      /* ===== SAVE BAR ===== */
+      .save-bar {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(calc(-50% + 130px));
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        padding: 12px 20px;
+        border-radius: 12px;
+        display: none;
+        align-items: center;
+        gap: 16px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+        z-index: 100;
+        animation: toastEnter 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+
+      .save-bar.visible {
+        display: flex;
+      }
+
+      .save-bar-text {
+        font-size: 14px;
+        color: var(--text-secondary);
+      }
+
+      /* ===== RESPONSIVE ===== */
+      @media (max-width: 1024px) {
+        .sidebar {
+          width: 80px;
+        }
+        .sidebar-link span {
+          display: none;
+        }
+        .sidebar-link {
+          justify-content: center;
+          padding: 16px;
+        }
+        .main-content {
+          margin-left: 80px;
+        }
+        .brand-section,
+        .logo-text {
+          display: none;
+        }
+        .settings-container {
+          grid-template-columns: 1fr;
+        }
+        .settings-nav {
+          position: relative;
+          top: 0;
+          margin-bottom: 24px;
+        }
+        .save-bar {
+          transform: translateX(calc(-50% + 40px));
+        }
+      }
+
+      @media (max-width: 768px) {
+        .main-content {
+          padding: 16px;
+        }
+        .form-row {
+          grid-template-columns: 1fr;
+        }
+        .brand-stats {
+          flex-wrap: wrap;
+          gap: 16px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="p-6 border-b" style="border-color: var(--sidebar-border)">
+        <div class="flex items-center gap-3">
+          <div
+            class="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-500 to-blue-500 flex items-center justify-center"
+          >
+            <span class="text-white font-bold text-lg">G</span>
           </div>
-        </button>
-        <button class="btn btn-primary" id="saveBtn">
-          <i data-lucide="save" class="w-4 h-4"></i>
-          Save Changes
-        </button>
+          <div class="logo-text">
+            <h1 class="text-white font-semibold text-lg">GFAM</h1>
+            <p class="text-xs" style="color: var(--sidebar-text)">Agency</p>
+          </div>
+        </div>
       </div>
-    </header>
 
-    <!-- Settings Container -->
-    <div class="settings-container">
-      <!-- Settings Navigation -->
-      <nav class="settings-nav animate-fade-in-left">
-        <button class="settings-nav-item active" data-section="general">
-          <i data-lucide="building-2" class="w-4 h-4"></i>
-          General
-        </button>
-        <button class="settings-nav-item" data-section="brands">
-          <i data-lucide="palette" class="w-4 h-4"></i>
-          Brands
-        </button>
-        <button class="settings-nav-item" data-section="team">
-          <i data-lucide="users" class="w-4 h-4"></i>
-          Team
-        </button>
-        <button class="settings-nav-item" data-section="integrations">
-          <i data-lucide="plug" class="w-4 h-4"></i>
-          Integrations
-        </button>
-        <button class="settings-nav-item" data-section="notifications">
-          <i data-lucide="bell" class="w-4 h-4"></i>
-          Notifications
-        </button>
-        <button class="settings-nav-item" data-section="appearance">
-          <i data-lucide="sun-moon" class="w-4 h-4"></i>
-          Appearance
-        </button>
+      <nav class="py-4 flex-1">
+        <a href="dashboard_2.html" class="sidebar-link">
+          <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+          <span>Dashboard</span>
+        </a>
+        <a href="services_1.html" class="sidebar-link">
+          <i data-lucide="briefcase" class="w-5 h-5"></i>
+          <span>Services</span>
+        </a>
+        <a href="invoices_1.html" class="sidebar-link">
+          <i data-lucide="file-text" class="w-5 h-5"></i>
+          <span>Invoices</span>
+        </a>
+        <a href="clients_1.html" class="sidebar-link">
+          <i data-lucide="users" class="w-5 h-5"></i>
+          <span>Clients</span>
+        </a>
+        <a href="#" class="sidebar-link active">
+          <i data-lucide="settings" class="w-5 h-5"></i>
+          <span>Settings</span>
+        </a>
       </nav>
 
-      <!-- Settings Content -->
-      <div class="settings-content">
-        <!-- General Section -->
-        <section class="settings-section active" id="section-general">
-          <div class="section-header">
-            <h2 class="section-title">General Settings</h2>
-            <p class="section-description">Manage your agency's basic information</p>
+      <div class="p-4 border-t" style="border-color: var(--sidebar-border)">
+        <div class="flex items-center gap-3">
+          <div
+            class="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center"
+          >
+            <span class="text-white text-sm font-medium">JG</span>
           </div>
-
-          <div class="settings-card">
-            <div class="card-title">
-              <div class="card-title-icon">
-                <i data-lucide="building-2" class="w-4 h-4" style="color: var(--text-muted);"></i>
-              </div>
-              Agency Information
-            </div>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">Agency Name</label>
-                <input type="text" class="form-input" value="GFAM Agency" placeholder="Enter agency name">
-              </div>
-              <div class="form-group">
-                <label class="form-label">Legal Business Name</label>
-                <input type="text" class="form-input" value="GFAM Agency LLC" placeholder="Enter legal name">
-              </div>
-            </div>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">Primary Email</label>
-                <input type="email" class="form-input" value="admin@gfamagency.com" placeholder="Enter email">
-              </div>
-              <div class="form-group">
-                <label class="form-label">Phone Number</label>
-                <input type="tel" class="form-input" value="+1 (555) 000-0000" placeholder="Enter phone">
-              </div>
-            </div>
+          <div class="logo-text">
+            <p class="text-white text-sm font-medium">J. Gillis</p>
+            <p class="text-xs" style="color: var(--sidebar-text)">Admin</p>
           </div>
+        </div>
+      </div>
+    </aside>
 
-          <div class="settings-card">
-            <div class="card-title">
-              <div class="card-title-icon">
-                <i data-lucide="image" class="w-4 h-4" style="color: var(--text-muted);"></i>
-              </div>
-              Agency Logo
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Header -->
+      <header class="flex items-center justify-between mb-8 animate-fade-in-up">
+        <div>
+          <h1 class="text-2xl font-semibold" style="color: var(--text-primary)">
+            Settings
+          </h1>
+          <p class="text-sm mt-1" style="color: var(--text-muted)">
+            Configure your agency preferences
+          </p>
+        </div>
+        <div class="flex items-center gap-4">
+          <button
+            class="theme-toggle"
+            id="themeToggle"
+            aria-label="Toggle theme"
+          >
+            <i data-lucide="sun" class="theme-toggle-icon sun-icon"></i>
+            <i data-lucide="moon" class="theme-toggle-icon moon-icon"></i>
+            <div class="theme-toggle-thumb">
+              <i data-lucide="sun" class="light-icon"></i>
+              <i data-lucide="moon" class="dark-icon" style="display: none"></i>
+            </div>
+          </button>
+          <button class="btn btn-primary" id="saveBtn">
+            <i data-lucide="save" class="w-4 h-4"></i>
+            Save Changes
+          </button>
+        </div>
+      </header>
+
+      <!-- Settings Container -->
+      <div class="settings-container">
+        <!-- Settings Navigation -->
+        <nav class="settings-nav animate-fade-in-left">
+          <button class="settings-nav-item active" data-section="general">
+            <i data-lucide="building-2" class="w-4 h-4"></i>
+            General
+          </button>
+          <button class="settings-nav-item" data-section="brands">
+            <i data-lucide="palette" class="w-4 h-4"></i>
+            Brands
+          </button>
+          <button class="settings-nav-item" data-section="team">
+            <i data-lucide="users" class="w-4 h-4"></i>
+            Team
+          </button>
+          <button class="settings-nav-item" data-section="integrations">
+            <i data-lucide="plug" class="w-4 h-4"></i>
+            Integrations
+          </button>
+          <button class="settings-nav-item" data-section="notifications">
+            <i data-lucide="bell" class="w-4 h-4"></i>
+            Notifications
+          </button>
+          <button class="settings-nav-item" data-section="appearance">
+            <i data-lucide="sun-moon" class="w-4 h-4"></i>
+            Appearance
+          </button>
+        </nav>
+
+        <!-- Settings Content -->
+        <div class="settings-content">
+          <!-- General Section -->
+          <section class="settings-section active" id="section-general">
+            <div class="section-header">
+              <h2 class="section-title">General Settings</h2>
+              <p class="section-description">
+                Manage your agency's basic information
+              </p>
             </div>
 
-            <div class="upload-area">
-              <div class="upload-preview">G</div>
-              <div>
-                <p style="font-weight: 500; color: var(--text-primary);">Agency Logo</p>
-                <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">PNG, JPG up to 2MB. Recommended 512x512px</p>
-                <div class="upload-actions">
+            <div class="settings-card">
+              <div class="card-title">
+                <div class="card-title-icon">
+                  <i
+                    data-lucide="building-2"
+                    class="w-4 h-4"
+                    style="color: var(--text-muted)"
+                  ></i>
+                </div>
+                Agency Information
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Agency Name</label>
+                  <input
+                    type="text"
+                    class="form-input"
+                    value="GFAM Agency"
+                    placeholder="Enter agency name"
+                  />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Legal Business Name</label>
+                  <input
+                    type="text"
+                    class="form-input"
+                    value="GFAM Agency LLC"
+                    placeholder="Enter legal name"
+                  />
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Primary Email</label>
+                  <input
+                    type="email"
+                    class="form-input"
+                    value="admin@gfamagency.com"
+                    placeholder="Enter email"
+                  />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Phone Number</label>
+                  <input
+                    type="tel"
+                    class="form-input"
+                    value="+1 (555) 000-0000"
+                    placeholder="Enter phone"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <div class="card-title">
+                <div class="card-title-icon">
+                  <i
+                    data-lucide="image"
+                    class="w-4 h-4"
+                    style="color: var(--text-muted)"
+                  ></i>
+                </div>
+                Agency Logo
+              </div>
+
+              <div class="upload-area">
+                <div class="upload-preview">G</div>
+                <div>
+                  <p style="font-weight: 500; color: var(--text-primary)">
+                    Agency Logo
+                  </p>
+                  <p
+                    style="
+                      font-size: 13px;
+                      color: var(--text-muted);
+                      margin-top: 4px;
+                    "
+                  >
+                    PNG, JPG up to 2MB. Recommended 512x512px
+                  </p>
+                  <div class="upload-actions">
+                    <button class="btn btn-secondary btn-sm">
+                      <i data-lucide="upload" class="w-4 h-4"></i>
+                      Upload New
+                    </button>
+                    <button class="btn btn-danger btn-sm">
+                      <i data-lucide="trash-2" class="w-4 h-4"></i>
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <div class="card-title">
+                <div class="card-title-icon">
+                  <i
+                    data-lucide="map-pin"
+                    class="w-4 h-4"
+                    style="color: var(--text-muted)"
+                  ></i>
+                </div>
+                Business Address
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Street Address</label>
+                <input
+                  type="text"
+                  class="form-input"
+                  value="123 Business Street, Suite 100"
+                  placeholder="Enter street address"
+                />
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">City</label>
+                  <input
+                    type="text"
+                    class="form-input"
+                    value="Austin"
+                    placeholder="Enter city"
+                  />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">State / Province</label>
+                  <input
+                    type="text"
+                    class="form-input"
+                    value="Texas"
+                    placeholder="Enter state"
+                  />
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">ZIP / Postal Code</label>
+                  <input
+                    type="text"
+                    class="form-input"
+                    value="78701"
+                    placeholder="Enter ZIP code"
+                  />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Country</label>
+                  <input
+                    type="text"
+                    class="form-input"
+                    value="United States"
+                    placeholder="Enter country"
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Brands Section -->
+          <section class="settings-section" id="section-brands">
+            <div class="section-header">
+              <h2 class="section-title">Brand Settings</h2>
+              <p class="section-description">
+                Configure your brand identities and colors
+              </p>
+            </div>
+
+            <div
+              class="brand-card"
+              style="border-left: 4px solid var(--brand-sankofa)"
+            >
+              <div class="brand-header">
+                <div class="brand-info">
+                  <div
+                    class="brand-color"
+                    style="background: rgba(16, 185, 129, 0.15)"
+                  >
+                    <i
+                      data-lucide="globe"
+                      class="w-5 h-5"
+                      style="color: var(--brand-sankofa)"
+                    ></i>
+                  </div>
+                  <div>
+                    <div class="brand-name">Sankofa</div>
+                    <div class="brand-description">
+                      Marketing, Web Development
+                    </div>
+                  </div>
+                </div>
+                <div class="brand-actions">
                   <button class="btn btn-secondary btn-sm">
-                    <i data-lucide="upload" class="w-4 h-4"></i>
-                    Upload New
+                    <i data-lucide="pencil" class="w-4 h-4"></i>
+                    Edit
                   </button>
-                  <button class="btn btn-danger btn-sm">
-                    <i data-lucide="trash-2" class="w-4 h-4"></i>
-                    Remove
+                  <button class="btn btn-secondary btn-sm">
+                    <i data-lucide="more-horizontal" class="w-4 h-4"></i>
                   </button>
                 </div>
               </div>
-            </div>
-          </div>
-
-          <div class="settings-card">
-            <div class="card-title">
-              <div class="card-title-icon">
-                <i data-lucide="map-pin" class="w-4 h-4" style="color: var(--text-muted);"></i>
-              </div>
-              Business Address
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Street Address</label>
-              <input type="text" class="form-input" value="123 Business Street, Suite 100" placeholder="Enter street address">
-            </div>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">City</label>
-                <input type="text" class="form-input" value="Austin" placeholder="Enter city">
-              </div>
-              <div class="form-group">
-                <label class="form-label">State / Province</label>
-                <input type="text" class="form-input" value="Texas" placeholder="Enter state">
-              </div>
-            </div>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">ZIP / Postal Code</label>
-                <input type="text" class="form-input" value="78701" placeholder="Enter ZIP code">
-              </div>
-              <div class="form-group">
-                <label class="form-label">Country</label>
-                <input type="text" class="form-input" value="United States" placeholder="Enter country">
+              <div class="brand-stats">
+                <div class="brand-stat">
+                  <div class="brand-stat-label">Color:</div>
+                  <div
+                    style="
+                      width: 20px;
+                      height: 20px;
+                      border-radius: 6px;
+                      background: var(--brand-sankofa);
+                    "
+                  ></div>
+                  <div class="brand-stat-value" style="font-family: monospace">
+                    #10b981
+                  </div>
+                </div>
+                <div class="brand-stat">
+                  <div class="brand-stat-label">Services:</div>
+                  <div class="brand-stat-value">12</div>
+                </div>
+                <div class="brand-stat">
+                  <div class="brand-stat-label">Revenue:</div>
+                  <div class="brand-stat-value">$9,200</div>
+                </div>
               </div>
             </div>
-          </div>
-        </section>
 
-        <!-- Brands Section -->
-        <section class="settings-section" id="section-brands">
-          <div class="section-header">
-            <h2 class="section-title">Brand Settings</h2>
-            <p class="section-description">Configure your brand identities and colors</p>
-          </div>
+            <div
+              class="brand-card"
+              style="border-left: 4px solid var(--brand-lighthouse)"
+            >
+              <div class="brand-header">
+                <div class="brand-info">
+                  <div
+                    class="brand-color"
+                    style="background: rgba(139, 92, 246, 0.15)"
+                  >
+                    <i
+                      data-lucide="video"
+                      class="w-5 h-5"
+                      style="color: var(--brand-lighthouse)"
+                    ></i>
+                  </div>
+                  <div>
+                    <div class="brand-name">Lighthouse</div>
+                    <div class="brand-description">
+                      Post-Production, Video, Photography
+                    </div>
+                  </div>
+                </div>
+                <div class="brand-actions">
+                  <button class="btn btn-secondary btn-sm">
+                    <i data-lucide="pencil" class="w-4 h-4"></i>
+                    Edit
+                  </button>
+                  <button class="btn btn-secondary btn-sm">
+                    <i data-lucide="more-horizontal" class="w-4 h-4"></i>
+                  </button>
+                </div>
+              </div>
+              <div class="brand-stats">
+                <div class="brand-stat">
+                  <div class="brand-stat-label">Color:</div>
+                  <div
+                    style="
+                      width: 20px;
+                      height: 20px;
+                      border-radius: 6px;
+                      background: var(--brand-lighthouse);
+                    "
+                  ></div>
+                  <div class="brand-stat-value" style="font-family: monospace">
+                    #8b5cf6
+                  </div>
+                </div>
+                <div class="brand-stat">
+                  <div class="brand-stat-label">Services:</div>
+                  <div class="brand-stat-value">14</div>
+                </div>
+                <div class="brand-stat">
+                  <div class="brand-stat-label">Revenue:</div>
+                  <div class="brand-stat-value">$6,800</div>
+                </div>
+              </div>
+            </div>
 
-          <div class="brand-card" style="border-left: 4px solid var(--brand-sankofa);">
-            <div class="brand-header">
-              <div class="brand-info">
-                <div class="brand-color" style="background: rgba(16, 185, 129, 0.15);">
-                  <i data-lucide="globe" class="w-5 h-5" style="color: var(--brand-sankofa);"></i>
+            <div
+              class="brand-card"
+              style="border-left: 4px solid var(--brand-centex)"
+            >
+              <div class="brand-header">
+                <div class="brand-info">
+                  <div
+                    class="brand-color"
+                    style="background: rgba(245, 158, 11, 0.15)"
+                  >
+                    <i
+                      data-lucide="radio"
+                      class="w-5 h-5"
+                      style="color: var(--brand-centex)"
+                    ></i>
+                  </div>
+                  <div>
+                    <div class="brand-name">Centex</div>
+                    <div class="brand-description">
+                      Sports Podcasts, Live Production
+                    </div>
+                  </div>
+                </div>
+                <div class="brand-actions">
+                  <button class="btn btn-secondary btn-sm">
+                    <i data-lucide="pencil" class="w-4 h-4"></i>
+                    Edit
+                  </button>
+                  <button class="btn btn-secondary btn-sm">
+                    <i data-lucide="more-horizontal" class="w-4 h-4"></i>
+                  </button>
+                </div>
+              </div>
+              <div class="brand-stats">
+                <div class="brand-stat">
+                  <div class="brand-stat-label">Color:</div>
+                  <div
+                    style="
+                      width: 20px;
+                      height: 20px;
+                      border-radius: 6px;
+                      background: var(--brand-centex);
+                    "
+                  ></div>
+                  <div class="brand-stat-value" style="font-family: monospace">
+                    #f59e0b
+                  </div>
+                </div>
+                <div class="brand-stat">
+                  <div class="brand-stat-label">Services:</div>
+                  <div class="brand-stat-value">8</div>
+                </div>
+                <div class="brand-stat">
+                  <div class="brand-stat-label">Revenue:</div>
+                  <div class="brand-stat-value">$4,200</div>
+                </div>
+              </div>
+            </div>
+
+            <div
+              class="brand-card"
+              style="border-left: 4px solid var(--brand-gfam-media)"
+            >
+              <div class="brand-header">
+                <div class="brand-info">
+                  <div
+                    class="brand-color"
+                    style="background: rgba(59, 130, 246, 0.15)"
+                  >
+                    <i
+                      data-lucide="mic"
+                      class="w-5 h-5"
+                      style="color: var(--brand-gfam-media)"
+                    ></i>
+                  </div>
+                  <div>
+                    <div class="brand-name">GFAM Media Studios</div>
+                    <div class="brand-description">
+                      General Podcasts, Photography, Studio Rentals
+                    </div>
+                  </div>
+                </div>
+                <div class="brand-actions">
+                  <button class="btn btn-secondary btn-sm">
+                    <i data-lucide="pencil" class="w-4 h-4"></i>
+                    Edit
+                  </button>
+                  <button class="btn btn-secondary btn-sm">
+                    <i data-lucide="more-horizontal" class="w-4 h-4"></i>
+                  </button>
+                </div>
+              </div>
+              <div class="brand-stats">
+                <div class="brand-stat">
+                  <div class="brand-stat-label">Color:</div>
+                  <div
+                    style="
+                      width: 20px;
+                      height: 20px;
+                      border-radius: 6px;
+                      background: var(--brand-gfam-media);
+                    "
+                  ></div>
+                  <div class="brand-stat-value" style="font-family: monospace">
+                    #3b82f6
+                  </div>
+                </div>
+                <div class="brand-stat">
+                  <div class="brand-stat-label">Services:</div>
+                  <div class="brand-stat-value">14</div>
+                </div>
+                <div class="brand-stat">
+                  <div class="brand-stat-label">Revenue:</div>
+                  <div class="brand-stat-value">$4,400</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Team Section -->
+          <section class="settings-section" id="section-team">
+            <div class="section-header">
+              <div class="flex items-center justify-between">
+                <div>
+                  <h2 class="section-title">Team Members</h2>
+                  <p class="section-description">
+                    Manage users and permissions
+                  </p>
+                </div>
+                <button class="btn btn-primary">
+                  <i data-lucide="user-plus" class="w-4 h-4"></i>
+                  Invite Member
+                </button>
+              </div>
+            </div>
+
+            <div class="team-member">
+              <div class="team-member-info">
+                <div
+                  class="team-avatar"
+                  style="
+                    background: linear-gradient(
+                      135deg,
+                      #667eea 0%,
+                      #764ba2 100%
+                    );
+                  "
+                >
+                  JG
                 </div>
                 <div>
-                  <div class="brand-name">Sankofa</div>
-                  <div class="brand-description">Marketing, Web Development</div>
+                  <div class="team-name">Jamal Gillis</div>
+                  <div class="team-email">jamal@gfamagency.com</div>
                 </div>
               </div>
-              <div class="brand-actions">
-                <button class="btn btn-secondary btn-sm">
-                  <i data-lucide="pencil" class="w-4 h-4"></i>
-                  Edit
-                </button>
+              <div style="display: flex; align-items: center; gap: 12px">
+                <span class="team-role admin">Admin</span>
+                <span style="font-size: 12px; color: var(--text-muted)"
+                  >You</span
+                >
+              </div>
+            </div>
+
+            <div class="team-member">
+              <div class="team-member-info">
+                <div
+                  class="team-avatar"
+                  style="
+                    background: linear-gradient(
+                      135deg,
+                      #f093fb 0%,
+                      #f5576c 100%
+                    );
+                  "
+                >
+                  SK
+                </div>
+                <div>
+                  <div class="team-name">Sarah Kim</div>
+                  <div class="team-email">sarah@gfamagency.com</div>
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 12px">
+                <span class="team-role">Editor</span>
                 <button class="btn btn-secondary btn-sm">
                   <i data-lucide="more-horizontal" class="w-4 h-4"></i>
                 </button>
               </div>
             </div>
-            <div class="brand-stats">
-              <div class="brand-stat">
-                <div class="brand-stat-label">Color:</div>
-                <div style="width: 20px; height: 20px; border-radius: 6px; background: var(--brand-sankofa);"></div>
-                <div class="brand-stat-value" style="font-family: monospace;">#10b981</div>
-              </div>
-              <div class="brand-stat">
-                <div class="brand-stat-label">Services:</div>
-                <div class="brand-stat-value">12</div>
-              </div>
-              <div class="brand-stat">
-                <div class="brand-stat-label">Revenue:</div>
-                <div class="brand-stat-value">$9,200</div>
-              </div>
-            </div>
-          </div>
 
-          <div class="brand-card" style="border-left: 4px solid var(--brand-lighthouse);">
-            <div class="brand-header">
-              <div class="brand-info">
-                <div class="brand-color" style="background: rgba(139, 92, 246, 0.15);">
-                  <i data-lucide="video" class="w-5 h-5" style="color: var(--brand-lighthouse);"></i>
+            <div class="team-member">
+              <div class="team-member-info">
+                <div
+                  class="team-avatar"
+                  style="
+                    background: linear-gradient(
+                      135deg,
+                      #4facfe 0%,
+                      #00f2fe 100%
+                    );
+                  "
+                >
+                  MT
                 </div>
                 <div>
-                  <div class="brand-name">Lighthouse</div>
-                  <div class="brand-description">Post-Production, Video, Photography</div>
+                  <div class="team-name">Mike Thompson</div>
+                  <div class="team-email">mike@gfamagency.com</div>
                 </div>
               </div>
-              <div class="brand-actions">
-                <button class="btn btn-secondary btn-sm">
-                  <i data-lucide="pencil" class="w-4 h-4"></i>
-                  Edit
-                </button>
+              <div style="display: flex; align-items: center; gap: 12px">
+                <span class="team-role">Viewer</span>
                 <button class="btn btn-secondary btn-sm">
                   <i data-lucide="more-horizontal" class="w-4 h-4"></i>
                 </button>
               </div>
             </div>
-            <div class="brand-stats">
-              <div class="brand-stat">
-                <div class="brand-stat-label">Color:</div>
-                <div style="width: 20px; height: 20px; border-radius: 6px; background: var(--brand-lighthouse);"></div>
-                <div class="brand-stat-value" style="font-family: monospace;">#8b5cf6</div>
-              </div>
-              <div class="brand-stat">
-                <div class="brand-stat-label">Services:</div>
-                <div class="brand-stat-value">14</div>
-              </div>
-              <div class="brand-stat">
-                <div class="brand-stat-label">Revenue:</div>
-                <div class="brand-stat-value">$6,800</div>
-              </div>
-            </div>
-          </div>
+          </section>
 
-          <div class="brand-card" style="border-left: 4px solid var(--brand-centex);">
-            <div class="brand-header">
-              <div class="brand-info">
-                <div class="brand-color" style="background: rgba(245, 158, 11, 0.15);">
-                  <i data-lucide="radio" class="w-5 h-5" style="color: var(--brand-centex);"></i>
+          <!-- Integrations Section -->
+          <section class="settings-section" id="section-integrations">
+            <div class="section-header">
+              <h2 class="section-title">Integrations</h2>
+              <p class="section-description">
+                Manage external service connections
+              </p>
+            </div>
+
+            <div class="settings-card">
+              <div class="card-title" style="justify-content: space-between">
+                <div style="display: flex; align-items: center; gap: 10px">
+                  <div
+                    class="card-title-icon"
+                    style="
+                      background: linear-gradient(
+                        135deg,
+                        #635bff 0%,
+                        #a259ff 100%
+                      );
+                    "
+                  >
+                    <i
+                      data-lucide="credit-card"
+                      class="w-4 h-4"
+                      style="color: white"
+                    ></i>
+                  </div>
+                  Stripe Integration
                 </div>
-                <div>
-                  <div class="brand-name">Centex</div>
-                  <div class="brand-description">Sports Podcasts, Live Production</div>
-                </div>
-              </div>
-              <div class="brand-actions">
-                <button class="btn btn-secondary btn-sm">
-                  <i data-lucide="pencil" class="w-4 h-4"></i>
-                  Edit
-                </button>
-                <button class="btn btn-secondary btn-sm">
-                  <i data-lucide="more-horizontal" class="w-4 h-4"></i>
-                </button>
-              </div>
-            </div>
-            <div class="brand-stats">
-              <div class="brand-stat">
-                <div class="brand-stat-label">Color:</div>
-                <div style="width: 20px; height: 20px; border-radius: 6px; background: var(--brand-centex);"></div>
-                <div class="brand-stat-value" style="font-family: monospace;">#f59e0b</div>
-              </div>
-              <div class="brand-stat">
-                <div class="brand-stat-label">Services:</div>
-                <div class="brand-stat-value">8</div>
-              </div>
-              <div class="brand-stat">
-                <div class="brand-stat-label">Revenue:</div>
-                <div class="brand-stat-value">$4,200</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="brand-card" style="border-left: 4px solid var(--brand-gfam-media);">
-            <div class="brand-header">
-              <div class="brand-info">
-                <div class="brand-color" style="background: rgba(59, 130, 246, 0.15);">
-                  <i data-lucide="mic" class="w-5 h-5" style="color: var(--brand-gfam-media);"></i>
-                </div>
-                <div>
-                  <div class="brand-name">GFAM Media Studios</div>
-                  <div class="brand-description">General Podcasts, Photography, Studio Rentals</div>
-                </div>
-              </div>
-              <div class="brand-actions">
-                <button class="btn btn-secondary btn-sm">
-                  <i data-lucide="pencil" class="w-4 h-4"></i>
-                  Edit
-                </button>
-                <button class="btn btn-secondary btn-sm">
-                  <i data-lucide="more-horizontal" class="w-4 h-4"></i>
-                </button>
-              </div>
-            </div>
-            <div class="brand-stats">
-              <div class="brand-stat">
-                <div class="brand-stat-label">Color:</div>
-                <div style="width: 20px; height: 20px; border-radius: 6px; background: var(--brand-gfam-media);"></div>
-                <div class="brand-stat-value" style="font-family: monospace;">#3b82f6</div>
-              </div>
-              <div class="brand-stat">
-                <div class="brand-stat-label">Services:</div>
-                <div class="brand-stat-value">14</div>
-              </div>
-              <div class="brand-stat">
-                <div class="brand-stat-label">Revenue:</div>
-                <div class="brand-stat-value">$4,400</div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- Team Section -->
-        <section class="settings-section" id="section-team">
-          <div class="section-header">
-            <div class="flex items-center justify-between">
-              <div>
-                <h2 class="section-title">Team Members</h2>
-                <p class="section-description">Manage users and permissions</p>
-              </div>
-              <button class="btn btn-primary">
-                <i data-lucide="user-plus" class="w-4 h-4"></i>
-                Invite Member
-              </button>
-            </div>
-          </div>
-
-          <div class="team-member">
-            <div class="team-member-info">
-              <div class="team-avatar" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">JG</div>
-              <div>
-                <div class="team-name">Jamal Gillis</div>
-                <div class="team-email">jamal@gfamagency.com</div>
-              </div>
-            </div>
-            <div style="display: flex; align-items: center; gap: 12px;">
-              <span class="team-role admin">Admin</span>
-              <span style="font-size: 12px; color: var(--text-muted);">You</span>
-            </div>
-          </div>
-
-          <div class="team-member">
-            <div class="team-member-info">
-              <div class="team-avatar" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">SK</div>
-              <div>
-                <div class="team-name">Sarah Kim</div>
-                <div class="team-email">sarah@gfamagency.com</div>
-              </div>
-            </div>
-            <div style="display: flex; align-items: center; gap: 12px;">
-              <span class="team-role">Editor</span>
-              <button class="btn btn-secondary btn-sm">
-                <i data-lucide="more-horizontal" class="w-4 h-4"></i>
-              </button>
-            </div>
-          </div>
-
-          <div class="team-member">
-            <div class="team-member-info">
-              <div class="team-avatar" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">MT</div>
-              <div>
-                <div class="team-name">Mike Thompson</div>
-                <div class="team-email">mike@gfamagency.com</div>
-              </div>
-            </div>
-            <div style="display: flex; align-items: center; gap: 12px;">
-              <span class="team-role">Viewer</span>
-              <button class="btn btn-secondary btn-sm">
-                <i data-lucide="more-horizontal" class="w-4 h-4"></i>
-              </button>
-            </div>
-          </div>
-        </section>
-
-        <!-- Integrations Section -->
-        <section class="settings-section" id="section-integrations">
-          <div class="section-header">
-            <h2 class="section-title">Integrations</h2>
-            <p class="section-description">Manage external service connections</p>
-          </div>
-
-          <div class="settings-card">
-            <div class="card-title" style="justify-content: space-between;">
-              <div style="display: flex; align-items: center; gap: 10px;">
-                <div class="card-title-icon" style="background: linear-gradient(135deg, #635bff 0%, #a259ff 100%);">
-                  <i data-lucide="credit-card" class="w-4 h-4" style="color: white;"></i>
-                </div>
-                Stripe Integration
-              </div>
-              <span class="status-badge status-connected">
-                <span class="status-dot"></span>
-                Connected
-              </span>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Publishable Key</label>
-              <div class="api-key-field">
-                <input type="password" class="api-key-input" value="pk_live_51ABC123DEF456GHI789JKL" id="pubKey">
-                <button class="api-key-btn" onclick="toggleKey('pubKey', this)">
-                  <i data-lucide="eye" class="w-4 h-4"></i>
-                </button>
-                <button class="api-key-btn" onclick="copyKey('pubKey', this)">
-                  <i data-lucide="copy" class="w-4 h-4"></i>
-                </button>
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Secret Key</label>
-              <div class="api-key-field">
-                <input type="password" class="api-key-input" value="sk_live_51ABC123DEF456GHI789JKL" id="secretKey">
-                <button class="api-key-btn" onclick="toggleKey('secretKey', this)">
-                  <i data-lucide="eye" class="w-4 h-4"></i>
-                </button>
-                <button class="api-key-btn" onclick="copyKey('secretKey', this)">
-                  <i data-lucide="copy" class="w-4 h-4"></i>
-                </button>
-              </div>
-              <p class="form-hint">Keep this key secret. Never share it in client-side code.</p>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Webhook Secret</label>
-              <div class="api-key-field">
-                <input type="password" class="api-key-input" value="whsec_ABC123DEF456GHI789JKL012" id="webhookKey">
-                <button class="api-key-btn" onclick="toggleKey('webhookKey', this)">
-                  <i data-lucide="eye" class="w-4 h-4"></i>
-                </button>
-                <button class="api-key-btn" onclick="copyKey('webhookKey', this)">
-                  <i data-lucide="copy" class="w-4 h-4"></i>
-                </button>
-              </div>
-            </div>
-
-            <div class="webhook-status">
-              <div class="webhook-header">
-                <span style="font-weight: 500; color: var(--text-primary);">Webhook Status</span>
                 <span class="status-badge status-connected">
                   <span class="status-dot"></span>
-                  Active
+                  Connected
                 </span>
               </div>
-              <div class="webhook-endpoint">https://gfamagency.com/api/webhooks/stripe</div>
-              <div class="webhook-meta">
-                <span>Last event: 2 minutes ago</span>
-                <span>Events received: 1,248</span>
-              </div>
-              <button class="btn btn-secondary btn-sm" style="margin-top: 12px;">
-                <i data-lucide="refresh-cw" class="w-4 h-4"></i>
-                Test Webhook
-              </button>
-            </div>
-          </div>
-        </section>
 
-        <!-- Notifications Section -->
-        <section class="settings-section" id="section-notifications">
-          <div class="section-header">
-            <h2 class="section-title">Notifications</h2>
-            <p class="section-description">Configure how you receive alerts and updates</p>
-          </div>
-
-          <div class="settings-card">
-            <div class="card-title">
-              <div class="card-title-icon">
-                <i data-lucide="mail" class="w-4 h-4" style="color: var(--text-muted);"></i>
-              </div>
-              Email Notifications
-            </div>
-
-            <div class="toggle-group">
-              <div class="toggle-info">
-                <div class="toggle-label">Invoice Paid</div>
-                <div class="toggle-description">Get notified when a client pays an invoice</div>
-              </div>
-              <div class="toggle-switch active" onclick="this.classList.toggle('active')">
-                <div class="toggle-thumb"></div>
-              </div>
-            </div>
-
-            <div class="toggle-group">
-              <div class="toggle-info">
-                <div class="toggle-label">Invoice Overdue</div>
-                <div class="toggle-description">Alert when an invoice becomes overdue</div>
-              </div>
-              <div class="toggle-switch active" onclick="this.classList.toggle('active')">
-                <div class="toggle-thumb"></div>
-              </div>
-            </div>
-
-            <div class="toggle-group">
-              <div class="toggle-info">
-                <div class="toggle-label">New Client</div>
-                <div class="toggle-description">Notification when a new client is added</div>
-              </div>
-              <div class="toggle-switch" onclick="this.classList.toggle('active')">
-                <div class="toggle-thumb"></div>
-              </div>
-            </div>
-
-            <div class="toggle-group">
-              <div class="toggle-info">
-                <div class="toggle-label">Weekly Summary</div>
-                <div class="toggle-description">Receive a weekly digest of your agency's activity</div>
-              </div>
-              <div class="toggle-switch active" onclick="this.classList.toggle('active')">
-                <div class="toggle-thumb"></div>
-              </div>
-            </div>
-
-            <div class="toggle-group">
-              <div class="toggle-info">
-                <div class="toggle-label">Marketing Updates</div>
-                <div class="toggle-description">Tips and product updates from GFAM</div>
-              </div>
-              <div class="toggle-switch" onclick="this.classList.toggle('active')">
-                <div class="toggle-thumb"></div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- Appearance Section -->
-        <section class="settings-section" id="section-appearance">
-          <div class="section-header">
-            <h2 class="section-title">Appearance</h2>
-            <p class="section-description">Customize how the dashboard looks</p>
-          </div>
-
-          <div class="settings-card">
-            <div class="card-title">
-              <div class="card-title-icon">
-                <i data-lucide="sun-moon" class="w-4 h-4" style="color: var(--text-muted);"></i>
-              </div>
-              Theme
-            </div>
-
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
-              <div class="theme-option" style="padding: 16px; border: 2px solid var(--border-color); border-radius: 12px; cursor: pointer; transition: all 0.2s ease;" onclick="setTheme('light')" id="theme-light">
-                <div style="width: 100%; height: 60px; background: #f8f9fa; border-radius: 8px; margin-bottom: 12px; display: flex; align-items: center; justify-content: center;">
-                  <i data-lucide="sun" class="w-6 h-6" style="color: #f59e0b;"></i>
+              <div class="form-group">
+                <label class="form-label">Publishable Key</label>
+                <div class="api-key-field">
+                  <input
+                    type="password"
+                    class="api-key-input"
+                    value="pk_live_51ABC123DEF456GHI789JKL"
+                    id="pubKey"
+                  />
+                  <button
+                    class="api-key-btn"
+                    onclick="toggleKey('pubKey', this)"
+                  >
+                    <i data-lucide="eye" class="w-4 h-4"></i>
+                  </button>
+                  <button class="api-key-btn" onclick="copyKey('pubKey', this)">
+                    <i data-lucide="copy" class="w-4 h-4"></i>
+                  </button>
                 </div>
-                <div style="font-weight: 500; color: var(--text-primary); text-align: center;">Light</div>
               </div>
 
-              <div class="theme-option" style="padding: 16px; border: 2px solid var(--border-color); border-radius: 12px; cursor: pointer; transition: all 0.2s ease;" onclick="setTheme('dark')" id="theme-dark">
-                <div style="width: 100%; height: 60px; background: #1a1a2e; border-radius: 8px; margin-bottom: 12px; display: flex; align-items: center; justify-content: center;">
-                  <i data-lucide="moon" class="w-6 h-6" style="color: #8b5cf6;"></i>
+              <div class="form-group">
+                <label class="form-label">Secret Key</label>
+                <div class="api-key-field">
+                  <input
+                    type="password"
+                    class="api-key-input"
+                    value="sk_live_51ABC123DEF456GHI789JKL"
+                    id="secretKey"
+                  />
+                  <button
+                    class="api-key-btn"
+                    onclick="toggleKey('secretKey', this)"
+                  >
+                    <i data-lucide="eye" class="w-4 h-4"></i>
+                  </button>
+                  <button
+                    class="api-key-btn"
+                    onclick="copyKey('secretKey', this)"
+                  >
+                    <i data-lucide="copy" class="w-4 h-4"></i>
+                  </button>
                 </div>
-                <div style="font-weight: 500; color: var(--text-primary); text-align: center;">Dark</div>
+                <p class="form-hint">
+                  Keep this key secret. Never share it in client-side code.
+                </p>
               </div>
 
-              <div class="theme-option" style="padding: 16px; border: 2px solid var(--border-color); border-radius: 12px; cursor: pointer; transition: all 0.2s ease;" onclick="setTheme('system')" id="theme-system">
-                <div style="width: 100%; height: 60px; background: linear-gradient(135deg, #f8f9fa 50%, #1a1a2e 50%); border-radius: 8px; margin-bottom: 12px; display: flex; align-items: center; justify-content: center;">
-                  <i data-lucide="monitor" class="w-6 h-6" style="color: #6b7280;"></i>
+              <div class="form-group">
+                <label class="form-label">Webhook Secret</label>
+                <div class="api-key-field">
+                  <input
+                    type="password"
+                    class="api-key-input"
+                    value="whsec_ABC123DEF456GHI789JKL0123456789"
+                    id="webhookKey"
+                  />
+                  <button
+                    class="api-key-btn"
+                    onclick="toggleKey('webhookKey', this)"
+                  >
+                    <i data-lucide="eye" class="w-4 h-4"></i>
+                  </button>
+                  <button
+                    class="api-key-btn"
+                    onclick="copyKey('webhookKey', this)"
+                  >
+                    <i data-lucide="copy" class="w-4 h-4"></i>
+                  </button>
                 </div>
-                <div style="font-weight: 500; color: var(--text-primary); text-align: center;">System</div>
               </div>
-            </div>
-          </div>
 
-          <div class="settings-card">
-            <div class="card-title">
-              <div class="card-title-icon">
-                <i data-lucide="layout" class="w-4 h-4" style="color: var(--text-muted);"></i>
+              <div class="webhook-status">
+                <div class="webhook-header">
+                  <span style="font-weight: 500; color: var(--text-primary)"
+                    >Webhook Status</span
+                  >
+                  <span class="status-badge status-connected">
+                    <span class="status-dot"></span>
+                    Active
+                  </span>
+                </div>
+                <div class="webhook-endpoint">
+                  https://gfamagency.com/api/webhooks/stripe
+                </div>
+                <div class="webhook-meta">
+                  <span>Last event: 2 minutes ago</span>
+                  <span>Events received: 1,248</span>
+                </div>
+                <button
+                  class="btn btn-secondary btn-sm"
+                  style="margin-top: 12px"
+                >
+                  <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                  Test Webhook
+                </button>
               </div>
-              Display Options
+            </div>
+          </section>
+
+          <!-- Notifications Section -->
+          <section class="settings-section" id="section-notifications">
+            <div class="section-header">
+              <h2 class="section-title">Notifications</h2>
+              <p class="section-description">
+                Configure how you receive alerts and updates
+              </p>
             </div>
 
-            <div class="toggle-group">
-              <div class="toggle-info">
-                <div class="toggle-label">Compact Mode</div>
-                <div class="toggle-description">Reduce spacing for more content on screen</div>
+            <div class="settings-card">
+              <div class="card-title">
+                <div class="card-title-icon">
+                  <i
+                    data-lucide="mail"
+                    class="w-4 h-4"
+                    style="color: var(--text-muted)"
+                  ></i>
+                </div>
+                Email Notifications
               </div>
-              <div class="toggle-switch" onclick="this.classList.toggle('active')">
-                <div class="toggle-thumb"></div>
+
+              <div class="toggle-group">
+                <div class="toggle-info">
+                  <div class="toggle-label">Invoice Paid</div>
+                  <div class="toggle-description">
+                    Get notified when a client pays an invoice
+                  </div>
+                </div>
+                <div
+                  class="toggle-switch active"
+                  onclick="this.classList.toggle('active')"
+                >
+                  <div class="toggle-thumb"></div>
+                </div>
+              </div>
+
+              <div class="toggle-group">
+                <div class="toggle-info">
+                  <div class="toggle-label">Invoice Overdue</div>
+                  <div class="toggle-description">
+                    Alert when an invoice becomes overdue
+                  </div>
+                </div>
+                <div
+                  class="toggle-switch active"
+                  onclick="this.classList.toggle('active')"
+                >
+                  <div class="toggle-thumb"></div>
+                </div>
+              </div>
+
+              <div class="toggle-group">
+                <div class="toggle-info">
+                  <div class="toggle-label">New Client</div>
+                  <div class="toggle-description">
+                    Notification when a new client is added
+                  </div>
+                </div>
+                <div
+                  class="toggle-switch"
+                  onclick="this.classList.toggle('active')"
+                >
+                  <div class="toggle-thumb"></div>
+                </div>
+              </div>
+
+              <div class="toggle-group">
+                <div class="toggle-info">
+                  <div class="toggle-label">Weekly Summary</div>
+                  <div class="toggle-description">
+                    Receive a weekly digest of your agency's activity
+                  </div>
+                </div>
+                <div
+                  class="toggle-switch active"
+                  onclick="this.classList.toggle('active')"
+                >
+                  <div class="toggle-thumb"></div>
+                </div>
+              </div>
+
+              <div class="toggle-group">
+                <div class="toggle-info">
+                  <div class="toggle-label">Marketing Updates</div>
+                  <div class="toggle-description">
+                    Tips and product updates from GFAM
+                  </div>
+                </div>
+                <div
+                  class="toggle-switch"
+                  onclick="this.classList.toggle('active')"
+                >
+                  <div class="toggle-thumb"></div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Appearance Section -->
+          <section class="settings-section" id="section-appearance">
+            <div class="section-header">
+              <h2 class="section-title">Appearance</h2>
+              <p class="section-description">
+                Customize how the dashboard looks
+              </p>
+            </div>
+
+            <div class="settings-card">
+              <div class="card-title">
+                <div class="card-title-icon">
+                  <i
+                    data-lucide="sun-moon"
+                    class="w-4 h-4"
+                    style="color: var(--text-muted)"
+                  ></i>
+                </div>
+                Theme
+              </div>
+
+              <div
+                style="
+                  display: grid;
+                  grid-template-columns: repeat(3, 1fr);
+                  gap: 16px;
+                "
+              >
+                <div
+                  class="theme-option"
+                  style="
+                    padding: 16px;
+                    border: 2px solid var(--border-color);
+                    border-radius: 12px;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                  "
+                  onclick="setTheme('light')"
+                  id="theme-light"
+                >
+                  <div
+                    style="
+                      width: 100%;
+                      height: 60px;
+                      background: #f8f9fa;
+                      border-radius: 8px;
+                      margin-bottom: 12px;
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                    "
+                  >
+                    <i
+                      data-lucide="sun"
+                      class="w-6 h-6"
+                      style="color: #f59e0b"
+                    ></i>
+                  </div>
+                  <div
+                    style="
+                      font-weight: 500;
+                      color: var(--text-primary);
+                      text-align: center;
+                    "
+                  >
+                    Light
+                  </div>
+                </div>
+
+                <div
+                  class="theme-option"
+                  style="
+                    padding: 16px;
+                    border: 2px solid var(--border-color);
+                    border-radius: 12px;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                  "
+                  onclick="setTheme('dark')"
+                  id="theme-dark"
+                >
+                  <div
+                    style="
+                      width: 100%;
+                      height: 60px;
+                      background: #1a1a2e;
+                      border-radius: 8px;
+                      margin-bottom: 12px;
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                    "
+                  >
+                    <i
+                      data-lucide="moon"
+                      class="w-6 h-6"
+                      style="color: #8b5cf6"
+                    ></i>
+                  </div>
+                  <div
+                    style="
+                      font-weight: 500;
+                      color: var(--text-primary);
+                      text-align: center;
+                    "
+                  >
+                    Dark
+                  </div>
+                </div>
+
+                <div
+                  class="theme-option"
+                  style="
+                    padding: 16px;
+                    border: 2px solid var(--border-color);
+                    border-radius: 12px;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                  "
+                  onclick="setTheme('system')"
+                  id="theme-system"
+                >
+                  <div
+                    style="
+                      width: 100%;
+                      height: 60px;
+                      background: linear-gradient(
+                        135deg,
+                        #f8f9fa 50%,
+                        #1a1a2e 50%
+                      );
+                      border-radius: 8px;
+                      margin-bottom: 12px;
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                    "
+                  >
+                    <i
+                      data-lucide="monitor"
+                      class="w-6 h-6"
+                      style="color: #6b7280"
+                    ></i>
+                  </div>
+                  <div
+                    style="
+                      font-weight: 500;
+                      color: var(--text-primary);
+                      text-align: center;
+                    "
+                  >
+                    System
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div class="toggle-group">
-              <div class="toggle-info">
-                <div class="toggle-label">Show Brand Colors in Sidebar</div>
-                <div class="toggle-description">Display color indicators next to brand names</div>
+            <div class="settings-card">
+              <div class="card-title">
+                <div class="card-title-icon">
+                  <i
+                    data-lucide="layout"
+                    class="w-4 h-4"
+                    style="color: var(--text-muted)"
+                  ></i>
+                </div>
+                Display Options
               </div>
-              <div class="toggle-switch active" onclick="this.classList.toggle('active')">
-                <div class="toggle-thumb"></div>
-              </div>
-            </div>
 
-            <div class="toggle-group">
-              <div class="toggle-info">
-                <div class="toggle-label">Animations</div>
-                <div class="toggle-description">Enable smooth transitions and animations</div>
+              <div class="toggle-group">
+                <div class="toggle-info">
+                  <div class="toggle-label">Compact Mode</div>
+                  <div class="toggle-description">
+                    Reduce spacing for more content on screen
+                  </div>
+                </div>
+                <div
+                  class="toggle-switch"
+                  onclick="this.classList.toggle('active')"
+                >
+                  <div class="toggle-thumb"></div>
+                </div>
               </div>
-              <div class="toggle-switch active" onclick="this.classList.toggle('active')">
-                <div class="toggle-thumb"></div>
+
+              <div class="toggle-group">
+                <div class="toggle-info">
+                  <div class="toggle-label">Show Brand Colors in Sidebar</div>
+                  <div class="toggle-description">
+                    Display color indicators next to brand names
+                  </div>
+                </div>
+                <div
+                  class="toggle-switch active"
+                  onclick="this.classList.toggle('active')"
+                >
+                  <div class="toggle-thumb"></div>
+                </div>
+              </div>
+
+              <div class="toggle-group">
+                <div class="toggle-info">
+                  <div class="toggle-label">Animations</div>
+                  <div class="toggle-description">
+                    Enable smooth transitions and animations
+                  </div>
+                </div>
+                <div
+                  class="toggle-switch active"
+                  onclick="this.classList.toggle('active')"
+                >
+                  <div class="toggle-thumb"></div>
+                </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
+        </div>
       </div>
+    </main>
+
+    <!-- Save Bar (appears on changes) -->
+    <div class="save-bar" id="saveBar">
+      <span class="save-bar-text">You have unsaved changes</span>
+      <button class="btn btn-secondary btn-sm">Discard</button>
+      <button class="btn btn-primary btn-sm">
+        <i data-lucide="save" class="w-4 h-4"></i>
+        Save Changes
+      </button>
     </div>
-  </main>
 
-  <!-- Save Bar (appears on changes) -->
-  <div class="save-bar" id="saveBar">
-    <span class="save-bar-text">You have unsaved changes</span>
-    <button class="btn btn-secondary btn-sm">Discard</button>
-    <button class="btn btn-primary btn-sm">
-      <i data-lucide="save" class="w-4 h-4"></i>
-      Save Changes
-    </button>
-  </div>
-
-  <script>
-    // Initialize Lucide icons
-    lucide.createIcons();
-
-    // Theme Toggle
-    const themeToggle = document.getElementById('themeToggle');
-    const html = document.documentElement;
-    const lightIcon = themeToggle.querySelector('.light-icon');
-    const darkIcon = themeToggle.querySelector('.dark-icon');
-
-    const savedTheme = localStorage.getItem('gfam-theme');
-    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-
-    if (savedTheme) {
-      html.setAttribute('data-theme', savedTheme);
-      updateToggleIcon(savedTheme);
-      updateThemeOptions(savedTheme);
-    } else if (systemPrefersDark) {
-      html.setAttribute('data-theme', 'dark');
-      updateToggleIcon('dark');
-      updateThemeOptions('system');
-    }
-
-    function updateToggleIcon(theme) {
-      if (theme === 'dark') {
-        lightIcon.style.display = 'none';
-        darkIcon.style.display = 'block';
-      } else {
-        lightIcon.style.display = 'block';
-        darkIcon.style.display = 'none';
-      }
-    }
-
-    function updateThemeOptions(selected) {
-      document.querySelectorAll('.theme-option').forEach(opt => {
-        opt.style.borderColor = 'var(--border-color)';
-      });
-      const activeOpt = document.getElementById('theme-' + selected);
-      if (activeOpt) {
-        activeOpt.style.borderColor = 'var(--text-primary)';
-      }
-    }
-
-    themeToggle.addEventListener('click', () => {
-      const currentTheme = html.getAttribute('data-theme');
-      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-      html.setAttribute('data-theme', newTheme);
-      localStorage.setItem('gfam-theme', newTheme);
-      updateToggleIcon(newTheme);
-      updateThemeOptions(newTheme);
-      lucide.createIcons();
-    });
-
-    function setTheme(theme) {
-      if (theme === 'system') {
-        localStorage.removeItem('gfam-theme');
-        const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-        html.setAttribute('data-theme', systemTheme);
-        updateToggleIcon(systemTheme);
-      } else {
-        html.setAttribute('data-theme', theme);
-        localStorage.setItem('gfam-theme', theme);
-        updateToggleIcon(theme);
-      }
-      updateThemeOptions(theme);
-      lucide.createIcons();
-    }
-
-    // Settings Navigation
-    const navItems = document.querySelectorAll('.settings-nav-item');
-    const sections = document.querySelectorAll('.settings-section');
-
-    navItems.forEach(item => {
-      item.addEventListener('click', () => {
-        navItems.forEach(n => n.classList.remove('active'));
-        item.classList.add('active');
-
-        const sectionId = 'section-' + item.dataset.section;
-        sections.forEach(s => s.classList.remove('active'));
-        document.getElementById(sectionId).classList.add('active');
-      });
-    });
-
-    // API Key functions
-    function toggleKey(inputId, btn) {
-      const input = document.getElementById(inputId);
-      if (input.type === 'password') {
-        input.type = 'text';
-        btn.innerHTML = '<i data-lucide="eye-off" class="w-4 h-4"></i>';
-      } else {
-        input.type = 'password';
-        btn.innerHTML = '<i data-lucide="eye" class="w-4 h-4"></i>';
-      }
-      lucide.createIcons();
-    }
-
-    function copyKey(inputId, btn) {
-      const input = document.getElementById(inputId);
-      const originalType = input.type;
-      input.type = 'text';
-      navigator.clipboard.writeText(input.value);
-      input.type = originalType;
-
-      btn.classList.add('copied');
-      btn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i>';
+    <script>
+      // Initialize Lucide icons
       lucide.createIcons();
 
-      setTimeout(() => {
-        btn.classList.remove('copied');
-        btn.innerHTML = '<i data-lucide="copy" class="w-4 h-4"></i>';
+      // Theme Toggle
+      const themeToggle = document.getElementById("themeToggle");
+      const html = document.documentElement;
+      const lightIcon = themeToggle.querySelector(".light-icon");
+      const darkIcon = themeToggle.querySelector(".dark-icon");
+
+      const savedTheme = localStorage.getItem("gfam-theme");
+      const systemPrefersDark = window.matchMedia(
+        "(prefers-color-scheme: dark)",
+      ).matches;
+
+      if (savedTheme) {
+        html.setAttribute("data-theme", savedTheme);
+        updateToggleIcon(savedTheme);
+        updateThemeOptions(savedTheme);
+      } else if (systemPrefersDark) {
+        html.setAttribute("data-theme", "dark");
+        updateToggleIcon("dark");
+        updateThemeOptions("system");
+      }
+
+      function updateToggleIcon(theme) {
+        if (theme === "dark") {
+          lightIcon.style.display = "none";
+          darkIcon.style.display = "block";
+        } else {
+          lightIcon.style.display = "block";
+          darkIcon.style.display = "none";
+        }
+      }
+
+      function updateThemeOptions(selected) {
+        document.querySelectorAll(".theme-option").forEach((opt) => {
+          opt.style.borderColor = "var(--border-color)";
+        });
+        const activeOpt = document.getElementById("theme-" + selected);
+        if (activeOpt) {
+          activeOpt.style.borderColor = "var(--text-primary)";
+        }
+      }
+
+      themeToggle.addEventListener("click", () => {
+        const currentTheme = html.getAttribute("data-theme");
+        const newTheme = currentTheme === "light" ? "dark" : "light";
+        html.setAttribute("data-theme", newTheme);
+        localStorage.setItem("gfam-theme", newTheme);
+        updateToggleIcon(newTheme);
+        updateThemeOptions(newTheme);
         lucide.createIcons();
-      }, 2000);
-    }
-
-    // Show save bar on input change
-    const inputs = document.querySelectorAll('.form-input');
-    const saveBar = document.getElementById('saveBar');
-
-    inputs.forEach(input => {
-      input.addEventListener('input', () => {
-        saveBar.classList.add('visible');
       });
-    });
 
-    // Initialize theme options border
-    updateThemeOptions(savedTheme || (systemPrefersDark ? 'system' : 'light'));
-  </script>
-</body>
+      function setTheme(theme) {
+        if (theme === "system") {
+          localStorage.removeItem("gfam-theme");
+          const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
+            .matches
+            ? "dark"
+            : "light";
+          html.setAttribute("data-theme", systemTheme);
+          updateToggleIcon(systemTheme);
+        } else {
+          html.setAttribute("data-theme", theme);
+          localStorage.setItem("gfam-theme", theme);
+          updateToggleIcon(theme);
+        }
+        updateThemeOptions(theme);
+        lucide.createIcons();
+      }
+
+      // Settings Navigation
+      const navItems = document.querySelectorAll(".settings-nav-item");
+      const sections = document.querySelectorAll(".settings-section");
+
+      navItems.forEach((item) => {
+        item.addEventListener("click", () => {
+          navItems.forEach((n) => n.classList.remove("active"));
+          item.classList.add("active");
+
+          const sectionId = "section-" + item.dataset.section;
+          sections.forEach((s) => s.classList.remove("active"));
+          document.getElementById(sectionId).classList.add("active");
+        });
+      });
+
+      // API Key functions
+      function toggleKey(inputId, btn) {
+        const input = document.getElementById(inputId);
+        if (input.type === "password") {
+          input.type = "text";
+          btn.innerHTML = '<i data-lucide="eye-off" class="w-4 h-4"></i>';
+        } else {
+          input.type = "password";
+          btn.innerHTML = '<i data-lucide="eye" class="w-4 h-4"></i>';
+        }
+        lucide.createIcons();
+      }
+
+      function copyKey(inputId, btn) {
+        const input = document.getElementById(inputId);
+        const originalType = input.type;
+        input.type = "text";
+        navigator.clipboard.writeText(input.value);
+        input.type = originalType;
+
+        btn.classList.add("copied");
+        btn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i>';
+        lucide.createIcons();
+
+        setTimeout(() => {
+          btn.classList.remove("copied");
+          btn.innerHTML = '<i data-lucide="copy" class="w-4 h-4"></i>';
+          lucide.createIcons();
+        }, 2000);
+      }
+
+      // Show save bar on input change
+      const inputs = document.querySelectorAll(".form-input");
+      const saveBar = document.getElementById("saveBar");
+
+      inputs.forEach((input) => {
+        input.addEventListener("input", () => {
+          saveBar.classList.add("visible");
+        });
+      });
+
+      // Initialize theme options border
+      updateThemeOptions(
+        savedTheme || (systemPrefersDark ? "system" : "light"),
+      );
+    </script>
+  </body>
 </html>
