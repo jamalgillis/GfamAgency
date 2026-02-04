@@ -130,6 +130,58 @@ async function replaceStripeInvoiceItems(
   return normalizedLineItems;
 }
 
+async function ensureStripeCustomer(
+  ctx: any,
+  stripe: any,
+  client: any,
+  context: any,
+): Promise<string> {
+  const createCustomer = async () => {
+    const customer = await stripe.customers.create(
+      {
+        name: client.name,
+        email: client.email,
+        metadata: {
+          agency: PARENT_ORGANIZATION,
+          company: client.company,
+          convexClientId: client._id,
+        },
+      },
+      context,
+    );
+
+    await ctx.runMutation(internal.invoiceActions.updateClientStripeId, {
+      clientId: client._id,
+      stripeCustomerId: customer.id,
+    });
+
+    return customer.id;
+  };
+
+  if (!client.stripeCustomerId) {
+    return await createCustomer();
+  }
+
+  try {
+    const retrieved = await stripe.customers.retrieve(
+      client.stripeCustomerId,
+      context,
+    );
+
+    if (retrieved && typeof retrieved === "object" && "deleted" in retrieved && retrieved.deleted) {
+      return await createCustomer();
+    }
+
+    return client.stripeCustomerId;
+  } catch (error) {
+    const err = error as { code?: string; message?: string };
+    if (err?.code === "resource_missing" || err?.message?.includes("No such customer")) {
+      return await createCustomer();
+    }
+    throw error;
+  }
+}
+
 /**
  * Generate a unique invoice number
  */
@@ -372,30 +424,7 @@ export const createInvoice = action({
       const context = getStripeContext(primaryBrand as StripeBrand);
 
       // 5. Ensure client has a Stripe customer ID
-      let stripeCustomerId = client.stripeCustomerId;
-
-      if (!stripeCustomerId) {
-        // Create Stripe customer
-        const customer = await stripe.customers.create({
-          name: client.name,
-          email: client.email,
-          metadata: {
-            agency: PARENT_ORGANIZATION,
-            company: client.company,
-            convexClientId: args.clientId,
-          },
-        }, context);
-
-        stripeCustomerId = customer.id;
-
-        // Update client record
-        await ctx.runMutation(internal.invoiceActions.updateClientStripeId, {
-          clientId: args.clientId,
-          stripeCustomerId: customer.id,
-        });
-
-        console.log(`👤 Created customer ${customer.id} on ${PARENT_ORGANIZATION} Stripe`);
-      }
+      const stripeCustomerId = await ensureStripeCustomer(ctx, stripe, client, context);
 
       // 6. Generate invoice number
       const invoiceNumber = generateInvoiceNumber();
@@ -571,8 +600,8 @@ export const updateDraftInvoice = action({
         clientId: invoice.clientId,
       });
 
-      if (!client?.stripeCustomerId) {
-        return { success: false, error: "Client is missing Stripe customer ID" };
+      if (!client) {
+        return { success: false, error: "Client not found" };
       }
 
       const brands = new Set<string>();
@@ -598,6 +627,7 @@ export const updateDraftInvoice = action({
 
       const stripe = getStripeClient();
       const context = getStripeContext(invoice.primaryBrand as StripeBrand);
+      const stripeCustomerId = await ensureStripeCustomer(ctx, stripe, client, context);
 
       await stripe.invoices.update(
         invoice.stripeInvoiceId,
@@ -618,7 +648,7 @@ export const updateDraftInvoice = action({
         ctx,
         stripe,
         invoice.stripeInvoiceId,
-        client.stripeCustomerId,
+        stripeCustomerId,
         args.lineItems,
         context,
         args.invoiceId,
@@ -755,9 +785,11 @@ export const reviseInvoice = action({
         clientId: invoice.clientId,
       });
 
-      if (!client?.stripeCustomerId) {
-        return { success: false, error: "Client is missing Stripe customer ID" };
+      if (!client) {
+        return { success: false, error: "Client not found" };
       }
+
+      const stripeCustomerId = await ensureStripeCustomer(ctx, stripe, client, context);
 
       const brands = new Set<string>();
       let totalCents = 0;
@@ -828,7 +860,7 @@ export const reviseInvoice = action({
         ctx,
         stripe,
         revision.id,
-        client.stripeCustomerId,
+        stripeCustomerId,
         args.lineItems,
         context,
         revisionInvoiceId,
