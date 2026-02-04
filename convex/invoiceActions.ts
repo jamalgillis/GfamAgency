@@ -262,7 +262,17 @@ export const createInvoice = action({
       // 9. Add line items to Stripe invoice
       for (const item of args.lineItems) {
         const effectivePrice = item.customPriceCents ?? item.unitPriceCents;
-        const hasCustomPrice = item.customPriceCents !== undefined;
+        const hasCustomPrice =
+          item.customPriceCents !== undefined &&
+          item.customPriceCents !== item.unitPriceCents;
+
+        let resolvedStripePriceId = item.stripePriceId;
+        if (!resolvedStripePriceId && item.serviceId) {
+          const service = await ctx.runQuery(internal.services.get, {
+            serviceId: item.serviceId,
+          });
+          resolvedStripePriceId = service?.stripePriceId;
+        }
 
         // Build metadata with brand tracking
         const itemMetadata = buildStripeMetadata(
@@ -276,37 +286,27 @@ export const createInvoice = action({
         );
 
         // Use catalog price if available and not custom
-        const usesCatalogPrice = item.stripePriceId && !hasCustomPrice;
+        const usesCatalogPrice = resolvedStripePriceId && !hasCustomPrice;
 
-        if (usesCatalogPrice && item.stripePriceId) {
+        if (usesCatalogPrice && resolvedStripePriceId) {
           // Use catalog price
           await stripe.invoiceItems.create({
             customer: stripeCustomerId,
             invoice: stripeInvoice.id,
-            price: item.stripePriceId,
+            price: resolvedStripePriceId,
             quantity: item.quantity,
             metadata: itemMetadata,
           }, context);
         } else {
-          // Use price_data for custom pricing or ad-hoc items
+          // Use legacy amount/currency for custom pricing or ad-hoc items
           await stripe.invoiceItems.create({
             customer: stripeCustomerId,
             invoice: stripeInvoice.id,
-            quantity: item.quantity,
-            price_data: {
-              currency: "usd",
-              product_data: {
-                name: hasCustomPrice
-                  ? `${item.brand} Custom: ${item.name}`
-                  : item.name,
-                metadata: {
-                  agency: PARENT_ORGANIZATION,
-                  brand: item.brand,
-                  category: item.category,
-                },
-              },
-              unit_amount: effectivePrice,
-            },
+            amount: effectivePrice * item.quantity,
+            currency: "usd",
+            description: hasCustomPrice
+              ? `${item.brand} Custom: ${item.name}`
+              : item.name,
             metadata: itemMetadata,
           }, context);
         }
