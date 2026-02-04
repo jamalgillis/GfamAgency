@@ -40,6 +40,22 @@ export const invoiceSummary = {
 // Extended invoice list
 export const allInvoices: InvoiceData[] = [
   {
+    id: "inv-1044",
+    invoiceNumber: "#INV-1044",
+    client: {
+      name: "BrightWorks Co",
+      email: "billing@brightworks.co",
+      initials: "BW",
+      avatarBg: "rgba(59, 130, 246, 0.15)",
+    },
+    service: "Brand Identity Package",
+    brand: "Sankofa",
+    amount: 1200.0,
+    date: "Jan 18, 2026",
+    dueDate: "Feb 2",
+    status: "draft",
+  },
+  {
     id: "inv-1042",
     invoiceNumber: "#INV-1042",
     client: {
@@ -213,6 +229,7 @@ export const statusFilters = [
   { key: "paid", label: "Paid", color: "#10B981" },
   { key: "pending", label: "Pending", color: "#F59E0B" },
   { key: "overdue", label: "Overdue", color: "#EF4444" },
+  { key: "draft", label: "Draft", color: "#94A3B8" },
 ];
 
 // Date range presets

@@ -745,6 +745,8 @@
   /* Filter Bar */
   .filter-bar {
     @apply bg-surface-secondary rounded-card border border-border p-4;
+    position: relative;
+    z-index: 40;
   }
 
   .tab-container {

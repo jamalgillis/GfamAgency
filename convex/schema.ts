@@ -50,6 +50,8 @@ export default defineSchema({
     participatingBrands: v.array(v.string()),
     clientId: v.id("clients"),
     stripeInvoiceId: v.optional(v.string()), // Optional until invoice is created in Stripe
+    revisesInvoiceId: v.optional(v.id("invoices")), // If this is a revision, link to original invoice
+    revisesStripeInvoiceId: v.optional(v.string()), // Stripe invoice ID of the original
     status: v.union(
       v.literal("draft"),
       v.literal("open"),

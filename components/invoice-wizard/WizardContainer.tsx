@@ -30,6 +30,7 @@ export function WizardContainer() {
   const [showInvoiceDocument, setShowInvoiceDocument] = useState(false);
   const [invoiceStatus, setInvoiceStatus] = useState<InvoiceStatus>("draft");
   const [invoiceNumber, setInvoiceNumber] = useState<string>("");
+  const [draftInvoiceId, setDraftInvoiceId] = useState<Id<"invoices"> | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Convex queries
@@ -37,6 +38,9 @@ export function WizardContainer() {
 
   // Convex action for creating invoices
   const createInvoice = useAction(api.invoiceActions.createInvoice);
+  const updateDraftInvoice = useAction(api.invoiceActions.updateDraftInvoice);
+  const sendDraftInvoice = useAction(api.invoiceActions.sendDraftInvoice);
+  const reviseInvoice = useAction(api.invoiceActions.reviseInvoice);
 
   // Transform Convex clients to WizardClient format
   const clients: WizardClient[] = useMemo(() => {
@@ -163,20 +167,51 @@ export function WizardContainer() {
 
     try {
       const lineItems = buildLineItems();
+      if (draftInvoiceId && invoiceStatus !== "draft") {
+        const result = await reviseInvoice({
+          invoiceId: draftInvoiceId,
+          lineItems,
+          notes: notes || undefined,
+        });
 
-      const result = await createInvoice({
-        clientId: selectedClient.id as Id<"clients">,
-        lineItems,
-        notes: notes || undefined,
-        sendImmediately: false,
-      });
+        if (result.success && result.invoiceNumber && result.invoiceId) {
+          setInvoiceNumber(result.invoiceNumber);
+          setInvoiceStatus("draft");
+          setDraftInvoiceId(result.invoiceId);
+          setShowInvoiceDocument(true);
+        } else {
+          setError(result.error || "Failed to create invoice revision");
+        }
+      } else if (draftInvoiceId) {
+        const result = await updateDraftInvoice({
+          invoiceId: draftInvoiceId,
+          lineItems,
+          notes: notes || undefined,
+        });
 
-      if (result.success && result.invoiceNumber) {
-        setInvoiceNumber(result.invoiceNumber);
-        setInvoiceStatus("draft");
-        setShowInvoiceDocument(true);
+        if (result.success && result.invoiceNumber) {
+          setInvoiceNumber(result.invoiceNumber);
+          setInvoiceStatus("draft");
+          setShowInvoiceDocument(true);
+        } else {
+          setError(result.error || "Failed to update draft invoice");
+        }
       } else {
-        setError(result.error || "Failed to create draft invoice");
+        const result = await createInvoice({
+          clientId: selectedClient.id as Id<"clients">,
+          lineItems,
+          notes: notes || undefined,
+          sendImmediately: false,
+        });
+
+        if (result.success && result.invoiceNumber && result.invoiceId) {
+          setInvoiceNumber(result.invoiceNumber);
+          setInvoiceStatus("draft");
+          setDraftInvoiceId(result.invoiceId);
+          setShowInvoiceDocument(true);
+        } else {
+          setError(result.error || "Failed to create draft invoice");
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred");
@@ -193,20 +228,42 @@ export function WizardContainer() {
 
     try {
       const lineItems = buildLineItems();
+      if (draftInvoiceId) {
+        const updateResult = await updateDraftInvoice({
+          invoiceId: draftInvoiceId,
+          lineItems,
+          notes: notes || undefined,
+        });
 
-      const result = await createInvoice({
-        clientId: selectedClient.id as Id<"clients">,
-        lineItems,
-        notes: notes || undefined,
-        sendImmediately: true,
-      });
+        if (!updateResult.success) {
+          setError(updateResult.error || "Failed to update draft invoice");
+          return;
+        }
 
-      if (result.success && result.invoiceNumber) {
-        setInvoiceNumber(result.invoiceNumber);
-        setInvoiceStatus("sent");
-        setShowInvoiceDocument(true);
+        const sendResult = await sendDraftInvoice({ invoiceId: draftInvoiceId });
+
+        if (sendResult.success) {
+          setInvoiceStatus("sent");
+          setShowInvoiceDocument(true);
+        } else {
+          setError(sendResult.error || "Failed to send invoice");
+        }
       } else {
-        setError(result.error || "Failed to send invoice");
+        const result = await createInvoice({
+          clientId: selectedClient.id as Id<"clients">,
+          lineItems,
+          notes: notes || undefined,
+          sendImmediately: true,
+        });
+
+        if (result.success && result.invoiceNumber && result.invoiceId) {
+          setInvoiceNumber(result.invoiceNumber);
+          setInvoiceStatus("sent");
+          setDraftInvoiceId(result.invoiceId);
+          setShowInvoiceDocument(true);
+        } else {
+          setError(result.error || "Failed to send invoice");
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred");
@@ -218,6 +275,35 @@ export function WizardContainer() {
   const handleBackToWizard = () => {
     setShowInvoiceDocument(false);
     setError(null);
+  };
+
+  const handleReviseInvoice = async () => {
+    if (!draftInvoiceId) return;
+
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      const lineItems = buildLineItems();
+      const result = await reviseInvoice({
+        invoiceId: draftInvoiceId,
+        lineItems,
+        notes: notes || undefined,
+      });
+
+      if (result.success && result.invoiceNumber && result.invoiceId) {
+        setInvoiceNumber(result.invoiceNumber);
+        setInvoiceStatus("draft");
+        setDraftInvoiceId(result.invoiceId);
+        setShowInvoiceDocument(true);
+      } else {
+        setError(result.error || "Failed to create invoice revision");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An unexpected error occurred");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const renderStepContent = () => {
@@ -369,6 +455,10 @@ export function WizardContainer() {
         onBack={handleBackToWizard}
         onUpdateServices={setSelectedServices}
         onUpdateNotes={setNotes}
+        onSaveDraft={handleCreateDraft}
+        isSavingDraft={isSubmitting}
+        onCreateRevision={invoiceStatus === "sent" ? handleReviseInvoice : undefined}
+        isRevising={isSubmitting}
         editable={invoiceStatus === "draft"}
       />
     );

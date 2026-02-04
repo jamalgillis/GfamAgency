@@ -43,12 +43,12 @@ export function getStripeClient(): Stripe {
   if (!apiKey) {
     throw new Error(
       "Missing STRIPE_SECRET_KEY environment variable. " +
-        "Please set this in your Convex dashboard under Settings > Environment Variables."
+        "Please set this in your Convex dashboard under Settings > Environment Variables.",
     );
   }
 
   stripeClient = new Stripe(apiKey, {
-    apiVersion: "2024-12-18.acacia",
+    apiVersion: "2025-02-24.acacia",
   });
 
   return stripeClient;
@@ -63,7 +63,7 @@ export function getWebhookSecret(): string {
   if (!secret) {
     throw new Error(
       "Missing STRIPE_WEBHOOK_SECRET environment variable. " +
-        "Get this from Stripe Dashboard > Developers > Webhooks."
+        "Get this from Stripe Dashboard > Developers > Webhooks.",
     );
   }
 
@@ -89,13 +89,31 @@ export function checkStripeConfiguration(): {
 }
 
 /**
+ * Determine whether the configured Stripe key is test or live.
+ * Returns "unknown" if the key is missing or unrecognized.
+ */
+export function getStripeKeyMode(): "test" | "live" | "unknown" {
+  const apiKey = process.env.STRIPE_SECRET_KEY;
+  if (!apiKey) {
+    return "unknown";
+  }
+  if (apiKey.includes("_test_")) {
+    return "test";
+  }
+  if (apiKey.includes("_live_")) {
+    return "live";
+  }
+  return "unknown";
+}
+
+/**
  * Build standard metadata for Stripe objects
  * Ensures consistent brand tracking across all API calls
  */
 export function buildStripeMetadata(
   brand: StripeBrand,
   category: string,
-  additionalData?: Record<string, string>
+  additionalData?: Record<string, string>,
 ): Record<string, string> {
   return {
     agency: PARENT_ORGANIZATION,
@@ -132,9 +150,9 @@ export const STRIPE_ENV_VARS = {
  */
 export function getBrandAccountId(brand: StripeBrand): string | undefined {
   const accountMap: Record<StripeBrand, string | undefined> = {
-    "Sankofa": process.env.STRIPE_ACCOUNT_ID_SANKOFA,
-    "Lighthouse": process.env.STRIPE_ACCOUNT_ID_LIGHTHOUSE,
-    "Centex": process.env.STRIPE_ACCOUNT_ID_CENTEX,
+    Sankofa: process.env.STRIPE_ACCOUNT_ID_SANKOFA,
+    Lighthouse: process.env.STRIPE_ACCOUNT_ID_LIGHTHOUSE,
+    Centex: process.env.STRIPE_ACCOUNT_ID_CENTEX,
     "GFAM Media Studios": process.env.STRIPE_ACCOUNT_ID_GFAM_STUDIOS,
     "GFAM Agency": process.env.STRIPE_ACCOUNT_ID_GFAM_AGENCY,
   };
@@ -151,10 +169,12 @@ export function isOrganizationKey(): boolean {
 
 /**
  * Generates the options object required for Organization API keys.
- * The stripeAccount property tells the SDK to include the Stripe-Context header.
+ * The stripeContext property tells the SDK to include the Stripe-Context header.
  * Returns undefined if not using an Organization key.
  */
-export function getStripeContext(brand: StripeBrand): Stripe.RequestOptions | undefined {
+export function getStripeContext(
+  brand: StripeBrand,
+): (Stripe.RequestOptions & { stripeContext?: string }) | undefined {
   // If not using an Organization key, no context needed
   if (!isOrganizationKey()) {
     return undefined;
@@ -164,11 +184,11 @@ export function getStripeContext(brand: StripeBrand): Stripe.RequestOptions | un
   if (!accountId) {
     throw new Error(
       `Missing Stripe Account ID for brand: ${brand}. ` +
-      `Please set STRIPE_ACCOUNT_ID_${brand.toUpperCase().replace(/ /g, "_")} in your Convex environment variables.`
+        `Please set STRIPE_ACCOUNT_ID_${brand.toUpperCase().replace(/ /g, "_")} in your Convex environment variables.`,
     );
   }
 
-  return { stripeAccount: accountId };
+  return { stripeContext: accountId };
 }
 
 /**
