@@ -62,6 +62,10 @@ http.route({
           await handleInvoiceSent(ctx, event.data.object as Stripe.Invoice);
           break;
 
+        case "payment_intent.succeeded":
+          await handlePaymentIntentSucceeded(ctx, event.data.object as Stripe.PaymentIntent);
+          break;
+
         default:
           console.log(`[${PARENT_ORGANIZATION}] Unhandled event type: ${event.type}`);
       }
@@ -96,6 +100,28 @@ async function handleInvoicePaid(ctx: any, invoice: Stripe.Invoice) {
     paidAt: invoice.status_transitions?.paid_at
       ? invoice.status_transitions.paid_at * 1000
       : Date.now(),
+  });
+
+  const paymentIntent = invoice.payment_intent;
+  const stripePaymentIntentId =
+    typeof paymentIntent === "string"
+      ? paymentIntent
+      : paymentIntent && typeof paymentIntent === "object" && "id" in paymentIntent
+        ? paymentIntent.id
+        : undefined;
+
+  if (!stripePaymentIntentId) {
+    console.warn(
+      `[${brand}] Invoice ${invoice.id} paid but missing payment_intent; skipping brandLedger attribution`
+    );
+    return;
+  }
+
+  await ctx.runMutation(internal.webhooks.processPaidInvoiceLedgerAttribution, {
+    invoiceId: convexInvoiceId as any,
+    settlementSource: "invoice.paid",
+    settlementId: invoice.id,
+    stripePaymentIntentId,
   });
 }
 
@@ -204,6 +230,31 @@ async function handleInvoiceSent(ctx: any, invoice: Stripe.Invoice) {
     status: "open",
     stripeInvoiceId: invoice.id,
     sentAt: Date.now(),
+  });
+}
+
+/**
+ * Handle payment_intent.succeeded for ledger-only attribution.
+ */
+async function handlePaymentIntentSucceeded(ctx: any, paymentIntent: Stripe.PaymentIntent) {
+  const invoiceId = paymentIntent.metadata?.invoiceId;
+
+  if (!invoiceId) {
+    console.log(
+      `[${PARENT_ORGANIZATION}] PaymentIntent ${paymentIntent.id} has no invoiceId metadata`
+    );
+    return;
+  }
+
+  console.log(
+    `[${PARENT_ORGANIZATION}] PaymentIntent ${paymentIntent.id} succeeded for invoice ${invoiceId}`
+  );
+
+  await ctx.runMutation(internal.webhooks.processPaidInvoiceLedgerAttribution, {
+    invoiceId: invoiceId as any,
+    settlementSource: "payment_intent.succeeded",
+    settlementId: paymentIntent.id,
+    stripePaymentIntentId: paymentIntent.id,
   });
 }
 

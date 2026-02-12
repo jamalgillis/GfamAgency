@@ -18,6 +18,8 @@ interface InvoiceDocumentProps {
   notes: string;
   invoiceNumber?: string;
   status?: "draft" | "sent" | "paid" | "overdue";
+  checkoutUrl?: string | null;
+  emailStatusMessage?: string | null;
   onBack?: () => void;
   onUpdateServices?: (services: Map<string, SelectedService>) => void;
   onUpdateNotes?: (notes: string) => void;
@@ -34,6 +36,8 @@ export function InvoiceDocument({
   notes,
   invoiceNumber = "INV-" + Math.random().toString(36).substring(2, 8).toUpperCase(),
   status = "draft",
+  checkoutUrl = null,
+  emailStatusMessage = null,
   onBack,
   onUpdateServices,
   onUpdateNotes,
@@ -74,7 +78,7 @@ export function InvoiceDocument({
   const total = subtotal + tax - discount;
 
   const brands = [...new Set(items.map((item) => item.service.brand))];
-  const primaryBrand = brands.length === 1 ? brands[0] : "GFAM Agency";
+  const primaryBrand = brands.length === 1 ? brands[0] : "Sankofa";
 
   const today = new Date();
   const dueDate = new Date(today);
@@ -162,6 +166,16 @@ export function InvoiceDocument({
           </button>
         )}
         <div className="flex items-center gap-2 sm:gap-3 sm:ml-auto">
+          {checkoutUrl && status === "sent" && (
+            <a
+              href={checkoutUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-green-600 text-white font-medium hover:bg-green-500 transition-colors"
+            >
+              <span>Open Payment Link</span>
+            </a>
+          )}
           {editable && onSaveDraft && (
             <button
               onClick={onSaveDraft}
@@ -196,12 +210,35 @@ export function InvoiceDocument({
 
       {/* Invoice Sheet */}
       <main className="invoice-sheet">
+        {checkoutUrl && status === "sent" && (
+          <div className="mb-6 p-4 rounded-lg border border-green-400/30 bg-green-500/10 text-green-200">
+            Payment link is ready. Share this URL with the client to collect payment:
+            <div className="mt-2 break-all text-sm">
+              {checkoutUrl}
+            </div>
+            <div className="mt-2 text-sm text-green-100/90">
+              Bank statement uses GFAM as merchant with a brand-specific suffix when possible.
+            </div>
+          </div>
+        )}
+        {emailStatusMessage && status === "sent" && (
+          <div
+            className={`mb-6 p-4 rounded-lg border ${
+              emailStatusMessage.startsWith("Invoice sent and email delivered")
+                ? "border-green-400/30 bg-green-500/10 text-green-200"
+                : "border-amber-400/30 bg-amber-500/10 text-amber-100"
+            }`}
+          >
+            {emailStatusMessage}
+          </div>
+        )}
+
         {/* Header */}
         <header className="invoice-header">
           <div>
             <h1 className="invoice-company-name">{primaryBrand}</h1>
             <p className="text-sm text-gray-400 mt-1">
-              {brands.length > 1 ? "A GFAM Agency Invoice" : `${primaryBrand} Services`}
+              {brands.length > 1 ? "Mixed-brand invoice billed via Sankofa" : `${primaryBrand} Services`}
             </p>
           </div>
           <div className="text-right">
@@ -476,8 +513,8 @@ export function InvoiceDocument({
 
         {/* Footer */}
         <footer className="invoice-footer">
-          <p className="invoice-footer-text">Thank you for your business</p>
-          <p className="invoice-footer-brand">GFAM Agency</p>
+          <p className="invoice-footer-text">Thank you for your business Sankfoa Marketing Group</p>
+          <p className="invoice-footer-brand">Sankfoa Marketing Group</p>
           <p className="text-xs text-gray-600 mt-2">
             Sankofa • Lighthouse • Centex • GFAM Media Studios
           </p>

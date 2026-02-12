@@ -12,16 +12,31 @@ export interface Invoice {
     initials: string;
     avatarBg?: string;
   };
-  brand: BrandType;
+  brand: BrandType | string;
   amount: number;
   date: string;
-  status: StatusType;
+  status: StatusType | string;
 }
 
 interface InvoiceTableProps {
   invoices: Invoice[];
   onViewAll?: () => void;
 }
+
+const KNOWN_BRANDS: BrandType[] = ["Sankofa", "Lighthouse", "Centex", "GFAM Media Studios"];
+const KNOWN_STATUSES: StatusType[] = ["paid", "pending", "overdue", "draft"];
+
+const isKnownBrand = (brand: string): brand is BrandType =>
+  KNOWN_BRANDS.includes(brand as BrandType);
+
+const isKnownStatus = (status: string): status is StatusType =>
+  KNOWN_STATUSES.includes(status as StatusType);
+
+const formatStatusLabel = (status: string) =>
+  status
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 
 export function InvoiceTable({ invoices, onViewAll }: InvoiceTableProps) {
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
@@ -91,120 +106,152 @@ export function InvoiceTable({ invoices, onViewAll }: InvoiceTableProps) {
             </tr>
           </thead>
           <tbody>
-            {invoices.map((invoice, index) => (
-              <tr
-                key={invoice.id}
-                className="table-row opacity-0 animate-slide-in-left"
-                style={{ animationDelay: `${300 + index * 50}ms` }}
-              >
-                <td className="px-4 lg:px-6 py-4">
-                  <input
-                    type="checkbox"
-                    checked={selectedRows.has(invoice.id)}
-                    onChange={() => toggleRow(invoice.id)}
-                    className="w-4 h-4 rounded border-border accent-brand-sankofa"
-                  />
-                </td>
-                <td className="px-4 lg:px-6 py-4">
-                  <span className="font-medium text-content">
-                    {invoice.invoiceNumber}
-                  </span>
-                </td>
-                <td className="px-4 lg:px-6 py-4">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-meta font-medium flex-shrink-0"
-                      style={{
-                        background: invoice.client.avatarBg || "var(--avatar-bg)",
-                        color: invoice.client.avatarBg
-                          ? "white"
-                          : "var(--color-text-secondary)",
-                      }}
-                    >
-                      {invoice.client.initials}
-                    </div>
-                    <span className="text-content-secondary truncate max-w-[120px] lg:max-w-none">
-                      {invoice.client.name}
-                    </span>
-                  </div>
-                </td>
-                <td className="px-4 lg:px-6 py-4 hidden lg:table-cell">
-                  <BrandBadge brand={invoice.brand} variant="dot" />
-                </td>
-                <td className="px-4 lg:px-6 py-4 font-medium text-content">
-                  {formatCurrency(invoice.amount)}
-                </td>
-                <td className="px-4 lg:px-6 py-4 text-content-muted text-sm hidden xl:table-cell">
-                  {invoice.date}
-                </td>
-                <td className="px-4 lg:px-6 py-4">
-                  <StatusBadge status={invoice.status} />
-                </td>
-                <td className="px-4 lg:px-6 py-4">
-                  <button className="p-2 rounded-lg hover:bg-surface-tertiary transition-colors">
-                    <MoreHorizontal className="w-4 h-4 text-content-muted" />
-                  </button>
+            {invoices.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="px-4 lg:px-6 py-10 text-center text-content-muted">
+                  No invoices found.
                 </td>
               </tr>
-            ))}
+            ) : (
+              invoices.map((invoice, index) => (
+                <tr
+                  key={invoice.id}
+                  className="table-row opacity-0 animate-slide-in-left"
+                  style={{ animationDelay: `${300 + index * 50}ms` }}
+                >
+                  <td className="px-4 lg:px-6 py-4">
+                    <input
+                      type="checkbox"
+                      checked={selectedRows.has(invoice.id)}
+                      onChange={() => toggleRow(invoice.id)}
+                      className="w-4 h-4 rounded border-border accent-brand-sankofa"
+                    />
+                  </td>
+                  <td className="px-4 lg:px-6 py-4">
+                    <span className="font-medium text-content">
+                      {invoice.invoiceNumber}
+                    </span>
+                  </td>
+                  <td className="px-4 lg:px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-meta font-medium flex-shrink-0"
+                        style={{
+                          background: invoice.client.avatarBg || "var(--avatar-bg)",
+                          color: invoice.client.avatarBg
+                            ? "white"
+                            : "var(--color-text-secondary)",
+                        }}
+                      >
+                        {invoice.client.initials}
+                      </div>
+                      <span className="text-content-secondary truncate max-w-[120px] lg:max-w-none">
+                        {invoice.client.name}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-4 lg:px-6 py-4 hidden lg:table-cell">
+                    {isKnownBrand(invoice.brand) ? (
+                      <BrandBadge brand={invoice.brand} variant="dot" />
+                    ) : (
+                      <span className="text-content-secondary text-sm">{invoice.brand}</span>
+                    )}
+                  </td>
+                  <td className="px-4 lg:px-6 py-4 font-medium text-content">
+                    {formatCurrency(invoice.amount)}
+                  </td>
+                  <td className="px-4 lg:px-6 py-4 text-content-muted text-sm hidden xl:table-cell">
+                    {invoice.date}
+                  </td>
+                  <td className="px-4 lg:px-6 py-4">
+                    {isKnownStatus(invoice.status) ? (
+                      <StatusBadge status={invoice.status} />
+                    ) : (
+                      <span className="status-badge bg-surface-tertiary text-content-muted">
+                        {formatStatusLabel(invoice.status)}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 lg:px-6 py-4">
+                    <button className="p-2 rounded-lg hover:bg-surface-tertiary transition-colors">
+                      <MoreHorizontal className="w-4 h-4 text-content-muted" />
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
 
       {/* Mobile Card View */}
       <div className="md:hidden divide-y divide-border">
-        {invoices.map((invoice, index) => (
-          <div
-            key={invoice.id}
-            className="p-4 opacity-0 animate-slide-in-left"
-            style={{ animationDelay: `${300 + index * 50}ms` }}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0">
-                <input
-                  type="checkbox"
-                  checked={selectedRows.has(invoice.id)}
-                  onChange={() => toggleRow(invoice.id)}
-                  className="w-4 h-4 rounded border-border accent-brand-sankofa flex-shrink-0 mt-1"
-                />
-                <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium flex-shrink-0"
-                  style={{
-                    background: invoice.client.avatarBg || "var(--avatar-bg)",
-                    color: invoice.client.avatarBg
-                      ? "white"
-                      : "var(--color-text-secondary)",
-                  }}
-                >
-                  {invoice.client.initials}
+        {invoices.length === 0 ? (
+          <div className="p-6 text-center text-content-muted">No invoices found.</div>
+        ) : (
+          invoices.map((invoice, index) => (
+            <div
+              key={invoice.id}
+              className="p-4 opacity-0 animate-slide-in-left"
+              style={{ animationDelay: `${300 + index * 50}ms` }}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <input
+                    type="checkbox"
+                    checked={selectedRows.has(invoice.id)}
+                    onChange={() => toggleRow(invoice.id)}
+                    className="w-4 h-4 rounded border-border accent-brand-sankofa flex-shrink-0 mt-1"
+                  />
+                  <div
+                    className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium flex-shrink-0"
+                    style={{
+                      background: invoice.client.avatarBg || "var(--avatar-bg)",
+                      color: invoice.client.avatarBg
+                        ? "white"
+                        : "var(--color-text-secondary)",
+                    }}
+                  >
+                    {invoice.client.initials}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-medium text-content truncate">
+                      {invoice.client.name}
+                    </p>
+                    <p className="text-sm text-content-muted">
+                      {invoice.invoiceNumber}
+                    </p>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <p className="font-medium text-content truncate">
-                    {invoice.client.name}
-                  </p>
-                  <p className="text-sm text-content-muted">
-                    {invoice.invoiceNumber}
-                  </p>
+                <button className="p-2 rounded-lg hover:bg-surface-tertiary transition-colors flex-shrink-0">
+                  <MoreHorizontal className="w-4 h-4 text-content-muted" />
+                </button>
+              </div>
+              <div className="flex items-center justify-between mt-3 pl-7">
+                <div className="flex items-center gap-3">
+                  {isKnownBrand(invoice.brand) ? (
+                    <BrandBadge brand={invoice.brand} variant="dot" showLabel={false} />
+                  ) : (
+                    <span className="text-sm text-content-muted">{invoice.brand}</span>
+                  )}
+                  <span className="text-sm text-content-muted">{invoice.date}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="font-semibold text-content">
+                    {formatCurrency(invoice.amount)}
+                  </span>
+                  {isKnownStatus(invoice.status) ? (
+                    <StatusBadge status={invoice.status} />
+                  ) : (
+                    <span className="status-badge bg-surface-tertiary text-content-muted">
+                      {formatStatusLabel(invoice.status)}
+                    </span>
+                  )}
                 </div>
               </div>
-              <button className="p-2 rounded-lg hover:bg-surface-tertiary transition-colors flex-shrink-0">
-                <MoreHorizontal className="w-4 h-4 text-content-muted" />
-              </button>
             </div>
-            <div className="flex items-center justify-between mt-3 pl-7">
-              <div className="flex items-center gap-3">
-                <BrandBadge brand={invoice.brand} variant="dot" showLabel={false} />
-                <span className="text-sm text-content-muted">{invoice.date}</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="font-semibold text-content">
-                  {formatCurrency(invoice.amount)}
-                </span>
-                <StatusBadge status={invoice.status} />
-              </div>
-            </div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
 
       {/* Bulk Actions Bar */}

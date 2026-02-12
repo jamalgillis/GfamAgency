@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
+import { useParams } from "next/navigation";
 import Link from "next/link";
+import { useQuery } from "convex/react";
 import {
   ArrowLeft,
   Download,
@@ -13,13 +14,14 @@ import {
   Trash2,
   CheckCircle,
   Circle,
-  ChevronDown,
 } from "lucide-react";
 import { ThemeSwitch } from "@/components/ThemeSwitch";
-import { allInvoices, type InvoiceData } from "@/data/invoices-sample";
-import type { BrandType, StatusType } from "@/components/BrandBadge";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
+import type { BrandType } from "@/components/BrandBadge";
 
-// Sample line items for demo
+type InvoiceStatus = "paid" | "pending" | "overdue" | "draft" | "void";
+
 interface LineItem {
   id: string;
   name: string;
@@ -29,65 +31,6 @@ interface LineItem {
   rate: number;
 }
 
-const sampleLineItems: Record<string, LineItem[]> = {
-  "inv-1042": [
-    {
-      id: "1",
-      name: "Website Design",
-      description: "Custom responsive design with brand guidelines",
-      brand: "Sankofa",
-      qty: 1,
-      rate: 1500,
-    },
-    {
-      id: "2",
-      name: "Development",
-      description: "Next.js implementation with CMS integration",
-      brand: "Sankofa",
-      qty: 1,
-      rate: 900,
-    },
-  ],
-  "inv-1041": [
-    {
-      id: "1",
-      name: "Video Editing",
-      description: "Full color grading and sound mixing",
-      brand: "Lighthouse",
-      qty: 3,
-      rate: 450,
-    },
-    {
-      id: "2",
-      name: "Motion Graphics",
-      description: "Intro/outro animations",
-      brand: "Lighthouse",
-      qty: 1,
-      rate: 500,
-    },
-  ],
-  "inv-1040": [
-    {
-      id: "1",
-      name: "Live Stream Production",
-      description: "Full production team for 4-hour event",
-      brand: "Centex",
-      qty: 1,
-      rate: 3200,
-    },
-  ],
-  "inv-1039": [
-    {
-      id: "1",
-      name: "Studio Rental",
-      description: "8-hour podcast studio session",
-      brand: "GFAM Media Studios",
-      qty: 8,
-      rate: 111.25,
-    },
-  ],
-};
-
 const brandClasses: Record<BrandType, string> = {
   Sankofa: "invoice-brand-sankofa",
   Lighthouse: "invoice-brand-lighthouse",
@@ -95,38 +38,89 @@ const brandClasses: Record<BrandType, string> = {
   "GFAM Media Studios": "invoice-brand-gfam",
 };
 
-const statusColors: Record<StatusType, string> = {
+const statusColors: Record<InvoiceStatus, string> = {
   paid: "paid",
   pending: "draft",
   overdue: "overdue",
   draft: "draft",
+  void: "draft",
 };
+
+const formatShortDate = (date: Date) =>
+  new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+  }).format(date);
+
+const formatFullDate = (date: Date) =>
+  new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+
+const getInvoiceStatus = (status: string, dueAt: number, now: number): InvoiceStatus => {
+  if (status === "paid") return "paid";
+  if (status === "draft") return "draft";
+  if (status === "void") return "void";
+  if (status === "uncollectible") return "overdue";
+  return now > dueAt ? "overdue" : "pending";
+};
+
+const formatStatusLabel = (status: InvoiceStatus) =>
+  status.charAt(0).toUpperCase() + status.slice(1);
 
 export default function InvoiceDetailPage() {
   const params = useParams();
-  const router = useRouter();
-  const invoiceId = params.id as string;
-
-  // Find the invoice
-  const invoice = allInvoices.find((inv) => inv.id === invoiceId);
-
-  // Get line items or create default
-  const initialItems = sampleLineItems[invoiceId] || [
-    {
-      id: "1",
-      name: "Service",
-      description: "Service description",
-      brand: invoice?.brand || "Sankofa",
-      qty: 1,
-      rate: invoice?.amount || 0,
-    },
-  ];
-
-  const [lineItems, setLineItems] = useState<LineItem[]>(initialItems);
-  const [notes, setNotes] = useState(
-    "Payment is due within 14 days. Please include the invoice number in your payment reference."
+  const invoiceIdParam = params.id;
+  const invoiceId = Array.isArray(invoiceIdParam) ? invoiceIdParam[0] : invoiceIdParam;
+  const hasValidInvoiceId = typeof invoiceId === "string" && invoiceId.length > 10;
+  const invoiceWithDetails = useQuery(
+    api.invoiceActions.getInvoiceWithLineItems,
+    hasValidInvoiceId ? { invoiceId: invoiceId as Id<"invoices"> } : "skip"
   );
+
   const [actionsOpen, setActionsOpen] = useState(false);
+
+  const notes =
+    invoiceWithDetails?.notes ||
+    "Payment is due within 14 days. Please include the invoice number in your payment reference.";
+
+  const lineItems = useMemo<LineItem[]>(() => {
+    if (!invoiceWithDetails) return [];
+
+    return invoiceWithDetails.lineItems.map((item) => {
+      const rateCents = item.customPriceCents ?? item.unitPriceCents;
+      return {
+        id: item._id,
+        name: item.name,
+        description: item.description ?? "",
+        brand: item.brand as BrandType,
+        qty: item.quantity,
+        rate: rateCents / 100,
+      };
+    });
+  }, [invoiceWithDetails]);
+
+  const invoice = useMemo(() => {
+    if (!invoiceWithDetails) return null;
+
+    const createdAt = invoiceWithDetails.createdAt;
+    const dueAt = createdAt + 14 * 24 * 60 * 60 * 1000;
+    const status = getInvoiceStatus(invoiceWithDetails.status, dueAt, Date.now());
+
+    return {
+      invoiceNumber: invoiceWithDetails.invoiceNumber,
+      client: {
+        name: invoiceWithDetails.client?.name || "Unknown Client",
+        email: invoiceWithDetails.client?.email || "No email",
+      },
+      date: formatFullDate(new Date(createdAt)),
+      dueDate: formatShortDate(new Date(dueAt)),
+      brand: invoiceWithDetails.primaryBrand,
+      status,
+    };
+  }, [invoiceWithDetails]);
 
   // Calculate totals
   const subtotal = useMemo(
@@ -144,6 +138,33 @@ export default function InvoiceDetailPage() {
       minimumFractionDigits: 2,
     }).format(amount);
   };
+
+  if (!hasValidInvoiceId) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
+        <h2 className="text-xl font-semibold text-content mb-2">Invoice Not Found</h2>
+        <p className="text-content-muted mb-6">
+          The invoice you&apos;re looking for doesn&apos;t exist.
+        </p>
+        <Link
+          href="/dashboard/invoices"
+          className="btn-primary"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to Invoices
+        </Link>
+      </div>
+    );
+  }
+
+  if (invoiceWithDetails === undefined) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
+        <h2 className="text-xl font-semibold text-content mb-2">Loading Invoice...</h2>
+        <p className="text-content-muted mb-6">Fetching invoice details from the database.</p>
+      </div>
+    );
+  }
 
   if (!invoice) {
     return (
@@ -254,7 +275,7 @@ export default function InvoiceDetailPage() {
               <div className="mt-3">
                 <span className={`invoice-status-badge ${statusColors[invoice.status]}`}>
                   <Circle className="w-2 h-2 fill-current" />
-                  {invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}
+                  {formatStatusLabel(invoice.status)}
                 </span>
               </div>
             </div>

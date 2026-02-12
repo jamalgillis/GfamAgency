@@ -25,6 +25,18 @@ export function InvoicePreview({
     }).format(amount);
   };
 
+  const formatItemDescription = (item: SelectedServiceItem) => {
+    const rawDescription = item.service.description?.trim();
+    if (!rawDescription) {
+      return item.service.isCustom
+        ? "Includes a custom line item for this invoice."
+        : "Includes the selected service for this invoice.";
+    }
+
+    const endsWithPunctuation = /[.!?]$/.test(rawDescription);
+    return `Includes ${rawDescription}${endsWithPunctuation ? "" : "."}`;
+  };
+
   const items = Array.from(selectedServices.values());
 
   // Use custom rate if set, otherwise use base rate
@@ -43,7 +55,7 @@ export function InvoicePreview({
 
   // Determine participating brands
   const brands = [...new Set(items.map((item) => item.service.brand))];
-  const primaryBrand = brands.length === 1 ? brands[0] : null;
+  const primaryBrand = brands.length === 1 ? brands[0] : "Sankofa";
 
   return (
     <div className="space-y-6">
@@ -57,7 +69,7 @@ export function InvoicePreview({
             <div>
               <h3 className="font-semibold text-content">New Invoice</h3>
               <p className="text-sm text-content-muted">
-                {primaryBrand ? `${primaryBrand} Invoice` : "GFAM Agency Invoice"}
+                {primaryBrand} Invoice
               </p>
             </div>
           </div>
@@ -118,6 +130,9 @@ export function InvoicePreview({
                         </span>
                       )}
                     </p>
+                    <p className="text-sm text-content-secondary">
+                      {formatItemDescription(item)}
+                    </p>
                     <p className="text-sm text-content-muted">
                       <span className={hasCustomRate ? "text-brand-sankofa" : ""}>
                         {formatCurrency(effectiveRate)}
@@ -154,7 +169,7 @@ export function InvoicePreview({
         </div>
         {brands.length > 1 && (
           <p className="text-meta text-content-muted mt-3">
-            Multi-brand invoice will be attributed to GFAM Agency
+            Mixed-brand invoices display Sankofa as the billing brand.
           </p>
         )}
       </div>

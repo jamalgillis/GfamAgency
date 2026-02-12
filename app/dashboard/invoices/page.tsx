@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useQuery } from "convex/react";
 import {
   Search,
   Plus,
@@ -20,28 +21,154 @@ import {
   MoreHorizontal,
   Mail,
   X,
-  Bell,
 } from "lucide-react";
 import { ThemeSwitch } from "@/components/ThemeSwitch";
 import { BrandBadge, StatusBadge, type BrandType, type StatusType } from "@/components/BrandBadge";
-import {
-  allInvoices,
-  invoiceSummary,
-  brandFilters,
-  statusFilters,
-  dateRanges,
-  type InvoiceData,
-} from "@/data/invoices-sample";
+import { api } from "@/convex/_generated/api";
 
-type SummaryFilter = "all" | "paid" | "pending" | "overdue" | "draft";
+type InvoiceLifecycleStatus = "draft" | "open" | "paid" | "void" | "uncollectible";
+type InvoiceDisplayStatus = "paid" | "pending" | "overdue" | "draft" | "void";
+type SummaryFilter = "all" | InvoiceDisplayStatus;
+type DateRangeKey = "week" | "month" | "quarter" | "year" | "custom";
+
+interface InvoiceData {
+  id: string;
+  invoiceNumber: string;
+  client: {
+    name: string;
+    email: string;
+    initials: string;
+  };
+  service: string;
+  brand: string;
+  amount: number;
+  date: string;
+  dueDate: string;
+  issuedAt: number;
+  dueAt: number;
+  status: InvoiceDisplayStatus;
+}
+
+const knownBrands: BrandType[] = ["Sankofa", "Lighthouse", "Centex", "GFAM Media Studios"];
+const knownBadgeStatuses: StatusType[] = ["paid", "pending", "overdue", "draft"];
+
+const brandColorMap: Record<string, string> = {
+  Sankofa: "#10B981",
+  Lighthouse: "#8B5CF6",
+  Centex: "#F59E0B",
+  "GFAM Media Studios": "#3B82F6",
+  "GFAM Agency": "#64748B",
+};
+
+const statusFilters: { key: SummaryFilter; label: string; color?: string }[] = [
+  { key: "all", label: "All Statuses" },
+  { key: "paid", label: "Paid", color: "#10B981" },
+  { key: "pending", label: "Pending", color: "#F59E0B" },
+  { key: "overdue", label: "Overdue", color: "#EF4444" },
+  { key: "draft", label: "Draft", color: "#94A3B8" },
+  { key: "void", label: "Void", color: "#64748B" },
+];
+
+const dateRanges: { key: DateRangeKey; label: string }[] = [
+  { key: "week", label: "This Week" },
+  { key: "month", label: "This Month" },
+  { key: "quarter", label: "This Quarter" },
+  { key: "year", label: "This Year" },
+  { key: "custom", label: "Custom Range" },
+];
+
+const startOfDay = (date: Date) =>
+  new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+const endOfDay = (date: Date) =>
+  new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
+
+const formatShortDate = (date: Date) =>
+  new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+  }).format(date);
+
+const formatFullDate = (date: Date) =>
+  new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+
+const getInitials = (name: string) =>
+  name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("") || "UC";
+
+const isKnownBrand = (brand: string): brand is BrandType =>
+  knownBrands.includes(brand as BrandType);
+
+const isKnownBadgeStatus = (status: string): status is StatusType =>
+  knownBadgeStatuses.includes(status as StatusType);
+
+const getDisplayStatus = (
+  status: InvoiceLifecycleStatus,
+  dueAt: number,
+  now: number,
+): InvoiceDisplayStatus => {
+  if (status === "paid") return "paid";
+  if (status === "draft") return "draft";
+  if (status === "void") return "void";
+  if (status === "uncollectible") return "overdue";
+  return now > dueAt ? "overdue" : "pending";
+};
+
+const getServiceSummary = (brands: string[]) => {
+  if (brands.length <= 1) return "Service invoice";
+  return `Multi-brand (${brands.length})`;
+};
+
+const getPresetDateRange = (range: Exclude<DateRangeKey, "custom">, now: Date) => {
+  const end = endOfDay(now);
+
+  if (range === "week") {
+    const start = startOfDay(now);
+    start.setDate(start.getDate() - start.getDay());
+    return { start, end };
+  }
+
+  if (range === "month") {
+    return {
+      start: new Date(now.getFullYear(), now.getMonth(), 1),
+      end,
+    };
+  }
+
+  if (range === "quarter") {
+    const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+    return {
+      start: new Date(now.getFullYear(), quarterStartMonth, 1),
+      end,
+    };
+  }
+
+  return {
+    start: new Date(now.getFullYear(), 0, 1),
+    end,
+  };
+};
 
 export default function InvoicesPage() {
   const router = useRouter();
+  const invoicesFromDb = useQuery(api.invoiceActions.listInvoices, { limit: 500 });
+  const clientsFromDb = useQuery(api.clients.list, { limit: 500 });
+
   // Filter states
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBrand, setSelectedBrand] = useState("all");
   const [selectedStatus, setSelectedStatus] = useState<SummaryFilter>("all");
-  const [selectedDateRange, setSelectedDateRange] = useState("month");
+  const [selectedDateRange, setSelectedDateRange] = useState<DateRangeKey>("month");
+  const [customDateFrom, setCustomDateFrom] = useState("");
+  const [customDateTo, setCustomDateTo] = useState("");
   const [activeSummaryCard, setActiveSummaryCard] = useState<SummaryFilter>("all");
 
   // Dropdown states
@@ -54,16 +181,98 @@ export default function InvoicesPage() {
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 6;
+  const isLoadingInvoices = invoicesFromDb === undefined || clientsFromDb === undefined;
+
+  const allInvoices = useMemo<InvoiceData[]>(() => {
+    if (!invoicesFromDb || !clientsFromDb) return [];
+
+    const now = Date.now();
+    const clientsById = new Map(clientsFromDb.map((client) => [client._id, client]));
+
+    return invoicesFromDb.map((invoice) => {
+      const client = clientsById.get(invoice.clientId);
+      const clientName = client?.name || "Unknown Client";
+      const issuedAt = invoice.createdAt;
+      const dueAt = issuedAt + 14 * 24 * 60 * 60 * 1000;
+      const displayStatus = getDisplayStatus(invoice.status as InvoiceLifecycleStatus, dueAt, now);
+
+      return {
+        id: invoice._id,
+        invoiceNumber: invoice.invoiceNumber,
+        client: {
+          name: clientName,
+          email: client?.email || "No email",
+          initials: getInitials(clientName),
+        },
+        service: getServiceSummary(invoice.participatingBrands),
+        brand: invoice.primaryBrand,
+        amount: invoice.totalCents / 100,
+        date: formatFullDate(new Date(issuedAt)),
+        dueDate: formatShortDate(new Date(dueAt)),
+        issuedAt,
+        dueAt,
+        status: displayStatus,
+      };
+    });
+  }, [invoicesFromDb, clientsFromDb]);
+
+  const invoiceSummary = useMemo(() => {
+    const summary = {
+      totalRevenue: { amount: 0, count: allInvoices.length },
+      paid: { amount: 0, count: 0 },
+      pending: { amount: 0, count: 0 },
+      overdue: { amount: 0, count: 0 },
+    };
+
+    for (const invoice of allInvoices) {
+      summary.totalRevenue.amount += invoice.amount;
+      if (invoice.status === "paid") {
+        summary.paid.amount += invoice.amount;
+        summary.paid.count += 1;
+      } else if (invoice.status === "pending") {
+        summary.pending.amount += invoice.amount;
+        summary.pending.count += 1;
+      } else if (invoice.status === "overdue") {
+        summary.overdue.amount += invoice.amount;
+        summary.overdue.count += 1;
+      }
+    }
+
+    return summary;
+  }, [allInvoices]);
+
+  const brandFilters = useMemo<Array<{ key: string; label: string; color?: string }>>(() => {
+    const brands = Array.from(new Set(allInvoices.map((invoice) => invoice.brand)));
+    brands.sort((a, b) => a.localeCompare(b));
+
+    return [
+      { key: "all", label: "All", color: undefined },
+      ...brands.map((brand) => ({
+        key: brand,
+        label: brand === "GFAM Media Studios" ? "GFAM Media" : brand,
+        color: brandColorMap[brand],
+      })),
+    ];
+  }, [allInvoices]);
 
   // Filter invoices
   const filteredInvoices = useMemo(() => {
+    const now = new Date();
+    const presetRange =
+      selectedDateRange === "custom"
+        ? null
+        : getPresetDateRange(selectedDateRange, now);
+    const customStart = customDateFrom ? startOfDay(new Date(customDateFrom)) : null;
+    const customEnd = customDateTo ? endOfDay(new Date(customDateTo)) : null;
+
     return allInvoices.filter((invoice) => {
       // Search filter
       const matchesSearch =
         searchQuery === "" ||
         invoice.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
         invoice.client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        invoice.service.toLowerCase().includes(searchQuery.toLowerCase());
+        invoice.service.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        invoice.brand.toLowerCase().includes(searchQuery.toLowerCase());
 
       // Brand filter
       const matchesBrand = selectedBrand === "all" || invoice.brand === selectedBrand;
@@ -72,9 +281,29 @@ export default function InvoicesPage() {
       const activeStatus = activeSummaryCard !== "all" ? activeSummaryCard : selectedStatus;
       const matchesStatus = activeStatus === "all" || invoice.status === activeStatus;
 
-      return matchesSearch && matchesBrand && matchesStatus;
+      // Date filter
+      const invoiceDate = new Date(invoice.issuedAt);
+
+      let matchesDate = true;
+      if (selectedDateRange === "custom") {
+        if (customStart && invoiceDate < customStart) matchesDate = false;
+        if (customEnd && invoiceDate > customEnd) matchesDate = false;
+      } else if (presetRange) {
+        matchesDate = invoiceDate >= presetRange.start && invoiceDate <= presetRange.end;
+      }
+
+      return matchesSearch && matchesBrand && matchesStatus && matchesDate;
     });
-  }, [searchQuery, selectedBrand, selectedStatus, activeSummaryCard]);
+  }, [
+    allInvoices,
+    searchQuery,
+    selectedBrand,
+    selectedStatus,
+    activeSummaryCard,
+    selectedDateRange,
+    customDateFrom,
+    customDateTo,
+  ]);
 
   // Paginated invoices
   const paginatedInvoices = useMemo(() => {
@@ -83,6 +312,34 @@ export default function InvoicesPage() {
   }, [filteredInvoices, currentPage]);
 
   const totalPages = Math.ceil(filteredInvoices.length / itemsPerPage);
+  const noInvoices = filteredInvoices.length === 0;
+  const showingFrom = filteredInvoices.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
+  const showingTo =
+    filteredInvoices.length === 0 ? 0 : Math.min(currentPage * itemsPerPage, filteredInvoices.length);
+
+  useEffect(() => {
+    if (totalPages === 0) {
+      if (currentPage !== 1) setCurrentPage(1);
+      return;
+    }
+
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const selectedDateLabel = useMemo(() => {
+    if (selectedDateRange === "custom") {
+      if (!customDateFrom && !customDateTo) return "Custom Range";
+
+      const fromLabel = customDateFrom ? formatShortDate(new Date(customDateFrom)) : "Start";
+      const toLabel = customDateTo ? formatShortDate(new Date(customDateTo)) : "Now";
+      return `${fromLabel} - ${toLabel}`;
+    }
+
+    const { start, end } = getPresetDateRange(selectedDateRange, new Date());
+    return `${formatShortDate(start)} - ${formatShortDate(end)}`;
+  }, [selectedDateRange, customDateFrom, customDateTo]);
 
   // Selection handlers
   const toggleRow = (id: string) => {
@@ -124,14 +381,37 @@ export default function InvoicesPage() {
     setCurrentPage(1);
   };
 
-  // Get brand key for styling
-  const getBrandKey = (brand: BrandType): string => {
-    if (brand === "GFAM Media Studios") return "gfam-media";
-    return brand.toLowerCase();
-  };
-
   const handleNewInvoice = () => {
     router.push("/dashboard/invoices/new");
+  };
+
+  const renderStatusBadge = (status: InvoiceDisplayStatus) => {
+    if (isKnownBadgeStatus(status)) {
+      return <StatusBadge status={status} />;
+    }
+    return (
+      <span className="status-badge bg-surface-tertiary text-content-muted">
+        Void
+      </span>
+    );
+  };
+
+  const renderBrandPill = (brand: string) => {
+    if (isKnownBrand(brand)) {
+      return <BrandBadge brand={brand} variant="pill" />;
+    }
+    return (
+      <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-surface-tertiary text-content-secondary">
+        {brand}
+      </span>
+    );
+  };
+
+  const renderBrandDot = (brand: string) => {
+    if (isKnownBrand(brand)) {
+      return <BrandBadge brand={brand} variant="dot" showLabel={false} />;
+    }
+    return <span className="text-xs text-content-muted">{brand}</span>;
   };
 
   return (
@@ -170,7 +450,7 @@ export default function InvoicesPage() {
             {/* Date Range Button */}
             <button className="btn-secondary hidden sm:flex">
               <Calendar className="w-4 h-4" />
-              Jan 1 - Jan 20
+              {selectedDateLabel}
             </button>
 
             {/* New Invoice Button */}
@@ -344,8 +624,9 @@ export default function InvoicesPage() {
                       key={range.key}
                       className={`dropdown-item ${selectedDateRange === range.key ? "active" : ""}`}
                       onClick={() => {
-                        setSelectedDateRange(range.key);
+                        setSelectedDateRange(range.key as DateRangeKey);
                         setDateDropdownOpen(false);
+                        setCurrentPage(1);
                       }}
                     >
                       {range.label}
@@ -354,6 +635,34 @@ export default function InvoicesPage() {
                 </div>
               )}
             </div>
+
+            {selectedDateRange === "custom" && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={customDateFrom}
+                  max={customDateTo || undefined}
+                  onChange={(e) => {
+                    setCustomDateFrom(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="input-field py-2 px-3 text-sm w-[140px]"
+                  aria-label="Custom date from"
+                />
+                <span className="text-content-muted text-sm hidden sm:inline">to</span>
+                <input
+                  type="date"
+                  value={customDateTo}
+                  min={customDateFrom || undefined}
+                  onChange={(e) => {
+                    setCustomDateTo(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="input-field py-2 px-3 text-sm w-[140px]"
+                  aria-label="Custom date to"
+                />
+              </div>
+            )}
 
             {/* Export Button */}
             <button className="btn-secondary hidden sm:flex">
@@ -365,6 +674,11 @@ export default function InvoicesPage() {
       </div>
 
       {/* Invoice Table */}
+      {isLoadingInvoices ? (
+        <div className="invoices-table-card opacity-0 animate-fade-in-up" style={{ animationDelay: "300ms" }}>
+          <div className="p-8 text-center text-content-muted">Loading invoices...</div>
+        </div>
+      ) : (
       <div className="invoices-table-card opacity-0 animate-fade-in-up" style={{ animationDelay: "300ms" }}>
         {/* Desktop Table */}
         <div className="hidden lg:block overflow-x-auto">
@@ -390,72 +704,19 @@ export default function InvoicesPage() {
             <div></div>
           </div>
 
-          {paginatedInvoices.map((invoice, index) => (
-            <div
-              key={invoice.id}
-              className={`invoices-table-row opacity-0 animate-slide-in-left ${selectedRows.has(invoice.id) ? "selected" : ""}`}
-              style={{ animationDelay: `${350 + index * 50}ms` }}
-            >
-              <div className="flex items-center">
-                <button
-                  onClick={() => toggleRow(invoice.id)}
-                  className={`checkbox ${selectedRows.has(invoice.id) ? "checked" : ""}`}
-                >
-                  {selectedRows.has(invoice.id) && (
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                      <path d="M2 6L5 9L10 3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  )}
-                </button>
-              </div>
-              <div>
-                <div className="invoice-num">{invoice.invoiceNumber}</div>
-                <div className="invoice-service">{invoice.service}</div>
-              </div>
-              <div>
-                <div className="client-name">{invoice.client.name}</div>
-                <div className="client-email">{invoice.client.email}</div>
-              </div>
-              <div>
-                <BrandBadge brand={invoice.brand} variant="pill" />
-              </div>
-              <div>
-                <div className="amount">{formatCurrency(invoice.amount)}</div>
-              </div>
-              <div className="hidden xl:block">
-                <div className="date-value">{invoice.date}</div>
-                <div className={`due-date ${invoice.status === "overdue" ? "overdue" : ""}`}>
-                  Due: {invoice.dueDate}
-                </div>
-              </div>
-              <div>
-                <StatusBadge status={invoice.status} />
-              </div>
-              <div className="row-actions">
-                <Link href={`/dashboard/invoices/${invoice.id}`} className="action-btn" title="View">
-                  <Eye className="w-4 h-4" />
-                </Link>
-                <button className="action-btn" title="More">
-                  <MoreHorizontal className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Mobile Card View */}
-        <div className="lg:hidden divide-y divide-border">
-          {paginatedInvoices.map((invoice, index) => (
-            <div
-              key={invoice.id}
-              className={`p-4 opacity-0 animate-slide-in-left ${selectedRows.has(invoice.id) ? "bg-surface-tertiary" : ""}`}
-              style={{ animationDelay: `${350 + index * 50}ms` }}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
+          {paginatedInvoices.length === 0 ? (
+            <div className="p-8 text-center text-content-muted">No invoices found.</div>
+          ) : (
+            paginatedInvoices.map((invoice, index) => (
+              <div
+                key={invoice.id}
+                className={`invoices-table-row opacity-0 animate-slide-in-left ${selectedRows.has(invoice.id) ? "selected" : ""}`}
+                style={{ animationDelay: `${350 + index * 50}ms` }}
+              >
+                <div className="flex items-center">
                   <button
                     onClick={() => toggleRow(invoice.id)}
-                    className={`checkbox flex-shrink-0 mt-1 ${selectedRows.has(invoice.id) ? "checked" : ""}`}
+                    className={`checkbox ${selectedRows.has(invoice.id) ? "checked" : ""}`}
                   >
                     {selectedRows.has(invoice.id) && (
                       <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -463,36 +724,98 @@ export default function InvoicesPage() {
                       </svg>
                     )}
                   </button>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-content">{invoice.invoiceNumber}</span>
-                      <BrandBadge brand={invoice.brand} variant="dot" showLabel={false} />
-                    </div>
-                    <p className="text-sm text-content-secondary truncate">{invoice.client.name}</p>
-                    <p className="text-xs text-content-muted truncate">{invoice.service}</p>
+                </div>
+                <div>
+                  <div className="invoice-num">{invoice.invoiceNumber}</div>
+                  <div className="invoice-service">{invoice.service}</div>
+                </div>
+                <div>
+                  <div className="client-name">{invoice.client.name}</div>
+                  <div className="client-email">{invoice.client.email}</div>
+                </div>
+                <div>
+                  {renderBrandPill(invoice.brand)}
+                </div>
+                <div>
+                  <div className="amount">{formatCurrency(invoice.amount)}</div>
+                </div>
+                <div className="hidden xl:block">
+                  <div className="date-value">{invoice.date}</div>
+                  <div className={`due-date ${invoice.status === "overdue" ? "overdue" : ""}`}>
+                    Due: {invoice.dueDate}
                   </div>
                 </div>
-                <Link href={`/dashboard/invoices/${invoice.id}`} className="action-btn flex-shrink-0">
-                  <Eye className="w-4 h-4" />
-                </Link>
-              </div>
-              <div className="flex items-center justify-between mt-3 pl-9">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-content-muted">{invoice.date}</span>
+                <div>
+                  {renderStatusBadge(invoice.status)}
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="font-semibold text-content">{formatCurrency(invoice.amount)}</span>
-                  <StatusBadge status={invoice.status} />
+                <div className="row-actions">
+                  <Link href={`/dashboard/invoices/${invoice.id}`} className="action-btn" title="View">
+                    <Eye className="w-4 h-4" />
+                  </Link>
+                  <button className="action-btn" title="More">
+                    <MoreHorizontal className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
+        </div>
+
+        {/* Mobile Card View */}
+        <div className="lg:hidden divide-y divide-border">
+          {paginatedInvoices.length === 0 ? (
+            <div className="p-8 text-center text-content-muted">No invoices found.</div>
+          ) : (
+            paginatedInvoices.map((invoice, index) => (
+              <div
+                key={invoice.id}
+                className={`p-4 opacity-0 animate-slide-in-left ${selectedRows.has(invoice.id) ? "bg-surface-tertiary" : ""}`}
+                style={{ animationDelay: `${350 + index * 50}ms` }}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <button
+                      onClick={() => toggleRow(invoice.id)}
+                      className={`checkbox flex-shrink-0 mt-1 ${selectedRows.has(invoice.id) ? "checked" : ""}`}
+                    >
+                      {selectedRows.has(invoice.id) && (
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                          <path d="M2 6L5 9L10 3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </button>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-content">{invoice.invoiceNumber}</span>
+                        {renderBrandDot(invoice.brand)}
+                      </div>
+                      <p className="text-sm text-content-secondary truncate">{invoice.client.name}</p>
+                      <p className="text-xs text-content-muted truncate">{invoice.service}</p>
+                    </div>
+                  </div>
+                  <Link href={`/dashboard/invoices/${invoice.id}`} className="action-btn flex-shrink-0">
+                    <Eye className="w-4 h-4" />
+                  </Link>
+                </div>
+                <div className="flex items-center justify-between mt-3 pl-9">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-content-muted">{invoice.date}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="font-semibold text-content">{formatCurrency(invoice.amount)}</span>
+                    {renderStatusBadge(invoice.status)}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
 
         {/* Pagination */}
         <div className="pagination">
           <div className="pagination-info">
-            Showing <strong>{(currentPage - 1) * itemsPerPage + 1}-{Math.min(currentPage * itemsPerPage, filteredInvoices.length)}</strong> of <strong>{filteredInvoices.length}</strong> invoices
+            Showing <strong>{showingFrom}-{showingTo}</strong> of <strong>{filteredInvoices.length}</strong>{" "}
+            invoices
           </div>
           <div className="pagination-controls">
             <button
@@ -524,7 +847,7 @@ export default function InvoicesPage() {
             )}
             <button
               className="page-btn"
-              disabled={currentPage === totalPages}
+              disabled={noInvoices || currentPage >= totalPages}
               onClick={() => setCurrentPage(currentPage + 1)}
             >
               <ChevronRight className="w-4 h-4" />
@@ -532,6 +855,7 @@ export default function InvoicesPage() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Bulk Actions Bar */}
       <div className={`bulk-actions-bar ${selectedRows.size > 0 ? "visible" : ""}`}>

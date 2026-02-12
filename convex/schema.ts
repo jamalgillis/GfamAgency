@@ -50,6 +50,7 @@ export default defineSchema({
     participatingBrands: v.array(v.string()),
     clientId: v.id("clients"),
     stripeInvoiceId: v.optional(v.string()), // Optional until invoice is created in Stripe
+    stripeCheckoutSessionId: v.optional(v.string()), // Optional for Checkout Session flow
     revisesInvoiceId: v.optional(v.id("invoices")), // If this is a revision, link to original invoice
     revisesStripeInvoiceId: v.optional(v.string()), // Stripe invoice ID of the original
     status: v.union(
@@ -89,6 +90,25 @@ export default defineSchema({
   })
     .index("by_invoice", ["invoiceId"])
     .index("by_brand", ["brand"]),
+
+  // Internal ledger for brand-level earnings attribution (no external transfers yet)
+  brandLedger: defineTable({
+    brand: brandUnion,
+    invoiceId: v.id("invoices"),
+    amountCents: v.number(), // Net amount after platform fee
+    platformFeeCents: v.number(), // Amount retained by platform
+    stripePaymentIntentId: v.optional(v.string()), // Audit trail back to settled Stripe payment
+    status: v.union(
+      v.literal("pending"),
+      v.literal("credited"),
+      v.literal("withdrawable"),
+      v.literal("paid_out")
+    ),
+    createdAt: v.number(),
+  })
+    .index("by_brand", ["brand"])
+    .index("by_invoice", ["invoiceId"])
+    .index("by_created_at", ["createdAt"]),
 
   clients: defineTable({
     name: v.string(),

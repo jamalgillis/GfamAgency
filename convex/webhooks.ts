@@ -1,6 +1,8 @@
 import { v } from "convex/values";
 import { internalMutation, internalQuery } from "./_generated/server";
 
+const PLATFORM_FEE_BPS = 200; // 2.00%
+
 /**
  * Update invoice status from Stripe webhook
  */
@@ -98,5 +100,116 @@ export const getInvoiceByStripeId = internalQuery({
     // In production, you'd want to add this index
     const invoices = await ctx.db.query("invoices").collect();
     return invoices.find((inv) => inv.stripeInvoiceId === args.stripeInvoiceId);
+  },
+});
+
+/**
+ * Create brandLedger entries only after confirmed payment settlement events.
+ * Supported triggers: payment_intent.succeeded and invoice.paid.
+ */
+export const processPaidInvoiceLedgerAttribution = internalMutation({
+  args: {
+    invoiceId: v.id("invoices"),
+    settlementSource: v.union(
+      v.literal("payment_intent.succeeded"),
+      v.literal("invoice.paid")
+    ),
+    settlementId: v.string(),
+    stripePaymentIntentId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const invoice = await ctx.db.get(args.invoiceId);
+
+    if (!invoice) {
+      console.error(
+        `Invoice not found for ${args.settlementSource} (${args.settlementId})`
+      );
+      return { success: false, error: "Invoice not found" as const };
+    }
+
+    if (invoice.status !== "paid") {
+      await ctx.db.patch(args.invoiceId, { status: "paid" });
+    }
+
+    const lineItems = await ctx.db
+      .query("invoiceLineItems")
+      .withIndex("by_invoice", (q) => q.eq("invoiceId", args.invoiceId))
+      .collect();
+
+    if (lineItems.length === 0) {
+      console.error(
+        `Invoice ${args.invoiceId} has no line items for ${args.settlementSource} (${args.settlementId})`
+      );
+      return { success: false, error: "Invoice has no line items" as const };
+    }
+
+    // Group gross totals by brand. In the single-brand case this map has one entry.
+    const totalsByBrand = new Map<(typeof lineItems)[number]["brand"], number>();
+
+    for (const item of lineItems) {
+      const effectiveUnitPrice = item.customPriceCents ?? item.unitPriceCents;
+      const lineTotal = effectiveUnitPrice * item.quantity;
+      totalsByBrand.set(item.brand, (totalsByBrand.get(item.brand) ?? 0) + lineTotal);
+    }
+
+    // Idempotency: webhook retries should not create duplicate brand ledger rows.
+    const existingLedgerRows = await ctx.db
+      .query("brandLedger")
+      .withIndex("by_invoice", (q) => q.eq("invoiceId", args.invoiceId))
+      .collect();
+
+    const existingBrands = new Set<(typeof lineItems)[number]["brand"]>(
+      existingLedgerRows.map((entry) => entry.brand as (typeof lineItems)[number]["brand"])
+    );
+
+    let insertedCount = 0;
+    let patchedCount = 0;
+    const createdAt = Date.now();
+
+    // Backfill payment intent ID for existing rows created before audit field rollout.
+    for (const entry of existingLedgerRows) {
+      if (!entry.stripePaymentIntentId) {
+        await ctx.db.patch(entry._id, {
+          stripePaymentIntentId: args.stripePaymentIntentId,
+        });
+        patchedCount += 1;
+      }
+    }
+
+    for (const [brand, grossAmountCents] of totalsByBrand.entries()) {
+      if (existingBrands.has(brand)) {
+        continue;
+      }
+
+      const platformFeeCents = Math.round((grossAmountCents * PLATFORM_FEE_BPS) / 10_000);
+      const amountCents = grossAmountCents - platformFeeCents;
+
+      await ctx.db.insert("brandLedger", {
+        brand,
+        invoiceId: args.invoiceId,
+        amountCents,
+        platformFeeCents,
+        stripePaymentIntentId: args.stripePaymentIntentId,
+        status: "credited",
+        createdAt,
+      });
+
+      insertedCount += 1;
+    }
+
+    console.log(
+      `✅ Processed ${args.settlementSource} (${args.settlementId}): invoice=${args.invoiceId}, insertedLedgerRows=${insertedCount}`
+    );
+
+    return {
+      success: true,
+      invoiceId: args.invoiceId,
+      settlementSource: args.settlementSource,
+      settlementId: args.settlementId,
+      stripePaymentIntentId: args.stripePaymentIntentId,
+      insertedLedgerRows: insertedCount,
+      patchedLedgerRows: patchedCount,
+      skippedExistingRows: totalsByBrand.size - insertedCount,
+    };
   },
 });
