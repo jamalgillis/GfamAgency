@@ -21,6 +21,10 @@ interface InvoiceDocumentProps {
   onBack?: () => void;
   onUpdateServices?: (services: Map<string, SelectedService>) => void;
   onUpdateNotes?: (notes: string) => void;
+  onSaveDraft?: () => void;
+  isSavingDraft?: boolean;
+  onCreateRevision?: () => void;
+  isRevising?: boolean;
   editable?: boolean;
 }
 
@@ -33,6 +37,10 @@ export function InvoiceDocument({
   onBack,
   onUpdateServices,
   onUpdateNotes,
+  onSaveDraft,
+  isSavingDraft = false,
+  onCreateRevision,
+  isRevising = false,
   editable = true,
 }: InvoiceDocumentProps) {
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
@@ -154,6 +162,24 @@ export function InvoiceDocument({
           </button>
         )}
         <div className="flex items-center gap-2 sm:gap-3 sm:ml-auto">
+          {editable && onSaveDraft && (
+            <button
+              onClick={onSaveDraft}
+              disabled={isSavingDraft}
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-brand-primary text-white font-medium hover:bg-brand-primary/90 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+            >
+              <span>{isSavingDraft ? "Saving..." : "Save Draft"}</span>
+            </button>
+          )}
+          {!editable && onCreateRevision && (
+            <button
+              onClick={onCreateRevision}
+              disabled={isRevising}
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-brand-primary text-white font-medium hover:bg-brand-primary/90 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+            >
+              <span>{isRevising ? "Creating..." : "Create Revision"}</span>
+            </button>
+          )}
           <button
             onClick={handlePrint}
             className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-700 text-gray-300 hover:bg-gray-800 transition-colors"

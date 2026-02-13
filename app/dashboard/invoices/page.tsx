@@ -33,7 +33,7 @@ import {
   type InvoiceData,
 } from "@/data/invoices-sample";
 
-type SummaryFilter = "all" | "paid" | "pending" | "overdue";
+type SummaryFilter = "all" | "paid" | "pending" | "overdue" | "draft";
 
 export default function InvoicesPage() {
   const router = useRouter();

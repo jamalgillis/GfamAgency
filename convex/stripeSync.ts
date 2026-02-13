@@ -5,6 +5,7 @@ import {
   getStripeClient,
   getStripeContext,
   checkStripeConfiguration,
+  getStripeKeyMode,
   checkBrandAccountConfiguration,
   buildStripeMetadata,
   PARENT_ORGANIZATION,
@@ -350,19 +351,61 @@ export const checkStripeAccount = action({
     hasWebhookSecret: boolean;
     organization: string;
     isOrgKey: boolean;
+    keyMode: "test" | "live" | "unknown";
     brandAccountsConfigured: boolean;
     missingBrandAccounts: string[];
   }> => {
     const status = checkStripeConfiguration();
     const isOrgKey = isOrganizationKey();
     const brandStatus = checkBrandAccountConfiguration();
+    const keyMode = getStripeKeyMode();
 
     return {
       ...status,
       organization: PARENT_ORGANIZATION,
       isOrgKey,
+      keyMode,
       brandAccountsConfigured: brandStatus.configured,
       missingBrandAccounts: brandStatus.missing,
     };
+  },
+});
+
+/**
+ * Ping Stripe to verify authentication without exposing secrets.
+ */
+export const pingStripe = action({
+  args: {},
+  handler: async (): Promise<{
+    ok: boolean;
+    message: string;
+    keyMode: "test" | "live" | "unknown";
+    isOrgKey: boolean;
+    contextAttached: boolean;
+  }> => {
+    const stripe = getStripeClient();
+    const keyMode = getStripeKeyMode();
+    const isOrgKey = isOrganizationKey();
+    const context = isOrgKey ? getStripeContext(PARENT_ORGANIZATION) : undefined;
+
+    try {
+      await stripe.customers.list({ limit: 1 }, context);
+      return {
+        ok: true,
+        message: "Stripe authentication successful.",
+        keyMode,
+        isOrgKey,
+        contextAttached: !!context,
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      return {
+        ok: false,
+        message: errorMessage,
+        keyMode,
+        isOrgKey,
+        contextAttached: !!context,
+      };
+    }
   },
 });

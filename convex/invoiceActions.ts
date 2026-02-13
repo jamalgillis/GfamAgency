@@ -5,6 +5,7 @@ import { brandUnion } from "./schema";
 import {
   getStripeClient,
   getStripeContext,
+  isOrganizationKey,
   buildStripeMetadata,
   PARENT_ORGANIZATION,
   type StripeBrand,
@@ -24,6 +25,162 @@ const lineItemValidator = v.object({
   customPriceCents: v.optional(v.number()),
   isCustomItem: v.boolean(),
 });
+
+async function replaceStripeInvoiceItems(
+  ctx: any,
+  stripe: any,
+  stripeInvoiceId: string,
+  stripeCustomerId: string,
+  lineItems: Array<{
+    serviceId?: Id<"services">;
+    brand: string;
+    category: string;
+    name: string;
+    description?: string;
+    quantity: number;
+    stripePriceId?: string;
+    unitPriceCents: number;
+    customPriceCents?: number;
+    isCustomItem: boolean;
+  }>,
+  context: any,
+  convexInvoiceId: Id<"invoices">,
+): Promise<typeof lineItems> {
+  let startingAfter: string | undefined;
+  do {
+    const existingItems = await stripe.invoiceItems.list(
+      {
+        invoice: stripeInvoiceId,
+        limit: 100,
+        ...(startingAfter ? { starting_after: startingAfter } : {}),
+      },
+      context,
+    );
+
+    for (const item of existingItems.data) {
+      await stripe.invoiceItems.del(item.id, context);
+    }
+
+    startingAfter = existingItems.has_more
+      ? existingItems.data[existingItems.data.length - 1]?.id
+      : undefined;
+  } while (startingAfter);
+
+  const normalizedLineItems: typeof lineItems = [];
+
+  for (const item of lineItems) {
+    const effectivePrice = item.customPriceCents ?? item.unitPriceCents;
+    const hasCustomPrice =
+      item.customPriceCents !== undefined &&
+      item.customPriceCents !== item.unitPriceCents;
+
+    const itemMetadata = buildStripeMetadata(
+      item.brand as StripeBrand,
+      item.category,
+      {
+        convexInvoiceId,
+        isCustomPrice: hasCustomPrice ? "true" : "false",
+        ...(item.serviceId && { serviceId: item.serviceId }),
+      },
+    );
+
+    let resolvedStripePriceId = item.stripePriceId;
+    if (!resolvedStripePriceId && item.serviceId) {
+      const service = await ctx.runQuery(internal.services.get, {
+        serviceId: item.serviceId,
+      });
+      resolvedStripePriceId = service?.stripePriceId;
+    }
+
+    const usesCatalogPrice = resolvedStripePriceId && !hasCustomPrice;
+
+    if (usesCatalogPrice && resolvedStripePriceId) {
+      await stripe.invoiceItems.create(
+        {
+          customer: stripeCustomerId,
+          invoice: stripeInvoiceId,
+          price: resolvedStripePriceId,
+          quantity: item.quantity,
+          metadata: itemMetadata,
+        },
+        context,
+      );
+    } else {
+      await stripe.invoiceItems.create(
+        {
+          customer: stripeCustomerId,
+          invoice: stripeInvoiceId,
+          amount: effectivePrice * item.quantity,
+          currency: "usd",
+          description: hasCustomPrice
+            ? `${item.brand} Custom: ${item.name}`
+            : item.name,
+          metadata: itemMetadata,
+        },
+        context,
+      );
+    }
+
+    normalizedLineItems.push({
+      ...item,
+      stripePriceId: resolvedStripePriceId,
+    });
+  }
+
+  return normalizedLineItems;
+}
+
+async function ensureStripeCustomer(
+  ctx: any,
+  stripe: any,
+  client: any,
+  context: any,
+): Promise<string> {
+  const createCustomer = async () => {
+    const customer = await stripe.customers.create(
+      {
+        name: client.name,
+        email: client.email,
+        metadata: {
+          agency: PARENT_ORGANIZATION,
+          company: client.company,
+          convexClientId: client._id,
+        },
+      },
+      context,
+    );
+
+    await ctx.runMutation(internal.invoiceActions.updateClientStripeId, {
+      clientId: client._id,
+      stripeCustomerId: customer.id,
+    });
+
+    return customer.id;
+  };
+
+  if (!client.stripeCustomerId) {
+    return await createCustomer();
+  }
+
+  try {
+    const retrieved = await stripe.customers.retrieve(
+      client.stripeCustomerId,
+      context,
+    );
+
+    if (retrieved && typeof retrieved === "object" && "deleted" in retrieved && retrieved.deleted) {
+      return await createCustomer();
+    }
+
+    return client.stripeCustomerId;
+  } catch (error) {
+    const err = error as { code?: string; message?: string };
+    if (err?.code === "resource_missing" || err?.message?.includes("No such customer")) {
+      return await createCustomer();
+    }
+    throw error;
+  }
+}
 
 /**
  * Generate a unique invoice number
@@ -71,6 +228,8 @@ export const createInvoiceRecord = internalMutation({
     participatingBrands: v.array(v.string()),
     clientId: v.id("clients"),
     stripeInvoiceId: v.optional(v.string()),
+    revisesInvoiceId: v.optional(v.id("invoices")),
+    revisesStripeInvoiceId: v.optional(v.string()),
     status: v.union(
       v.literal("draft"),
       v.literal("open"),
@@ -88,6 +247,8 @@ export const createInvoiceRecord = internalMutation({
       participatingBrands: args.participatingBrands,
       clientId: args.clientId,
       stripeInvoiceId: args.stripeInvoiceId,
+      revisesInvoiceId: args.revisesInvoiceId,
+      revisesStripeInvoiceId: args.revisesStripeInvoiceId,
       status: args.status,
       totalCents: args.totalCents,
       notes: args.notes,
@@ -150,6 +311,67 @@ export const createLineItemRecords = internalMutation({
 });
 
 /**
+ * Internal mutation to replace line item records for an invoice
+ */
+export const replaceLineItemRecords = internalMutation({
+  args: {
+    invoiceId: v.id("invoices"),
+    lineItems: v.array(lineItemValidator),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("invoiceLineItems")
+      .withIndex("by_invoice", (q) => q.eq("invoiceId", args.invoiceId))
+      .collect();
+
+    for (const item of existing) {
+      await ctx.db.delete(item._id);
+    }
+
+    const ids: Id<"invoiceLineItems">[] = [];
+    for (const item of args.lineItems) {
+      const id = await ctx.db.insert("invoiceLineItems", {
+        invoiceId: args.invoiceId,
+        serviceId: item.serviceId,
+        brand: item.brand,
+        category: item.category,
+        name: item.name,
+        description: item.description,
+        quantity: item.quantity,
+        unitPriceCents: item.unitPriceCents,
+        customPriceCents: item.customPriceCents,
+        stripePriceId: item.stripePriceId,
+        isCustomItem: item.isCustomItem,
+      });
+      ids.push(id);
+    }
+
+    return ids;
+  },
+});
+
+/**
+ * Internal mutation to update invoice fields after draft edits
+ */
+export const updateInvoiceRecord = internalMutation({
+  args: {
+    invoiceId: v.id("invoices"),
+    primaryBrand: v.string(),
+    participatingBrands: v.array(v.string()),
+    totalCents: v.number(),
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.invoiceId, {
+      primaryBrand: args.primaryBrand,
+      participatingBrands: args.participatingBrands,
+      totalCents: args.totalCents,
+      notes: args.notes,
+    });
+  },
+});
+
+/**
  * Main action to create an invoice
  * Uses single GFAM Agency Stripe account with brand metadata tracking
  */
@@ -202,30 +424,7 @@ export const createInvoice = action({
       const context = getStripeContext(primaryBrand as StripeBrand);
 
       // 5. Ensure client has a Stripe customer ID
-      let stripeCustomerId = client.stripeCustomerId;
-
-      if (!stripeCustomerId) {
-        // Create Stripe customer
-        const customer = await stripe.customers.create({
-          name: client.name,
-          email: client.email,
-          metadata: {
-            agency: PARENT_ORGANIZATION,
-            company: client.company,
-            convexClientId: args.clientId,
-          },
-        }, context);
-
-        stripeCustomerId = customer.id;
-
-        // Update client record
-        await ctx.runMutation(internal.invoiceActions.updateClientStripeId, {
-          clientId: args.clientId,
-          stripeCustomerId: customer.id,
-        });
-
-        console.log(`👤 Created customer ${customer.id} on ${PARENT_ORGANIZATION} Stripe`);
-      }
+      const stripeCustomerId = await ensureStripeCustomer(ctx, stripe, client, context);
 
       // 6. Generate invoice number
       const invoiceNumber = generateInvoiceNumber();
@@ -262,7 +461,17 @@ export const createInvoice = action({
       // 9. Add line items to Stripe invoice
       for (const item of args.lineItems) {
         const effectivePrice = item.customPriceCents ?? item.unitPriceCents;
-        const hasCustomPrice = item.customPriceCents !== undefined;
+        const hasCustomPrice =
+          item.customPriceCents !== undefined &&
+          item.customPriceCents !== item.unitPriceCents;
+
+        let resolvedStripePriceId = item.stripePriceId;
+        if (!resolvedStripePriceId && item.serviceId) {
+          const service = await ctx.runQuery(internal.services.get, {
+            serviceId: item.serviceId,
+          });
+          resolvedStripePriceId = service?.stripePriceId;
+        }
 
         // Build metadata with brand tracking
         const itemMetadata = buildStripeMetadata(
@@ -276,37 +485,37 @@ export const createInvoice = action({
         );
 
         // Use catalog price if available and not custom
-        const usesCatalogPrice = item.stripePriceId && !hasCustomPrice;
+        const usesCatalogPrice = resolvedStripePriceId && !hasCustomPrice;
 
-        if (usesCatalogPrice && item.stripePriceId) {
+        if (isOrganizationKey()) {
+          console.log(
+            `🔐 Stripe context: brand=${item.brand} account=${
+              context && "stripeContext" in context && context.stripeContext
+                ? "set"
+                : "missing"
+            } catalogPrice=${usesCatalogPrice ? "yes" : "no"}`
+          );
+        }
+
+        if (usesCatalogPrice && resolvedStripePriceId) {
           // Use catalog price
           await stripe.invoiceItems.create({
             customer: stripeCustomerId,
             invoice: stripeInvoice.id,
-            price: item.stripePriceId,
+            price: resolvedStripePriceId,
             quantity: item.quantity,
             metadata: itemMetadata,
           }, context);
         } else {
-          // Use price_data for custom pricing or ad-hoc items
+          // Use legacy amount/currency for custom pricing or ad-hoc items
           await stripe.invoiceItems.create({
             customer: stripeCustomerId,
             invoice: stripeInvoice.id,
-            quantity: item.quantity,
-            price_data: {
-              currency: "usd",
-              product_data: {
-                name: hasCustomPrice
-                  ? `${item.brand} Custom: ${item.name}`
-                  : item.name,
-                metadata: {
-                  agency: PARENT_ORGANIZATION,
-                  brand: item.brand,
-                  category: item.category,
-                },
-              },
-              unit_amount: effectivePrice,
-            },
+            amount: effectivePrice * item.quantity,
+            currency: "usd",
+            description: hasCustomPrice
+              ? `${item.brand} Custom: ${item.name}`
+              : item.name,
             metadata: itemMetadata,
           }, context);
         }
@@ -353,6 +562,334 @@ export const createInvoice = action({
 });
 
 /**
+ * Update an existing draft invoice (Stripe + Convex)
+ */
+export const updateDraftInvoice = action({
+  args: {
+    invoiceId: v.id("invoices"),
+    lineItems: v.array(lineItemValidator),
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<{
+    success: boolean;
+    invoiceId?: Id<"invoices">;
+    stripeInvoiceId?: string;
+    invoiceNumber?: string;
+    status?: "draft";
+    totalCents?: number;
+    error?: string;
+  }> => {
+    try {
+      const invoice = await ctx.runQuery(internal.invoiceActions.getInvoiceById, {
+        invoiceId: args.invoiceId,
+      });
+
+      if (!invoice) {
+        return { success: false, error: "Invoice not found" };
+      }
+
+      if (invoice.status !== "draft") {
+        return { success: false, error: "Only draft invoices can be updated" };
+      }
+
+      if (!invoice.stripeInvoiceId) {
+        return { success: false, error: "Invoice has no Stripe ID" };
+      }
+
+      const client = await ctx.runQuery(internal.invoiceActions.getClientById, {
+        clientId: invoice.clientId,
+      });
+
+      if (!client) {
+        return { success: false, error: "Client not found" };
+      }
+
+      const brands = new Set<string>();
+      let totalCents = 0;
+
+      for (const item of args.lineItems) {
+        brands.add(item.brand);
+        const effectivePrice = item.customPriceCents ?? item.unitPriceCents;
+        totalCents += effectivePrice * item.quantity;
+      }
+
+      const participatingBrands = [...brands];
+      const primaryBrand = brands.size === 1 ? participatingBrands[0] : PARENT_ORGANIZATION;
+
+      if (isOrganizationKey() && primaryBrand !== invoice.primaryBrand) {
+        return {
+          success: false,
+          error:
+            "Draft invoices can’t change the Stripe account context. " +
+            "Create a new invoice to change brands.",
+        };
+      }
+
+      const stripe = getStripeClient();
+      const context = getStripeContext(invoice.primaryBrand as StripeBrand);
+      const stripeCustomerId = await ensureStripeCustomer(ctx, stripe, client, context);
+
+      await stripe.invoices.update(
+        invoice.stripeInvoiceId,
+        {
+          metadata: {
+            agency: PARENT_ORGANIZATION,
+            primaryBrand: invoice.primaryBrand,
+            participatingBrands: JSON.stringify(participatingBrands),
+            convexInvoiceId: args.invoiceId,
+            invoiceNumber: invoice.invoiceNumber,
+          },
+          description: `Services by ${participatingBrands.join(" & ")}`,
+        },
+        context,
+      );
+
+      const normalizedLineItems = await replaceStripeInvoiceItems(
+        ctx,
+        stripe,
+        invoice.stripeInvoiceId,
+        stripeCustomerId,
+        args.lineItems,
+        context,
+        args.invoiceId,
+      );
+
+      await ctx.runMutation(internal.invoiceActions.updateInvoiceRecord, {
+        invoiceId: args.invoiceId,
+        primaryBrand,
+        participatingBrands,
+        totalCents,
+        notes: args.notes,
+      });
+
+      await ctx.runMutation(internal.invoiceActions.replaceLineItemRecords, {
+        invoiceId: args.invoiceId,
+        lineItems: normalizedLineItems,
+      });
+
+      console.log(`✅ Updated draft invoice ${invoice.invoiceNumber}`);
+
+      return {
+        success: true,
+        invoiceId: args.invoiceId,
+        stripeInvoiceId: invoice.stripeInvoiceId,
+        invoiceNumber: invoice.invoiceNumber,
+        status: "draft",
+        totalCents,
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error("❌ Failed to update draft invoice:", errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  },
+});
+
+/**
+ * Revise a finalized invoice by creating a draft revision (Stripe rules enforced)
+ */
+export const reviseInvoice = action({
+  args: {
+    invoiceId: v.id("invoices"),
+    lineItems: v.array(lineItemValidator),
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<{
+    success: boolean;
+    invoiceId?: Id<"invoices">;
+    stripeInvoiceId?: string;
+    invoiceNumber?: string;
+    status?: "draft";
+    totalCents?: number;
+    error?: string;
+  }> => {
+    try {
+      const invoice = await ctx.runQuery(internal.invoiceActions.getInvoiceById, {
+        invoiceId: args.invoiceId,
+      });
+
+      if (!invoice) {
+        return { success: false, error: "Invoice not found" };
+      }
+
+      if (!invoice.stripeInvoiceId) {
+        return { success: false, error: "Invoice has no Stripe ID" };
+      }
+
+      const stripe = getStripeClient();
+      const context = getStripeContext(invoice.primaryBrand as StripeBrand);
+
+      const stripeInvoice = await stripe.invoices.retrieve(
+        invoice.stripeInvoiceId,
+        { expand: ["payment_intent"] },
+        context,
+      );
+
+      const status = stripeInvoice.status;
+
+      if (status === "draft") {
+        return { success: false, error: "Invoice is already a draft" };
+      }
+
+      if (status === "paid" || status === "void") {
+        return {
+          success: false,
+          error: "Paid or void invoices can’t be revised. Use credit notes or a new invoice.",
+        };
+      }
+
+      const billingReason = stripeInvoice.billing_reason ?? "";
+      if (
+        stripeInvoice.subscription ||
+        stripeInvoice.subscription_details ||
+        billingReason.startsWith("subscription")
+      ) {
+        return {
+          success: false,
+          error:
+            "Subscription invoices can’t be revised. Update the subscription for future invoices.",
+        };
+      }
+
+      const creditNotesTotal =
+        (stripeInvoice.pre_payment_credit_notes_amount ?? 0) +
+        (stripeInvoice.post_payment_credit_notes_amount ?? 0);
+
+      if (creditNotesTotal > 0) {
+        return {
+          success: false,
+          error: "Invoices with credit notes can’t be revised.",
+        };
+      }
+
+      const paymentIntent = stripeInvoice.payment_intent;
+      if (
+        paymentIntent &&
+        typeof paymentIntent !== "string" &&
+        paymentIntent.status === "processing"
+      ) {
+        return {
+          success: false,
+          error: "Invoices with a processing PaymentIntent can’t be revised.",
+        };
+      }
+
+      if (status !== "open" && status !== "uncollectible") {
+        return {
+          success: false,
+          error: "Only open or uncollectible invoices can be revised.",
+        };
+      }
+
+      const client = await ctx.runQuery(internal.invoiceActions.getClientById, {
+        clientId: invoice.clientId,
+      });
+
+      if (!client) {
+        return { success: false, error: "Client not found" };
+      }
+
+      const stripeCustomerId = await ensureStripeCustomer(ctx, stripe, client, context);
+
+      const brands = new Set<string>();
+      let totalCents = 0;
+
+      for (const item of args.lineItems) {
+        brands.add(item.brand);
+        const effectivePrice = item.customPriceCents ?? item.unitPriceCents;
+        totalCents += effectivePrice * item.quantity;
+      }
+
+      const participatingBrands = [...brands];
+      const primaryBrand =
+        brands.size === 1 ? participatingBrands[0] : PARENT_ORGANIZATION;
+
+      if (isOrganizationKey() && primaryBrand !== invoice.primaryBrand) {
+        return {
+          success: false,
+          error:
+            "Revisions can’t change the Stripe account context. Create a new invoice to change brands.",
+        };
+      }
+
+      const revision = await stripe.invoices.create(
+        {
+          from_invoice: {
+            action: "revision",
+            invoice: stripeInvoice.id,
+          },
+        },
+        context,
+      );
+
+      const invoiceNumber = generateInvoiceNumber();
+
+      const revisionInvoiceId = await ctx.runMutation(
+        internal.invoiceActions.createInvoiceRecord,
+        {
+          invoiceNumber,
+          primaryBrand,
+          participatingBrands,
+          clientId: invoice.clientId,
+          stripeInvoiceId: revision.id,
+          revisesInvoiceId: invoice._id,
+          revisesStripeInvoiceId: stripeInvoice.id,
+          status: "draft",
+          totalCents,
+          notes: args.notes,
+        },
+      );
+
+      await stripe.invoices.update(
+        revision.id,
+        {
+          metadata: {
+            agency: PARENT_ORGANIZATION,
+            primaryBrand,
+            participatingBrands: JSON.stringify(participatingBrands),
+            convexInvoiceId: revisionInvoiceId,
+            invoiceNumber,
+            revisesStripeInvoiceId: stripeInvoice.id,
+          },
+          description: `Services by ${participatingBrands.join(" & ")}`,
+        },
+        context,
+      );
+
+      const normalizedLineItems = await replaceStripeInvoiceItems(
+        ctx,
+        stripe,
+        revision.id,
+        stripeCustomerId,
+        args.lineItems,
+        context,
+        revisionInvoiceId,
+      );
+
+      await ctx.runMutation(internal.invoiceActions.replaceLineItemRecords, {
+        invoiceId: revisionInvoiceId,
+        lineItems: normalizedLineItems,
+      });
+
+      console.log(`✅ Created revision for invoice ${invoice.invoiceNumber}`);
+
+      return {
+        success: true,
+        invoiceId: revisionInvoiceId,
+        stripeInvoiceId: revision.id,
+        invoiceNumber,
+        status: "draft",
+        totalCents,
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error("❌ Failed to revise invoice:", errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  },
+});
+
+/**
  * Send a draft invoice
  */
 export const sendDraftInvoice = action({
@@ -393,6 +930,13 @@ export const sendDraftInvoice = action({
         invoiceId: args.invoiceId,
         status: "open",
       });
+
+      if (invoice.revisesInvoiceId) {
+        await ctx.runMutation(internal.invoiceActions.updateInvoiceStatus, {
+          invoiceId: invoice.revisesInvoiceId,
+          status: "void",
+        });
+      }
 
       console.log(`✅ Sent invoice ${invoice.invoiceNumber}`);
 
