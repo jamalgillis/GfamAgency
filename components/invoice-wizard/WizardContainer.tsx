@@ -31,16 +31,20 @@ export function WizardContainer() {
   const [invoiceStatus, setInvoiceStatus] = useState<InvoiceStatus>("draft");
   const [invoiceNumber, setInvoiceNumber] = useState<string>("");
   const [draftInvoiceId, setDraftInvoiceId] = useState<Id<"invoices"> | null>(null);
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
+  const [emailStatusMessage, setEmailStatusMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Convex queries
   const convexClients = useQuery(api.clients.list, { limit: 100 });
 
   // Convex action for creating invoices
-  const createInvoice = useAction(api.invoiceActions.createInvoice);
-  const updateDraftInvoice = useAction(api.invoiceActions.updateDraftInvoice);
-  const sendDraftInvoice = useAction(api.invoiceActions.sendDraftInvoice);
-  const reviseInvoice = useAction(api.invoiceActions.reviseInvoice);
+  const createLedgerDraftInvoice = useAction(api.invoiceActions.createLedgerDraftInvoice);
+  const updateLedgerDraftInvoice = useAction(api.invoiceActions.updateLedgerDraftInvoice);
+  const reviseLedgerInvoice = useAction(api.invoiceActions.reviseLedgerInvoice);
+  const createCheckoutSessionForInvoice = useAction(
+    api.invoiceActions.createCheckoutSessionForInvoice
+  );
 
   // Transform Convex clients to WizardClient format
   const clients: WizardClient[] = useMemo(() => {
@@ -122,6 +126,7 @@ export function WizardContainer() {
 
   const handleBack = () => {
     if (currentStep > 1) {
+      setError(null);
       setCurrentStep((prev) => (prev - 1) as Step);
     }
   };
@@ -164,11 +169,12 @@ export function WizardContainer() {
 
     setIsSubmitting(true);
     setError(null);
+    setEmailStatusMessage(null);
 
     try {
       const lineItems = buildLineItems();
       if (draftInvoiceId && invoiceStatus !== "draft") {
-        const result = await reviseInvoice({
+        const result = await reviseLedgerInvoice({
           invoiceId: draftInvoiceId,
           lineItems,
           notes: notes || undefined,
@@ -178,12 +184,13 @@ export function WizardContainer() {
           setInvoiceNumber(result.invoiceNumber);
           setInvoiceStatus("draft");
           setDraftInvoiceId(result.invoiceId);
+          setCheckoutUrl(null);
           setShowInvoiceDocument(true);
         } else {
           setError(result.error || "Failed to create invoice revision");
         }
       } else if (draftInvoiceId) {
-        const result = await updateDraftInvoice({
+        const result = await updateLedgerDraftInvoice({
           invoiceId: draftInvoiceId,
           lineItems,
           notes: notes || undefined,
@@ -192,22 +199,23 @@ export function WizardContainer() {
         if (result.success && result.invoiceNumber) {
           setInvoiceNumber(result.invoiceNumber);
           setInvoiceStatus("draft");
+          setCheckoutUrl(null);
           setShowInvoiceDocument(true);
         } else {
           setError(result.error || "Failed to update draft invoice");
         }
       } else {
-        const result = await createInvoice({
+        const result = await createLedgerDraftInvoice({
           clientId: selectedClient.id as Id<"clients">,
           lineItems,
           notes: notes || undefined,
-          sendImmediately: false,
         });
 
         if (result.success && result.invoiceNumber && result.invoiceId) {
           setInvoiceNumber(result.invoiceNumber);
           setInvoiceStatus("draft");
           setDraftInvoiceId(result.invoiceId);
+          setCheckoutUrl(null);
           setShowInvoiceDocument(true);
         } else {
           setError(result.error || "Failed to create draft invoice");
@@ -225,11 +233,39 @@ export function WizardContainer() {
 
     setIsSubmitting(true);
     setError(null);
+    setEmailStatusMessage(null);
 
     try {
       const lineItems = buildLineItems();
+      const getEmailStatusMessage = (emailSent?: boolean, emailSkipped?: string) => {
+        if (emailSent) {
+          return "Invoice sent and email delivered via Resend.";
+        }
+        if (!emailSkipped) {
+          return "Invoice sent, but email status is unknown.";
+        }
+        if (emailSkipped === "missing_resend_config") {
+          return "Invoice sent, but email was skipped: Convex is missing RESEND_API_KEY or RESEND_FROM_EMAIL.";
+        }
+        if (emailSkipped === "missing_checkout_url") {
+          return "Invoice sent, but email was skipped: checkout URL was missing.";
+        }
+        if (emailSkipped.startsWith("send_failed:")) {
+          return `Invoice sent, but email failed: ${emailSkipped.replace("send_failed:", "")}`;
+        }
+        return `Invoice sent, but email was skipped: ${emailSkipped}`;
+      };
+
+      const buildCheckoutUrls = (invoiceId: Id<"invoices">) => {
+        const origin = window.location.origin;
+        return {
+          successUrl: `${origin}/dashboard/invoices/${invoiceId}?payment=success`,
+          cancelUrl: `${origin}/dashboard/invoices/${invoiceId}?payment=cancelled`,
+        };
+      };
+
       if (draftInvoiceId) {
-        const updateResult = await updateDraftInvoice({
+        const updateResult = await updateLedgerDraftInvoice({
           invoiceId: draftInvoiceId,
           lineItems,
           notes: notes || undefined,
@@ -240,32 +276,60 @@ export function WizardContainer() {
           return;
         }
 
-        const sendResult = await sendDraftInvoice({ invoiceId: draftInvoiceId });
+        const { successUrl, cancelUrl } = buildCheckoutUrls(draftInvoiceId);
+        const sendResult = await createCheckoutSessionForInvoice({
+          invoiceId: draftInvoiceId,
+          successUrl,
+          cancelUrl,
+        });
 
         if (sendResult.success) {
+          setInvoiceNumber(sendResult.invoiceNumber || invoiceNumber);
           setInvoiceStatus("sent");
+          setCheckoutUrl(sendResult.checkoutUrl || null);
+          setEmailStatusMessage(
+            getEmailStatusMessage(sendResult.emailSent, sendResult.emailSkipped)
+          );
           setShowInvoiceDocument(true);
         } else {
+          setEmailStatusMessage(null);
           setError(sendResult.error || "Failed to send invoice");
         }
       } else {
-        const result = await createInvoice({
+        const draftResult = await createLedgerDraftInvoice({
           clientId: selectedClient.id as Id<"clients">,
           lineItems,
           notes: notes || undefined,
-          sendImmediately: true,
         });
 
-        if (result.success && result.invoiceNumber && result.invoiceId) {
-          setInvoiceNumber(result.invoiceNumber);
-          setInvoiceStatus("sent");
-          setDraftInvoiceId(result.invoiceId);
-          setShowInvoiceDocument(true);
-        } else {
-          setError(result.error || "Failed to send invoice");
+        if (!draftResult.success || !draftResult.invoiceId) {
+          setError(draftResult.error || "Failed to create draft invoice");
+          return;
         }
+
+        const { successUrl, cancelUrl } = buildCheckoutUrls(draftResult.invoiceId);
+        const sendResult = await createCheckoutSessionForInvoice({
+          invoiceId: draftResult.invoiceId,
+          successUrl,
+          cancelUrl,
+        });
+
+        if (!sendResult.success) {
+          setError(sendResult.error || "Failed to send invoice");
+          return;
+        }
+
+        setInvoiceNumber(sendResult.invoiceNumber || draftResult.invoiceNumber || "");
+        setInvoiceStatus("sent");
+        setDraftInvoiceId(draftResult.invoiceId);
+        setCheckoutUrl(sendResult.checkoutUrl || null);
+        setEmailStatusMessage(
+          getEmailStatusMessage(sendResult.emailSent, sendResult.emailSkipped)
+        );
+        setShowInvoiceDocument(true);
       }
     } catch (err) {
+      setEmailStatusMessage(null);
       setError(err instanceof Error ? err.message : "An unexpected error occurred");
     } finally {
       setIsSubmitting(false);
@@ -275,6 +339,7 @@ export function WizardContainer() {
   const handleBackToWizard = () => {
     setShowInvoiceDocument(false);
     setError(null);
+    setEmailStatusMessage(null);
   };
 
   const handleReviseInvoice = async () => {
@@ -285,7 +350,7 @@ export function WizardContainer() {
 
     try {
       const lineItems = buildLineItems();
-      const result = await reviseInvoice({
+      const result = await reviseLedgerInvoice({
         invoiceId: draftInvoiceId,
         lineItems,
         notes: notes || undefined,
@@ -295,6 +360,8 @@ export function WizardContainer() {
         setInvoiceNumber(result.invoiceNumber);
         setInvoiceStatus("draft");
         setDraftInvoiceId(result.invoiceId);
+        setCheckoutUrl(null);
+        setEmailStatusMessage(null);
         setShowInvoiceDocument(true);
       } else {
         setError(result.error || "Failed to create invoice revision");
@@ -452,6 +519,8 @@ export function WizardContainer() {
         notes={notes}
         invoiceNumber={invoiceNumber}
         status={invoiceStatus}
+        checkoutUrl={checkoutUrl}
+        emailStatusMessage={emailStatusMessage}
         onBack={handleBackToWizard}
         onUpdateServices={setSelectedServices}
         onUpdateNotes={setNotes}

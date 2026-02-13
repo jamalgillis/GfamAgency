@@ -26,7 +26,7 @@ http.route({
 
     try {
       const webhookSecret = getWebhookSecret();
-      event = Stripe.webhooks.constructEvent(body, signature, webhookSecret);
+      event = await Stripe.webhooks.constructEventAsync(body, signature, webhookSecret);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
       console.error(`[${PARENT_ORGANIZATION}] Webhook signature verification failed:`, message);
@@ -60,6 +60,26 @@ http.route({
 
         case "invoice.sent":
           await handleInvoiceSent(ctx, event.data.object as Stripe.Invoice);
+          break;
+
+        case "payment_intent.succeeded":
+          await handlePaymentIntentSucceeded(ctx, event.data.object as Stripe.PaymentIntent);
+          break;
+
+        case "checkout.session.completed":
+          await handleCheckoutSessionSuccess(
+            ctx,
+            event.data.object as Stripe.Checkout.Session,
+            "checkout.session.completed"
+          );
+          break;
+
+        case "checkout.session.async_payment_succeeded":
+          await handleCheckoutSessionSuccess(
+            ctx,
+            event.data.object as Stripe.Checkout.Session,
+            "checkout.session.async_payment_succeeded"
+          );
           break;
 
         default:
@@ -96,6 +116,28 @@ async function handleInvoicePaid(ctx: any, invoice: Stripe.Invoice) {
     paidAt: invoice.status_transitions?.paid_at
       ? invoice.status_transitions.paid_at * 1000
       : Date.now(),
+  });
+
+  const paymentIntent = invoice.payment_intent;
+  const stripePaymentIntentId =
+    typeof paymentIntent === "string"
+      ? paymentIntent
+      : paymentIntent && typeof paymentIntent === "object" && "id" in paymentIntent
+        ? paymentIntent.id
+        : undefined;
+
+  if (!stripePaymentIntentId) {
+    console.warn(
+      `[${brand}] Invoice ${invoice.id} paid but missing payment_intent; skipping brandLedger attribution`
+    );
+    return;
+  }
+
+  await ctx.runMutation(internal.webhooks.processPaidInvoiceLedgerAttribution, {
+    invoiceId: convexInvoiceId as any,
+    settlementSource: "invoice.paid",
+    settlementId: invoice.id,
+    stripePaymentIntentId,
   });
 }
 
@@ -204,6 +246,77 @@ async function handleInvoiceSent(ctx: any, invoice: Stripe.Invoice) {
     status: "open",
     stripeInvoiceId: invoice.id,
     sentAt: Date.now(),
+  });
+}
+
+/**
+ * Handle payment_intent.succeeded for ledger-only attribution.
+ */
+async function handlePaymentIntentSucceeded(ctx: any, paymentIntent: Stripe.PaymentIntent) {
+  const invoiceId = paymentIntent.metadata?.invoiceId;
+
+  if (!invoiceId) {
+    console.log(
+      `[${PARENT_ORGANIZATION}] PaymentIntent ${paymentIntent.id} has no invoiceId metadata`
+    );
+    return;
+  }
+
+  console.log(
+    `[${PARENT_ORGANIZATION}] PaymentIntent ${paymentIntent.id} succeeded for invoice ${invoiceId}`
+  );
+
+  await ctx.runMutation(internal.webhooks.processPaidInvoiceLedgerAttribution, {
+    invoiceId: invoiceId as any,
+    settlementSource: "payment_intent.succeeded",
+    settlementId: paymentIntent.id,
+    stripePaymentIntentId: paymentIntent.id,
+  });
+}
+
+/**
+ * Handle checkout.session.* success events as a fallback path for status updates.
+ * Some integrations rely on Checkout events rather than payment_intent.succeeded.
+ */
+async function handleCheckoutSessionSuccess(
+  ctx: any,
+  session: Stripe.Checkout.Session,
+  settlementSource:
+    | "checkout.session.completed"
+    | "checkout.session.async_payment_succeeded"
+) {
+  const invoiceId = session.metadata?.invoiceId || session.client_reference_id;
+
+  if (!invoiceId) {
+    console.log(
+      `[${PARENT_ORGANIZATION}] Checkout Session ${session.id} missing invoiceId/client_reference_id`
+    );
+    return;
+  }
+
+  if (session.payment_status !== "paid") {
+    console.log(
+      `[${PARENT_ORGANIZATION}] Checkout Session ${session.id} for invoice ${invoiceId} not paid yet (status=${session.payment_status})`
+    );
+    return;
+  }
+
+  const stripePaymentIntentId =
+    typeof session.payment_intent === "string"
+      ? session.payment_intent
+      : session.payment_intent && typeof session.payment_intent === "object" && "id" in session.payment_intent
+        ? session.payment_intent.id
+        : session.id;
+
+  console.log(
+    `[${PARENT_ORGANIZATION}] Checkout Session ${session.id} paid for invoice ${invoiceId}`
+  );
+
+  await ctx.runMutation(internal.webhooks.processPaidInvoiceLedgerAttribution, {
+    invoiceId: invoiceId as any,
+    settlementSource,
+    settlementId: session.id,
+    stripePaymentIntentId,
   });
 }
 
