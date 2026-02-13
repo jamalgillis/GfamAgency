@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { useQuery } from "convex/react";
+import { useAction, useQuery } from "convex/react";
 import {
   ArrowLeft,
   Download,
@@ -79,8 +79,14 @@ export default function InvoiceDetailPage() {
     api.invoiceActions.getInvoiceWithLineItems,
     hasValidInvoiceId ? { invoiceId: invoiceId as Id<"invoices"> } : "skip"
   );
+  const createCheckoutSessionForInvoice = useAction(
+    api.invoiceActions.createCheckoutSessionForInvoice
+  );
 
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [sendStatusMessage, setSendStatusMessage] = useState<string | null>(null);
 
   const notes =
     invoiceWithDetails?.notes ||
@@ -122,6 +128,11 @@ export default function InvoiceDetailPage() {
     };
   }, [invoiceWithDetails]);
 
+  const canSendInvoice =
+    invoiceWithDetails?.status === "draft" ||
+    invoiceWithDetails?.status === "open" ||
+    invoiceWithDetails?.status === "uncollectible";
+
   // Calculate totals
   const subtotal = useMemo(
     () => lineItems.reduce((sum, item) => sum + item.qty * item.rate, 0),
@@ -137,6 +148,55 @@ export default function InvoiceDetailPage() {
       currency: "USD",
       minimumFractionDigits: 2,
     }).format(amount);
+  };
+
+  const getEmailStatusMessage = (emailSent?: boolean, emailSkipped?: string) => {
+    if (emailSent) {
+      return "Invoice sent and email delivered via Resend.";
+    }
+    if (!emailSkipped) {
+      return "Invoice sent, but email status is unknown.";
+    }
+    if (emailSkipped === "missing_resend_config") {
+      return "Invoice sent, but email was skipped: missing RESEND_API_KEY or RESEND_FROM_EMAIL.";
+    }
+    if (emailSkipped === "missing_checkout_url") {
+      return "Invoice sent, but email was skipped: checkout URL was missing.";
+    }
+    if (emailSkipped.startsWith("send_failed:")) {
+      return `Invoice sent, but email failed: ${emailSkipped.replace("send_failed:", "")}`;
+    }
+    return `Invoice sent, but email was skipped: ${emailSkipped}`;
+  };
+
+  const handleSendInvoice = async () => {
+    if (!canSendInvoice || !hasValidInvoiceId) return;
+
+    setIsSending(true);
+    setSendError(null);
+    setSendStatusMessage(null);
+
+    try {
+      const origin = window.location.origin;
+      const result = await createCheckoutSessionForInvoice({
+        invoiceId: invoiceId as Id<"invoices">,
+        successUrl: `${origin}/dashboard/invoices/${invoiceId}?payment=success`,
+        cancelUrl: `${origin}/dashboard/invoices/${invoiceId}?payment=cancelled`,
+      });
+
+      if (!result.success) {
+        setSendError(result.error || "Failed to send invoice");
+        return;
+      }
+
+      setSendStatusMessage(
+        getEmailStatusMessage(result.emailSent, result.emailSkipped)
+      );
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : "Failed to send invoice");
+    } finally {
+      setIsSending(false);
+    }
   };
 
   if (!hasValidInvoiceId) {
@@ -221,10 +281,12 @@ export default function InvoiceDetailPage() {
               <span className="hidden sm:inline">Download</span>
             </button>
 
-            {invoice.status !== "paid" && (
-              <button className="btn-primary">
+            {canSendInvoice && (
+              <button className="btn-primary" onClick={handleSendInvoice} disabled={isSending}>
                 <Send className="w-4 h-4" />
-                <span className="hidden sm:inline">Send Invoice</span>
+                <span className="hidden sm:inline">
+                  {isSending ? "Sending..." : "Send Invoice"}
+                </span>
               </button>
             )}
 
@@ -256,6 +318,18 @@ export default function InvoiceDetailPage() {
           </div>
         </div>
       </header>
+
+      {sendError && (
+        <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          {sendError}
+        </div>
+      )}
+
+      {sendStatusMessage && (
+        <div className="mb-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+          {sendStatusMessage}
+        </div>
+      )}
 
       {/* Invoice Document */}
       <div className="invoice-document-wrapper !bg-transparent !p-0">

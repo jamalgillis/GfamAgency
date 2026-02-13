@@ -105,14 +105,20 @@ export const getInvoiceByStripeId = internalQuery({
 
 /**
  * Create brandLedger entries only after confirmed payment settlement events.
- * Supported triggers: payment_intent.succeeded and invoice.paid.
+ * Supported triggers:
+ * - payment_intent.succeeded
+ * - invoice.paid
+ * - checkout.session.completed
+ * - checkout.session.async_payment_succeeded
  */
 export const processPaidInvoiceLedgerAttribution = internalMutation({
   args: {
     invoiceId: v.id("invoices"),
     settlementSource: v.union(
       v.literal("payment_intent.succeeded"),
-      v.literal("invoice.paid")
+      v.literal("invoice.paid"),
+      v.literal("checkout.session.completed"),
+      v.literal("checkout.session.async_payment_succeeded")
     ),
     settlementId: v.string(),
     stripePaymentIntentId: v.string(),

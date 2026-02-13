@@ -424,9 +424,6 @@ function renderInvoiceEmailHtml(params: {
             <a href="${escapeHtml(
               params.checkoutUrl
             )}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:8px;font-weight:600;">Pay Invoice</a>
-            <div style="margin-top:8px;color:#6b7280;font-size:12px;word-break:break-all;">${escapeHtml(
-              params.checkoutUrl
-            )}</div>
           </div>
 
           <table style="width:100%;border-collapse:collapse;margin-top:18px;">
@@ -1816,6 +1813,13 @@ export const createInvoicePaymentIntent = action({
 
       if (!invoice) {
         return { success: false, error: "Invoice not found" };
+      }
+
+      if (invoice.status === "paid" || invoice.status === "void") {
+        return {
+          success: false,
+          error: "Only draft/open/uncollectible invoices can be paid",
+        };
       }
 
       const lineItems = await ctx.runQuery(

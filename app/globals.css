@@ -1019,6 +1019,46 @@
     }
   }
 
+  /* ===== CLIENTS PAGE STYLES ===== */
+
+  /* Clients Table */
+  .clients-table-header {
+    @apply grid gap-3 px-5 py-3.5 text-meta font-semibold uppercase tracking-wider text-content-muted border-b border-border;
+    grid-template-columns: 1.5fr 1fr 1.2fr 80px 100px 100px 60px;
+    background: var(--color-surface-tertiary);
+  }
+
+  .clients-table-row {
+    @apply grid gap-3 px-5 py-4 items-center border-b border-border;
+    grid-template-columns: 1.5fr 1fr 1.2fr 80px 100px 100px 60px;
+    transition: background-color 0.15s ease;
+  }
+
+  .clients-table-row:last-child {
+    @apply border-b-0;
+  }
+
+  .clients-table-row:hover {
+    background: var(--table-row-hover);
+  }
+
+  .clients-table-row:hover .row-actions {
+    @apply opacity-100;
+  }
+
+  /* Client Avatar */
+  .client-avatar {
+    @apply w-9 h-9 rounded-full flex items-center justify-center text-meta-lg font-semibold text-content-inverse flex-shrink-0;
+    background: var(--color-text-primary);
+  }
+
+  @media (max-width: 1400px) {
+    .clients-table-header,
+    .clients-table-row {
+      grid-template-columns: 1.3fr 1fr 1.2fr 70px 90px 90px 50px;
+    }
+  }
+
   /* ===== SERVICES PAGE STYLES ===== */
 
   /* Stats Bar */
@@ -1223,6 +1263,69 @@
 
   .text-success {
     color: var(--brand-sankofa);
+  }
+
+  /* ===== SETTINGS PAGE STYLES ===== */
+
+  /* Section icon */
+  .settings-section-icon {
+    @apply w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0;
+  }
+
+  /* Theme option cards */
+  .settings-theme-option {
+    @apply flex flex-col items-center gap-1.5 p-4 rounded-xl border-2 border-border cursor-pointer text-center;
+    background: var(--color-surface-tertiary);
+    transition: all 0.2s ease;
+  }
+
+  .settings-theme-option:hover {
+    border-color: var(--color-text-muted);
+    background: var(--color-surface-hover);
+  }
+
+  .settings-theme-option.active {
+    border-color: var(--color-text-primary);
+    background: var(--color-surface-secondary);
+    box-shadow: var(--shadow-card);
+  }
+
+  /* Status row */
+  .settings-status-row {
+    @apply flex items-center justify-between gap-4 p-3 rounded-lg;
+    background: var(--color-surface-tertiary);
+    transition: background 0.15s ease;
+  }
+
+  .settings-status-row:hover {
+    background: var(--color-surface-hover);
+  }
+
+  /* Org card */
+  .settings-org-card {
+    @apply p-4 rounded-xl border-2 border-border;
+    background: var(--color-surface-tertiary);
+  }
+
+  /* Brand row */
+  .settings-brand-row {
+    @apply flex items-center justify-between gap-4 p-3 rounded-lg cursor-default;
+    transition: background 0.15s ease;
+  }
+
+  .settings-brand-row:hover {
+    background: var(--color-surface-tertiary);
+  }
+
+  /* Quick link */
+  .settings-quick-link {
+    @apply flex items-center gap-2.5 p-3 rounded-lg text-sm text-content-secondary;
+    transition: all 0.15s ease;
+  }
+
+  .settings-quick-link:hover {
+    @apply text-content;
+    background: var(--color-surface-tertiary);
   }
 }
 
