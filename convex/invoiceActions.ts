@@ -27,13 +27,28 @@ const lineItemValidator = v.object({
   isCustomItem: v.boolean(),
 });
 
+type InvoiceBrand = Exclude<StripeBrand, typeof PARENT_ORGANIZATION>;
+
+type InvoiceLineItemInput = {
+  serviceId?: Id<"services">;
+  brand: InvoiceBrand;
+  category: string;
+  name: string;
+  description?: string;
+  quantity: number;
+  stripePriceId?: string;
+  unitPriceCents: number;
+  customPriceCents?: number;
+  isCustomItem: boolean;
+};
+
 function calculateInvoiceTotals(
-  lineItems: Array<{
-    brand: string;
-    quantity: number;
-    unitPriceCents: number;
-    customPriceCents?: number;
-  }>
+  lineItems: Array<
+    Pick<
+      InvoiceLineItemInput,
+      "brand" | "quantity" | "unitPriceCents" | "customPriceCents"
+    >
+  >
 ): {
   participatingBrands: string[];
   primaryBrand: string;
@@ -142,21 +157,10 @@ async function replaceStripeInvoiceItems(
   stripe: any,
   stripeInvoiceId: string,
   stripeCustomerId: string,
-  lineItems: Array<{
-    serviceId?: Id<"services">;
-    brand: string;
-    category: string;
-    name: string;
-    description?: string;
-    quantity: number;
-    stripePriceId?: string;
-    unitPriceCents: number;
-    customPriceCents?: number;
-    isCustomItem: boolean;
-  }>,
+  lineItems: InvoiceLineItemInput[],
   context: any,
   convexInvoiceId: Id<"invoices">,
-): Promise<typeof lineItems> {
+): Promise<InvoiceLineItemInput[]> {
   let startingAfter: string | undefined;
   do {
     const existingItems = await stripe.invoiceItems.list(
@@ -177,7 +181,7 @@ async function replaceStripeInvoiceItems(
       : undefined;
   } while (startingAfter);
 
-  const normalizedLineItems: typeof lineItems = [];
+  const normalizedLineItems: InvoiceLineItemInput[] = [];
 
   for (const item of lineItems) {
     const effectivePrice = item.customPriceCents ?? item.unitPriceCents;
@@ -2135,16 +2139,13 @@ export const listInvoices = query({
   },
   handler: async (ctx, args) => {
     const limit = args.limit ?? 50;
-
-    let invoicesQuery = ctx.db.query("invoices");
-
-    if (args.status) {
-      invoicesQuery = invoicesQuery.withIndex("by_status", (q) =>
-        q.eq("status", args.status!)
-      );
-    }
-
-    const invoices = await invoicesQuery.order("desc").take(limit);
+    const invoices = args.status
+      ? await ctx.db
+          .query("invoices")
+          .withIndex("by_status", (q) => q.eq("status", args.status!))
+          .order("desc")
+          .take(limit)
+      : await ctx.db.query("invoices").order("desc").take(limit);
 
     // Filter by brand if specified
     if (args.brand) {

@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { action, internalMutation, internalQuery, query } from "./_generated/server";
-import { internal } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import {
   getStripeClient,
   getStripeContext,
@@ -194,7 +194,7 @@ export const syncBrandServices = action({
     console.log(`🔄 Syncing ${unsyncedServices.length} ${args.brand} services...`);
 
     for (const service of unsyncedServices) {
-      const result = await ctx.runAction(internal.stripeSync.syncSingleService, {
+      const result = await ctx.runAction(api.stripeSync.syncSingleService, {
         serviceId: service._id,
       });
 
@@ -252,7 +252,7 @@ export const syncAllServices = action({
       console.log(`📦 Processing ${brand}...`);
 
       try {
-        const result = await ctx.runAction(internal.stripeSync.syncBrandServices, {
+        const result = await ctx.runAction(api.stripeSync.syncBrandServices, {
           brand,
           limit: Math.ceil(limit / brands.length),
         });
@@ -260,7 +260,7 @@ export const syncAllServices = action({
         byBrand[brand] = { synced: result.synced, failed: result.failed };
         totalSynced += result.synced;
         totalFailed += result.failed;
-        allErrors.push(...result.errors.map((e) => `[${brand}] ${e}`));
+        allErrors.push(...result.errors.map((e: string) => `[${brand}] ${e}`));
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Unknown error";
         console.error(`❌ Failed to process ${brand}:`, errorMessage);

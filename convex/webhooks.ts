@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { internalMutation, internalQuery } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 
 const PLATFORM_FEE_BPS = 200; // 2.00%
 
@@ -21,8 +22,9 @@ export const updateInvoiceFromWebhook = internalMutation({
     sentAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const invoiceId = args.convexInvoiceId as Id<"invoices">;
     // Find the invoice by convexInvoiceId (which is the _id stored as string)
-    const invoice = await ctx.db.get(args.convexInvoiceId as any);
+    const invoice = await ctx.db.get(invoiceId);
 
     if (!invoice) {
       console.error(`Invoice not found: ${args.convexInvoiceId}`);
@@ -50,7 +52,7 @@ export const updateInvoiceFromWebhook = internalMutation({
       );
     }
 
-    await ctx.db.patch(args.convexInvoiceId as any, updates);
+    await ctx.db.patch(invoiceId, updates);
 
     console.log(`✅ Updated invoice ${args.convexInvoiceId} status to ${args.status}`);
 
@@ -68,7 +70,8 @@ export const recordPaymentFailure = internalMutation({
     failureMessage: v.string(),
   },
   handler: async (ctx, args) => {
-    const invoice = await ctx.db.get(args.convexInvoiceId as any);
+    const invoiceId = args.convexInvoiceId as Id<"invoices">;
+    const invoice = await ctx.db.get(invoiceId);
 
     if (!invoice) {
       console.error(`Invoice not found: ${args.convexInvoiceId}`);
