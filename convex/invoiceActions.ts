@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server";
-import { internal } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import { Resend } from "resend";
 import { brandUnion } from "./schema";
 import {
@@ -197,7 +197,7 @@ async function replaceStripeInvoiceItems(
 
     let resolvedStripePriceId = item.stripePriceId;
     if (!resolvedStripePriceId && item.serviceId) {
-      const service = await ctx.runQuery(internal.services.get, {
+      const service = await ctx.runQuery(api.services.get, {
         serviceId: item.serviceId,
       });
       resolvedStripePriceId = service?.stripePriceId;
@@ -1199,7 +1199,7 @@ export const createInvoice = action({
 
         let resolvedStripePriceId = item.stripePriceId;
         if (!resolvedStripePriceId && item.serviceId) {
-          const service = await ctx.runQuery(internal.services.get, {
+          const service = await ctx.runQuery(api.services.get, {
             serviceId: item.serviceId,
           });
           resolvedStripePriceId = service?.stripePriceId;
