@@ -4,21 +4,6 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { ConvexClientProvider } from "@/components/ConvexClientProvider";
 import "./globals.css";
 
-function getConvexUrlFromDeployment(
-  deployment?: string,
-): string | undefined {
-  if (!deployment) {
-    return undefined;
-  }
-
-  const [, deploymentName] = deployment.split(":");
-  if (!deploymentName) {
-    return undefined;
-  }
-
-  return `https://${deploymentName}.convex.cloud`;
-}
-
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
@@ -39,15 +24,10 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const convexUrl =
-    process.env.NEXT_PUBLIC_CONVEX_URL ||
-    process.env.CONVEX_URL ||
-    getConvexUrlFromDeployment(process.env.CONVEX_DEPLOYMENT);
-
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} ${outfit.variable} font-sans`}>
-        <ConvexClientProvider convexUrl={convexUrl}>
+        <ConvexClientProvider>
           <ThemeProvider>
             {children}
           </ThemeProvider>
