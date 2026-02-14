@@ -21,8 +21,10 @@ export function ConvexClientProvider({
     return new ConvexReactClient(resolvedConvexUrl);
   }, [resolvedConvexUrl]);
 
+  // During static prerendering (next build) the Convex URL isn't available.
+  // Render nothing so pages that call useQuery aren't mounted without a provider.
   if (!client) {
-    return <>{children}</>;
+    return null;
   }
 
   return <ConvexProvider client={client}>{children}</ConvexProvider>;
