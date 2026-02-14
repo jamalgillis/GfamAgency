@@ -63,6 +63,8 @@ const clientsData = [
 async function main() {
   // Get the Convex URL from environment
   const convexUrl = process.env.CONVEX_URL || process.env.NEXT_PUBLIC_CONVEX_URL;
+  const seedOrgId =
+    process.env.CLERK_SEED_ORG_ID || process.env.SEED_ORG_ID || "dev-seed-org";
 
   if (!convexUrl) {
     console.error("❌ CONVEX_URL or NEXT_PUBLIC_CONVEX_URL not found in environment");
@@ -72,47 +74,19 @@ async function main() {
 
   console.log("🚀 Starting client seed...");
   console.log(`📍 Convex URL: ${convexUrl}`);
+  console.log(`🏢 Org ID: ${seedOrgId}`);
   console.log(`👥 Clients to seed: ${clientsData.length}`);
 
   const client = new ConvexHttpClient(convexUrl);
-
-  let created = 0;
-  let skipped = 0;
-  const errors: string[] = [];
-
-  for (const clientData of clientsData) {
-    try {
-      // Check if client already exists
-      const existing = await client.query(api.clients.getByEmail, {
-        email: clientData.email,
-      });
-
-      if (existing) {
-        console.log(`⏭️  Skipping "${clientData.name}" (already exists)`);
-        skipped++;
-        continue;
-      }
-
-      // Create the client
-      await client.mutation(api.clients.create, clientData);
-      console.log(`✅ Created client: ${clientData.name} (${clientData.company})`);
-      created++;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      console.error(`❌ Failed to create "${clientData.name}":`, errorMessage);
-      errors.push(`${clientData.name}: ${errorMessage}`);
-    }
-  }
+  const result = await client.mutation(api.seed.seedClients, {
+    orgId: seedOrgId,
+    clients: clientsData,
+    clearExisting: false,
+  });
 
   console.log("\n📊 Seed Summary:");
-  console.log(`   Created: ${created}`);
-  console.log(`   Skipped: ${skipped}`);
-  console.log(`   Errors: ${errors.length}`);
-
-  if (errors.length > 0) {
-    console.log("\n❌ Errors:");
-    errors.forEach((e) => console.log(`   - ${e}`));
-  }
+  console.log(`   Inserted: ${result.inserted}`);
+  console.log(`   Message: ${result.message}`);
 }
 
 main();

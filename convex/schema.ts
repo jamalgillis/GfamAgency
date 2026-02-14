@@ -17,6 +17,8 @@ export const serviceStatusUnion = v.union(
 
 export default defineSchema({
   services: defineTable({
+    orgId: v.string(),
+
     // Core fields
     brand: brandUnion,
     name: v.string(),
@@ -37,12 +39,19 @@ export default defineSchema({
     stripeProductId: v.optional(v.string()), // Stripe Product ID (prod_xxx)
     stripePriceId: v.optional(v.string()), // Stripe Price ID (price_xxx)
   })
+    .index("by_org", ["orgId"])
+    .index("by_org_brand", ["orgId", "brand"])
+    .index("by_org_category", ["orgId", "category"])
+    .index("by_org_status", ["orgId", "status"])
+    .index("by_org_sync_status", ["orgId", "stripeSynced"])
     .index("by_brand", ["brand"])
     .index("by_category", ["category"])
     .index("by_status", ["status"])
     .index("by_sync_status", ["stripeSynced"]),
 
   invoices: defineTable({
+    orgId: v.string(),
+
     invoiceNumber: v.string(),
     // Primary brand - single brand if all items from one, "GFAM Agency" if mixed
     primaryBrand: v.string(),
@@ -64,12 +73,20 @@ export default defineSchema({
     notes: v.optional(v.string()),
     createdAt: v.number(), // Timestamp
   })
+    .index("by_org", ["orgId"])
+    .index("by_org_primary_brand", ["orgId", "primaryBrand"])
+    .index("by_org_status", ["orgId", "status"])
+    .index("by_org_client", ["orgId", "clientId"])
+    .index("by_org_stripe_invoice_id", ["orgId", "stripeInvoiceId"])
     .index("by_primary_brand", ["primaryBrand"])
     .index("by_status", ["status"])
-    .index("by_client", ["clientId"]),
+    .index("by_client", ["clientId"])
+    .index("by_stripe_invoice_id", ["stripeInvoiceId"]),
 
   // Line items for each invoice - supports both catalog and custom pricing
   invoiceLineItems: defineTable({
+    orgId: v.string(),
+
     invoiceId: v.id("invoices"),
     // Reference to catalog service (null for custom/ad-hoc items)
     serviceId: v.optional(v.id("services")),
@@ -88,11 +105,16 @@ export default defineSchema({
     // Flag for ad-hoc items
     isCustomItem: v.boolean(),
   })
+    .index("by_org", ["orgId"])
+    .index("by_org_invoice", ["orgId", "invoiceId"])
+    .index("by_org_brand", ["orgId", "brand"])
     .index("by_invoice", ["invoiceId"])
     .index("by_brand", ["brand"]),
 
   // Internal ledger for brand-level earnings attribution (no external transfers yet)
   brandLedger: defineTable({
+    orgId: v.string(),
+
     brand: brandUnion,
     invoiceId: v.id("invoices"),
     amountCents: v.number(), // Net amount after platform fee
@@ -106,14 +128,23 @@ export default defineSchema({
     ),
     createdAt: v.number(),
   })
+    .index("by_org", ["orgId"])
+    .index("by_org_brand", ["orgId", "brand"])
+    .index("by_org_invoice", ["orgId", "invoiceId"])
+    .index("by_org_created_at", ["orgId", "createdAt"])
     .index("by_brand", ["brand"])
     .index("by_invoice", ["invoiceId"])
     .index("by_created_at", ["createdAt"]),
 
   clients: defineTable({
+    orgId: v.string(),
+
     name: v.string(),
     company: v.string(),
     email: v.string(),
     stripeCustomerId: v.optional(v.string()), // Optional until synced to Stripe
-  }).index("by_email", ["email"]),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_email", ["orgId", "email"])
+    .index("by_email", ["email"]),
 });

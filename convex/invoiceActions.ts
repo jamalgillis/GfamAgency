@@ -12,6 +12,7 @@ import {
   type StripeBrand,
 } from "./lib/stripe";
 import type { Id } from "./_generated/dataModel";
+import { ensureOrgAccess, withOrg } from "./lib/org";
 
 // Line item input type for invoice creation
 const lineItemValidator = v.object({
@@ -250,6 +251,7 @@ async function ensureStripeCustomer(
   stripe: any,
   client: any,
   context: any,
+  orgId: string,
 ): Promise<string> {
   const createCustomer = async () => {
     const customer = await stripe.customers.create(
@@ -266,6 +268,7 @@ async function ensureStripeCustomer(
     );
 
     await ctx.runMutation(internal.invoiceActions.updateClientStripeId, {
+      orgId,
       clientId: client._id,
       stripeCustomerId: customer.id,
     });
@@ -557,9 +560,13 @@ async function sendInvoiceEmailWithResend(params: {
  * Internal query to get a client by ID
  */
 export const getClientById = internalQuery({
-  args: { clientId: v.id("clients") },
+  args: {
+    orgId: v.string(),
+    clientId: v.id("clients"),
+  },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.clientId);
+    const client = await ctx.db.get(args.clientId);
+    return client?.orgId === args.orgId ? client : null;
   },
 });
 
@@ -569,10 +576,12 @@ export const getClientById = internalQuery({
  */
 export const updateClientStripeId = internalMutation({
   args: {
+    orgId: v.string(),
     clientId: v.id("clients"),
     stripeCustomerId: v.string(),
   },
   handler: async (ctx, args) => {
+    ensureOrgAccess(await ctx.db.get(args.clientId), args.orgId, "Client not found");
     await ctx.db.patch(args.clientId, {
       stripeCustomerId: args.stripeCustomerId,
     });
@@ -584,6 +593,7 @@ export const updateClientStripeId = internalMutation({
  */
 export const createInvoiceRecord = internalMutation({
   args: {
+    orgId: v.string(),
     invoiceNumber: v.string(),
     primaryBrand: v.string(),
     participatingBrands: v.array(v.string()),
@@ -603,7 +613,18 @@ export const createInvoiceRecord = internalMutation({
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    ensureOrgAccess(await ctx.db.get(args.clientId), args.orgId, "Client not found");
+
+    if (args.revisesInvoiceId) {
+      ensureOrgAccess(
+        await ctx.db.get(args.revisesInvoiceId),
+        args.orgId,
+        "Revision source invoice not found"
+      );
+    }
+
     return await ctx.db.insert("invoices", {
+      orgId: args.orgId,
       invoiceNumber: args.invoiceNumber,
       primaryBrand: args.primaryBrand,
       participatingBrands: args.participatingBrands,
@@ -625,6 +646,7 @@ export const createInvoiceRecord = internalMutation({
  */
 export const updateInvoiceStripeId = internalMutation({
   args: {
+    orgId: v.string(),
     invoiceId: v.id("invoices"),
     stripeInvoiceId: v.string(),
     status: v.union(
@@ -636,6 +658,7 @@ export const updateInvoiceStripeId = internalMutation({
     ),
   },
   handler: async (ctx, args) => {
+    ensureOrgAccess(await ctx.db.get(args.invoiceId), args.orgId, "Invoice not found");
     await ctx.db.patch(args.invoiceId, {
       stripeInvoiceId: args.stripeInvoiceId,
       status: args.status,
@@ -648,6 +671,7 @@ export const updateInvoiceStripeId = internalMutation({
  */
 export const updateInvoiceCheckoutSession = internalMutation({
   args: {
+    orgId: v.string(),
     invoiceId: v.id("invoices"),
     stripeCheckoutSessionId: v.string(),
     status: v.union(
@@ -659,6 +683,7 @@ export const updateInvoiceCheckoutSession = internalMutation({
     ),
   },
   handler: async (ctx, args) => {
+    ensureOrgAccess(await ctx.db.get(args.invoiceId), args.orgId, "Invoice not found");
     await ctx.db.patch(args.invoiceId, {
       stripeCheckoutSessionId: args.stripeCheckoutSessionId,
       status: args.status,
@@ -671,13 +696,16 @@ export const updateInvoiceCheckoutSession = internalMutation({
  */
 export const createLineItemRecords = internalMutation({
   args: {
+    orgId: v.string(),
     invoiceId: v.id("invoices"),
     lineItems: v.array(lineItemValidator),
   },
   handler: async (ctx, args) => {
+    ensureOrgAccess(await ctx.db.get(args.invoiceId), args.orgId, "Invoice not found");
     const ids: Id<"invoiceLineItems">[] = [];
     for (const item of args.lineItems) {
       const id = await ctx.db.insert("invoiceLineItems", {
+        orgId: args.orgId,
         invoiceId: args.invoiceId,
         serviceId: item.serviceId,
         brand: item.brand,
@@ -701,13 +729,17 @@ export const createLineItemRecords = internalMutation({
  */
 export const replaceLineItemRecords = internalMutation({
   args: {
+    orgId: v.string(),
     invoiceId: v.id("invoices"),
     lineItems: v.array(lineItemValidator),
   },
   handler: async (ctx, args) => {
+    ensureOrgAccess(await ctx.db.get(args.invoiceId), args.orgId, "Invoice not found");
     const existing = await ctx.db
       .query("invoiceLineItems")
-      .withIndex("by_invoice", (q) => q.eq("invoiceId", args.invoiceId))
+      .withIndex("by_org_invoice", (q) =>
+        q.eq("orgId", args.orgId).eq("invoiceId", args.invoiceId)
+      )
       .collect();
 
     for (const item of existing) {
@@ -717,6 +749,7 @@ export const replaceLineItemRecords = internalMutation({
     const ids: Id<"invoiceLineItems">[] = [];
     for (const item of args.lineItems) {
       const id = await ctx.db.insert("invoiceLineItems", {
+        orgId: args.orgId,
         invoiceId: args.invoiceId,
         serviceId: item.serviceId,
         brand: item.brand,
@@ -741,6 +774,7 @@ export const replaceLineItemRecords = internalMutation({
  */
 export const updateInvoiceRecord = internalMutation({
   args: {
+    orgId: v.string(),
     invoiceId: v.id("invoices"),
     primaryBrand: v.string(),
     participatingBrands: v.array(v.string()),
@@ -748,6 +782,7 @@ export const updateInvoiceRecord = internalMutation({
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    ensureOrgAccess(await ctx.db.get(args.invoiceId), args.orgId, "Invoice not found");
     await ctx.db.patch(args.invoiceId, {
       primaryBrand: args.primaryBrand,
       participatingBrands: args.participatingBrands,
@@ -773,9 +808,10 @@ export const createLedgerDraftInvoice = action({
     status?: "draft";
     totalCents?: number;
     error?: string;
-  }> => {
+  }> => withOrg(ctx, async (orgId) => {
     try {
       const client = await ctx.runQuery(internal.invoiceActions.getClientById, {
+        orgId,
         clientId: args.clientId,
       });
 
@@ -793,6 +829,7 @@ export const createLedgerDraftInvoice = action({
       const invoiceNumber = generateInvoiceNumber();
 
       const invoiceId = await ctx.runMutation(internal.invoiceActions.createInvoiceRecord, {
+        orgId,
         invoiceNumber,
         primaryBrand,
         participatingBrands,
@@ -803,6 +840,7 @@ export const createLedgerDraftInvoice = action({
       });
 
       await ctx.runMutation(internal.invoiceActions.createLineItemRecords, {
+        orgId,
         invoiceId,
         lineItems: args.lineItems,
       });
@@ -819,7 +857,7 @@ export const createLedgerDraftInvoice = action({
       console.error("❌ Failed to create local draft invoice:", errorMessage);
       return { success: false, error: errorMessage };
     }
-  },
+  }),
 });
 
 /**
@@ -838,9 +876,10 @@ export const updateLedgerDraftInvoice = action({
     status?: "draft";
     totalCents?: number;
     error?: string;
-  }> => {
+  }> => withOrg(ctx, async (orgId) => {
     try {
       const invoice = await ctx.runQuery(internal.invoiceActions.getInvoiceById, {
+        orgId,
         invoiceId: args.invoiceId,
       });
 
@@ -860,6 +899,7 @@ export const updateLedgerDraftInvoice = action({
       }
 
       await ctx.runMutation(internal.invoiceActions.updateInvoiceRecord, {
+        orgId,
         invoiceId: args.invoiceId,
         primaryBrand,
         participatingBrands,
@@ -868,6 +908,7 @@ export const updateLedgerDraftInvoice = action({
       });
 
       await ctx.runMutation(internal.invoiceActions.replaceLineItemRecords, {
+        orgId,
         invoiceId: args.invoiceId,
         lineItems: args.lineItems,
       });
@@ -884,7 +925,7 @@ export const updateLedgerDraftInvoice = action({
       console.error("❌ Failed to update local draft invoice:", errorMessage);
       return { success: false, error: errorMessage };
     }
-  },
+  }),
 });
 
 /**
@@ -903,9 +944,10 @@ export const reviseLedgerInvoice = action({
     status?: "draft";
     totalCents?: number;
     error?: string;
-  }> => {
+  }> => withOrg(ctx, async (orgId) => {
     try {
       const invoice = await ctx.runQuery(internal.invoiceActions.getInvoiceById, {
+        orgId,
         invoiceId: args.invoiceId,
       });
 
@@ -932,6 +974,7 @@ export const reviseLedgerInvoice = action({
       const revisionInvoiceId = await ctx.runMutation(
         internal.invoiceActions.createInvoiceRecord,
         {
+          orgId,
           invoiceNumber,
           primaryBrand,
           participatingBrands,
@@ -945,6 +988,7 @@ export const reviseLedgerInvoice = action({
       );
 
       await ctx.runMutation(internal.invoiceActions.createLineItemRecords, {
+        orgId,
         invoiceId: revisionInvoiceId,
         lineItems: args.lineItems,
       });
@@ -961,7 +1005,7 @@ export const reviseLedgerInvoice = action({
       console.error("❌ Failed to revise local invoice:", errorMessage);
       return { success: false, error: errorMessage };
     }
-  },
+  }),
 });
 
 /**
@@ -985,9 +1029,10 @@ export const createCheckoutSessionForInvoice = action({
     emailSent?: boolean;
     emailSkipped?: string;
     error?: string;
-  }> => {
+  }> => withOrg(ctx, async (orgId) => {
     try {
       const invoice = await ctx.runQuery(internal.invoiceActions.getInvoiceById, {
+        orgId,
         invoiceId: args.invoiceId,
       });
 
@@ -1000,6 +1045,7 @@ export const createCheckoutSessionForInvoice = action({
       }
 
       const client = await ctx.runQuery(internal.invoiceActions.getClientById, {
+        orgId,
         clientId: invoice.clientId,
       });
 
@@ -1010,6 +1056,7 @@ export const createCheckoutSessionForInvoice = action({
       const lineItems = await ctx.runQuery(
         internal.invoiceActions.getInvoiceLineItemsByInvoiceId,
         {
+          orgId,
           invoiceId: args.invoiceId,
         },
       );
@@ -1046,6 +1093,7 @@ export const createCheckoutSessionForInvoice = action({
       );
 
       await ctx.runMutation(internal.invoiceActions.updateInvoiceCheckoutSession, {
+        orgId,
         invoiceId: args.invoiceId,
         stripeCheckoutSessionId: checkoutSession.id,
         status: "open",
@@ -1053,6 +1101,7 @@ export const createCheckoutSessionForInvoice = action({
 
       if (invoice.revisesInvoiceId) {
         await ctx.runMutation(internal.invoiceActions.updateInvoiceStatus, {
+          orgId,
           invoiceId: invoice.revisesInvoiceId,
           status: "void",
         });
@@ -1104,7 +1153,7 @@ export const createCheckoutSessionForInvoice = action({
       console.error("❌ Failed to create Checkout Session:", errorMessage);
       return { success: false, error: errorMessage };
     }
-  },
+  }),
 });
 
 /**
@@ -1126,10 +1175,11 @@ export const createInvoice = action({
     status?: "draft" | "open";
     totalCents?: number;
     error?: string;
-  }> => {
+  }> => withOrg(ctx, async (orgId) => {
     try {
       // 1. Get client info
       const client = await ctx.runQuery(internal.invoiceActions.getClientById, {
+        orgId,
         clientId: args.clientId,
       });
 
@@ -1160,7 +1210,13 @@ export const createInvoice = action({
       const context = getStripeContext(primaryBrand as StripeBrand);
 
       // 5. Ensure client has a Stripe customer ID
-      const stripeCustomerId = await ensureStripeCustomer(ctx, stripe, client, context);
+      const stripeCustomerId = await ensureStripeCustomer(
+        ctx,
+        stripe,
+        client,
+        context,
+        orgId
+      );
 
       // 6. Generate invoice number
       const invoiceNumber = generateInvoiceNumber();
@@ -1169,6 +1225,7 @@ export const createInvoice = action({
       const invoiceId = await ctx.runMutation(
         internal.invoiceActions.createInvoiceRecord,
         {
+          orgId,
           invoiceNumber,
           primaryBrand,
           participatingBrands,
@@ -1259,6 +1316,7 @@ export const createInvoice = action({
 
       // 10. Save line items to Convex
       await ctx.runMutation(internal.invoiceActions.createLineItemRecords, {
+        orgId,
         invoiceId,
         lineItems: args.lineItems,
       });
@@ -1274,6 +1332,7 @@ export const createInvoice = action({
 
       // 12. Update invoice with Stripe ID and final status
       await ctx.runMutation(internal.invoiceActions.updateInvoiceStripeId, {
+        orgId,
         invoiceId,
         stripeInvoiceId: stripeInvoice.id,
         status: finalStatus,
@@ -1294,7 +1353,7 @@ export const createInvoice = action({
       console.error("❌ Failed to create invoice:", errorMessage);
       return { success: false, error: errorMessage };
     }
-  },
+  }),
 });
 
 /**
@@ -1314,9 +1373,10 @@ export const updateDraftInvoice = action({
     status?: "draft";
     totalCents?: number;
     error?: string;
-  }> => {
+  }> => withOrg(ctx, async (orgId) => {
     try {
       const invoice = await ctx.runQuery(internal.invoiceActions.getInvoiceById, {
+        orgId,
         invoiceId: args.invoiceId,
       });
 
@@ -1333,6 +1393,7 @@ export const updateDraftInvoice = action({
       }
 
       const client = await ctx.runQuery(internal.invoiceActions.getClientById, {
+        orgId,
         clientId: invoice.clientId,
       });
 
@@ -1363,7 +1424,13 @@ export const updateDraftInvoice = action({
 
       const stripe = getStripeClient();
       const context = getStripeContext(invoice.primaryBrand as StripeBrand);
-      const stripeCustomerId = await ensureStripeCustomer(ctx, stripe, client, context);
+      const stripeCustomerId = await ensureStripeCustomer(
+        ctx,
+        stripe,
+        client,
+        context,
+        orgId
+      );
 
       await stripe.invoices.update(
         invoice.stripeInvoiceId,
@@ -1391,6 +1458,7 @@ export const updateDraftInvoice = action({
       );
 
       await ctx.runMutation(internal.invoiceActions.updateInvoiceRecord, {
+        orgId,
         invoiceId: args.invoiceId,
         primaryBrand,
         participatingBrands,
@@ -1399,6 +1467,7 @@ export const updateDraftInvoice = action({
       });
 
       await ctx.runMutation(internal.invoiceActions.replaceLineItemRecords, {
+        orgId,
         invoiceId: args.invoiceId,
         lineItems: normalizedLineItems,
       });
@@ -1418,7 +1487,7 @@ export const updateDraftInvoice = action({
       console.error("❌ Failed to update draft invoice:", errorMessage);
       return { success: false, error: errorMessage };
     }
-  },
+  }),
 });
 
 /**
@@ -1438,9 +1507,10 @@ export const reviseInvoice = action({
     status?: "draft";
     totalCents?: number;
     error?: string;
-  }> => {
+  }> => withOrg(ctx, async (orgId) => {
     try {
       const invoice = await ctx.runQuery(internal.invoiceActions.getInvoiceById, {
+        orgId,
         invoiceId: args.invoiceId,
       });
 
@@ -1518,6 +1588,7 @@ export const reviseInvoice = action({
       }
 
       const client = await ctx.runQuery(internal.invoiceActions.getClientById, {
+        orgId,
         clientId: invoice.clientId,
       });
 
@@ -1525,7 +1596,13 @@ export const reviseInvoice = action({
         return { success: false, error: "Client not found" };
       }
 
-      const stripeCustomerId = await ensureStripeCustomer(ctx, stripe, client, context);
+      const stripeCustomerId = await ensureStripeCustomer(
+        ctx,
+        stripe,
+        client,
+        context,
+        orgId
+      );
 
       const brands = new Set<string>();
       let totalCents = 0;
@@ -1563,6 +1640,7 @@ export const reviseInvoice = action({
       const revisionInvoiceId = await ctx.runMutation(
         internal.invoiceActions.createInvoiceRecord,
         {
+          orgId,
           invoiceNumber,
           primaryBrand,
           participatingBrands,
@@ -1603,6 +1681,7 @@ export const reviseInvoice = action({
       );
 
       await ctx.runMutation(internal.invoiceActions.replaceLineItemRecords, {
+        orgId,
         invoiceId: revisionInvoiceId,
         lineItems: normalizedLineItems,
       });
@@ -1622,7 +1701,7 @@ export const reviseInvoice = action({
       console.error("❌ Failed to revise invoice:", errorMessage);
       return { success: false, error: errorMessage };
     }
-  },
+  }),
 });
 
 /**
@@ -1641,10 +1720,11 @@ export const sendDraftInvoice = action({
     emailSent?: boolean;
     emailSkipped?: string;
     error?: string;
-  }> => {
+  }> => withOrg(ctx, async (orgId) => {
     try {
       // Get the invoice from Convex
       const invoice = await ctx.runQuery(internal.invoiceActions.getInvoiceById, {
+        orgId,
         invoiceId: args.invoiceId,
       });
 
@@ -1666,6 +1746,7 @@ export const sendDraftInvoice = action({
         }
 
         const client = await ctx.runQuery(internal.invoiceActions.getClientById, {
+          orgId,
           clientId: invoice.clientId,
         });
 
@@ -1675,7 +1756,7 @@ export const sendDraftInvoice = action({
 
         const lineItems = await ctx.runQuery(
           internal.invoiceActions.getInvoiceLineItemsByInvoiceId,
-          { invoiceId: args.invoiceId },
+          { orgId, invoiceId: args.invoiceId },
         );
 
         if (lineItems.length === 0) {
@@ -1709,6 +1790,7 @@ export const sendDraftInvoice = action({
         );
 
         await ctx.runMutation(internal.invoiceActions.updateInvoiceCheckoutSession, {
+          orgId,
           invoiceId: args.invoiceId,
           stripeCheckoutSessionId: checkoutSession.id,
           status: "open",
@@ -1716,6 +1798,7 @@ export const sendDraftInvoice = action({
 
         if (invoice.revisesInvoiceId) {
           await ctx.runMutation(internal.invoiceActions.updateInvoiceStatus, {
+            orgId,
             invoiceId: invoice.revisesInvoiceId,
             status: "void",
           });
@@ -1772,12 +1855,14 @@ export const sendDraftInvoice = action({
 
       // Update status in Convex
       await ctx.runMutation(internal.invoiceActions.updateInvoiceStatus, {
+        orgId,
         invoiceId: args.invoiceId,
         status: "open",
       });
 
       if (invoice.revisesInvoiceId) {
         await ctx.runMutation(internal.invoiceActions.updateInvoiceStatus, {
+          orgId,
           invoiceId: invoice.revisesInvoiceId,
           status: "void",
         });
@@ -1791,7 +1876,7 @@ export const sendDraftInvoice = action({
       console.error("❌ Failed to send invoice:", errorMessage);
       return { success: false, error: errorMessage };
     }
-  },
+  }),
 });
 
 /**
@@ -1809,9 +1894,10 @@ export const createInvoicePaymentIntent = action({
     amountCents?: number;
     currency?: string;
     error?: string;
-  }> => {
+  }> => withOrg(ctx, async (orgId) => {
     try {
       const invoice = await ctx.runQuery(internal.invoiceActions.getInvoiceById, {
+        orgId,
         invoiceId: args.invoiceId,
       });
 
@@ -1829,6 +1915,7 @@ export const createInvoicePaymentIntent = action({
       const lineItems = await ctx.runQuery(
         internal.invoiceActions.getInvoiceLineItemsByInvoiceId,
         {
+          orgId,
           invoiceId: args.invoiceId,
         },
       );
@@ -1884,16 +1971,20 @@ export const createInvoicePaymentIntent = action({
       console.error("❌ Failed to create PaymentIntent:", errorMessage);
       return { success: false, error: errorMessage };
     }
-  },
+  }),
 });
 
 /**
  * Internal query to get invoice by ID
  */
 export const getInvoiceById = internalQuery({
-  args: { invoiceId: v.id("invoices") },
+  args: {
+    orgId: v.string(),
+    invoiceId: v.id("invoices"),
+  },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.invoiceId);
+    const invoice = await ctx.db.get(args.invoiceId);
+    return invoice?.orgId === args.orgId ? invoice : null;
   },
 });
 
@@ -1901,11 +1992,16 @@ export const getInvoiceById = internalQuery({
  * Internal query to fetch all line items for one invoice.
  */
 export const getInvoiceLineItemsByInvoiceId = internalQuery({
-  args: { invoiceId: v.id("invoices") },
+  args: {
+    orgId: v.string(),
+    invoiceId: v.id("invoices"),
+  },
   handler: async (ctx, args) => {
     return await ctx.db
       .query("invoiceLineItems")
-      .withIndex("by_invoice", (q) => q.eq("invoiceId", args.invoiceId))
+      .withIndex("by_org_invoice", (q) =>
+        q.eq("orgId", args.orgId).eq("invoiceId", args.invoiceId)
+      )
       .collect();
   },
 });
@@ -1915,6 +2011,7 @@ export const getInvoiceLineItemsByInvoiceId = internalQuery({
  */
 export const updateInvoiceStatus = internalMutation({
   args: {
+    orgId: v.string(),
     invoiceId: v.id("invoices"),
     status: v.union(
       v.literal("draft"),
@@ -1925,6 +2022,7 @@ export const updateInvoiceStatus = internalMutation({
     ),
   },
   handler: async (ctx, args) => {
+    ensureOrgAccess(await ctx.db.get(args.invoiceId), args.orgId, "Invoice not found");
     await ctx.db.patch(args.invoiceId, { status: args.status });
   },
 });
@@ -1936,10 +2034,10 @@ export const getBrandBalance = query({
   args: {
     brand: brandUnion,
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args) => withOrg(ctx, async (orgId) => {
     const ledgerEntries = await ctx.db
       .query("brandLedger")
-      .withIndex("by_brand", (q) => q.eq("brand", args.brand))
+      .withIndex("by_org_brand", (q) => q.eq("orgId", orgId).eq("brand", args.brand))
       .collect();
 
     let pendingCents = 0;
@@ -1969,7 +2067,7 @@ export const getBrandBalance = query({
       withdrawableCents,
       amountOwedCents: pendingCents + creditedCents + withdrawableCents,
     };
-  },
+  }),
 });
 
 /**
@@ -1981,7 +2079,7 @@ export const getMonthlyBrandSummary = query({
     month: v.number(), // 1-12
     year: v.number(), // e.g. 2026
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args) => withOrg(ctx, async (orgId) => {
     if (!Number.isInteger(args.month) || args.month < 1 || args.month > 12) {
       throw new Error("month must be an integer between 1 and 12");
     }
@@ -1995,8 +2093,8 @@ export const getMonthlyBrandSummary = query({
 
     const ledgerEntries = await ctx.db
       .query("brandLedger")
-      .withIndex("by_created_at", (q) =>
-        q.gte("createdAt", periodStart).lt("createdAt", periodEnd)
+      .withIndex("by_org_created_at", (q) =>
+        q.eq("orgId", orgId).gte("createdAt", periodStart).lt("createdAt", periodEnd)
       )
       .collect();
 
@@ -2049,7 +2147,7 @@ export const getMonthlyBrandSummary = query({
       byBrand,
       entryCount: ledgerEntries.length,
     };
-  },
+  }),
 });
 
 /**
@@ -2060,7 +2158,7 @@ export const processManualPayout = mutation({
     brand: brandUnion,
     ledgerEntryIds: v.array(v.id("brandLedger")),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args) => withOrg(ctx, async (orgId) => {
     if (args.ledgerEntryIds.length === 0) {
       return {
         success: false,
@@ -2082,6 +2180,14 @@ export const processManualPayout = mutation({
         skipped.push({
           ledgerEntryId,
           reason: "not_found",
+        });
+        continue;
+      }
+
+      if (entry.orgId !== orgId) {
+        skipped.push({
+          ledgerEntryId,
+          reason: "org_mismatch",
         });
         continue;
       }
@@ -2117,7 +2223,7 @@ export const processManualPayout = mutation({
       skippedCount: skipped.length,
       skipped,
     };
-  },
+  }),
 });
 
 /**
@@ -2137,15 +2243,21 @@ export const listInvoices = query({
     brand: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args) => withOrg(ctx, async (orgId) => {
     const limit = args.limit ?? 50;
     const invoices = args.status
       ? await ctx.db
           .query("invoices")
-          .withIndex("by_status", (q) => q.eq("status", args.status!))
+          .withIndex("by_org_status", (q) =>
+            q.eq("orgId", orgId).eq("status", args.status!)
+          )
           .order("desc")
           .take(limit)
-      : await ctx.db.query("invoices").order("desc").take(limit);
+      : await ctx.db
+          .query("invoices")
+          .withIndex("by_org", (q) => q.eq("orgId", orgId))
+          .order("desc")
+          .take(limit);
 
     // Filter by brand if specified
     if (args.brand) {
@@ -2155,7 +2267,7 @@ export const listInvoices = query({
     }
 
     return invoices;
-  },
+  }),
 });
 
 /**
@@ -2163,23 +2275,26 @@ export const listInvoices = query({
  */
 export const getInvoiceWithLineItems = query({
   args: { invoiceId: v.id("invoices") },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args) => withOrg(ctx, async (orgId) => {
     const invoice = await ctx.db.get(args.invoiceId);
-    if (!invoice) return null;
+    if (!invoice || invoice.orgId !== orgId) return null;
 
     const lineItems = await ctx.db
       .query("invoiceLineItems")
-      .withIndex("by_invoice", (q) => q.eq("invoiceId", args.invoiceId))
+      .withIndex("by_org_invoice", (q) =>
+        q.eq("orgId", orgId).eq("invoiceId", args.invoiceId)
+      )
       .collect();
 
     const client = await ctx.db.get(invoice.clientId);
+    const scopedClient = client?.orgId === orgId ? client : null;
 
     return {
       ...invoice,
       lineItems,
-      client,
+      client: scopedClient,
     };
-  },
+  }),
 });
 
 /**
@@ -2189,8 +2304,11 @@ export const getRevenueByBrand = query({
   args: {
     status: v.optional(v.string()),
   },
-  handler: async (ctx, args) => {
-    const invoices = await ctx.db.query("invoices").collect();
+  handler: async (ctx, args) => withOrg(ctx, async (orgId) => {
+    const invoices = await ctx.db
+      .query("invoices")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .collect();
 
     // Filter by status if provided
     const filteredInvoices = args.status
@@ -2203,7 +2321,9 @@ export const getRevenueByBrand = query({
     for (const invoice of filteredInvoices) {
       const lineItems = await ctx.db
         .query("invoiceLineItems")
-        .withIndex("by_invoice", (q) => q.eq("invoiceId", invoice._id))
+        .withIndex("by_org_invoice", (q) =>
+          q.eq("orgId", orgId).eq("invoiceId", invoice._id)
+        )
         .collect();
 
       for (const item of lineItems) {
@@ -2214,5 +2334,5 @@ export const getRevenueByBrand = query({
     }
 
     return revenueByBrand;
-  },
+  }),
 });

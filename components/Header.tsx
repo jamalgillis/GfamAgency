@@ -70,10 +70,12 @@ export function Header({ title, subtitle, onNewInvoice }: HeaderProps) {
           </div>
 
           {/* New Invoice Button */}
-          <button onClick={onNewInvoice} className="btn-primary whitespace-nowrap">
-            <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">New Invoice</span>
-          </button>
+          {onNewInvoice && (
+            <button onClick={onNewInvoice} className="btn-primary whitespace-nowrap">
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">New Invoice</span>
+            </button>
+          )}
 
           {/* Notifications */}
           <button className="relative p-2.5 rounded-lg bg-surface-tertiary hover:bg-surface-hover transition-colors">

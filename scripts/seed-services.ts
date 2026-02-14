@@ -648,6 +648,8 @@ const servicesData = [
 async function main() {
   // Get the Convex URL from environment
   const convexUrl = process.env.CONVEX_URL || process.env.NEXT_PUBLIC_CONVEX_URL;
+  const seedOrgId =
+    process.env.CLERK_SEED_ORG_ID || process.env.SEED_ORG_ID || "dev-seed-org";
 
   if (!convexUrl) {
     console.error("❌ CONVEX_URL or NEXT_PUBLIC_CONVEX_URL not found in environment");
@@ -657,12 +659,14 @@ async function main() {
 
   console.log("🚀 Starting Convex seed...");
   console.log(`📍 Convex URL: ${convexUrl}`);
+  console.log(`🏢 Org ID: ${seedOrgId}`);
   console.log(`📦 Services to seed: ${servicesData.length}`);
 
   const client = new ConvexHttpClient(convexUrl);
 
   try {
     const result = await client.mutation(api.seed.seedServices, {
+      orgId: seedOrgId,
       services: servicesData,
       clearExisting: true,
     });

@@ -12,12 +12,14 @@ import {
   isOrganizationKey,
   type StripeBrand,
 } from "./lib/stripe";
+import { ensureOrgAccess, requireOrgId, withOrg } from "./lib/org";
 
 /**
  * Internal query to get unsynced services
  */
 export const getUnsyncedServices = internalQuery({
   args: {
+    orgId: v.string(),
     limit: v.optional(v.number()),
     brand: v.optional(v.string()),
   },
@@ -28,14 +30,18 @@ export const getUnsyncedServices = internalQuery({
       // Filter by brand
       return await ctx.db
         .query("services")
-        .withIndex("by_sync_status", (q) => q.eq("stripeSynced", false))
-        .filter((q) => q.eq(q.field("brand"), args.brand))
+        .withIndex("by_org_sync_status", (q) =>
+          q.eq("orgId", args.orgId).eq("stripeSynced", false)
+        )
+        .filter((q) => q.eq(q.field("brand"), args.brand!))
         .take(limit);
     }
 
     return await ctx.db
       .query("services")
-      .withIndex("by_sync_status", (q) => q.eq("stripeSynced", false))
+      .withIndex("by_org_sync_status", (q) =>
+        q.eq("orgId", args.orgId).eq("stripeSynced", false)
+      )
       .take(limit);
   },
 });
@@ -45,11 +51,13 @@ export const getUnsyncedServices = internalQuery({
  */
 export const updateServiceStripeIds = internalMutation({
   args: {
+    orgId: v.string(),
     serviceId: v.id("services"),
     stripeProductId: v.string(),
     stripePriceId: v.string(),
   },
   handler: async (ctx, args) => {
+    ensureOrgAccess(await ctx.db.get(args.serviceId), args.orgId, "Service not found");
     await ctx.db.patch(args.serviceId, {
       stripeProductId: args.stripeProductId,
       stripePriceId: args.stripePriceId,
@@ -63,11 +71,12 @@ export const updateServiceStripeIds = internalMutation({
  */
 export const markServiceSyncFailed = internalMutation({
   args: {
+    orgId: v.string(),
     serviceId: v.id("services"),
   },
-  handler: async (ctx, args) => {
+  handler: async (_ctx, args) => {
     // Keep stripeSynced as false so it can be retried
-    console.error(`Failed to sync service ${args.serviceId}`);
+    console.error(`Failed to sync service ${args.serviceId} for org ${args.orgId}`);
   },
 });
 
@@ -79,9 +88,12 @@ export const syncSingleService = action({
   args: {
     serviceId: v.id("services"),
   },
-  handler: async (ctx, args): Promise<{ success: boolean; error?: string }> => {
+  handler: async (ctx, args): Promise<{ success: boolean; error?: string }> => withOrg(
+    ctx,
+    async (orgId) => {
     // Get the service from Convex
     const service = await ctx.runQuery(internal.stripeSync.getServiceById, {
+      orgId,
       serviceId: args.serviceId,
     });
 
@@ -130,6 +142,7 @@ export const syncSingleService = action({
 
       // Update Convex record with Stripe IDs
       await ctx.runMutation(internal.stripeSync.updateServiceStripeIds, {
+        orgId,
         serviceId: args.serviceId,
         stripeProductId: product.id,
         stripePriceId: price.id,
@@ -144,12 +157,13 @@ export const syncSingleService = action({
       console.error(`❌ Failed to sync "${service.name}" (${service.brand}):`, errorMessage);
 
       await ctx.runMutation(internal.stripeSync.markServiceSyncFailed, {
+        orgId,
         serviceId: args.serviceId,
       });
 
       return { success: false, error: errorMessage };
     }
-  },
+  }),
 });
 
 /**
@@ -157,10 +171,12 @@ export const syncSingleService = action({
  */
 export const getServiceById = internalQuery({
   args: {
+    orgId: v.string(),
     serviceId: v.id("services"),
   },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.serviceId);
+    const service = await ctx.db.get(args.serviceId);
+    return service?.orgId === args.orgId ? service : null;
   },
 });
 
@@ -179,7 +195,7 @@ export const syncBrandServices = action({
     synced: number;
     failed: number;
     errors: string[];
-  }> => {
+  }> => withOrg(ctx, async (orgId) => {
     const limit = args.limit ?? 50;
     const errors: string[] = [];
     let synced = 0;
@@ -188,7 +204,7 @@ export const syncBrandServices = action({
     // Get unsynced services for this brand
     const unsyncedServices = await ctx.runQuery(
       internal.stripeSync.getUnsyncedServices,
-      { limit, brand: args.brand }
+      { orgId, limit, brand: args.brand }
     );
 
     console.log(`🔄 Syncing ${unsyncedServices.length} ${args.brand} services...`);
@@ -220,7 +236,7 @@ export const syncBrandServices = action({
       failed,
       errors,
     };
-  },
+  }),
 });
 
 /**
@@ -237,7 +253,7 @@ export const syncAllServices = action({
     failed: number;
     byBrand: Record<string, { synced: number; failed: number }>;
     errors: string[];
-  }> => {
+  }> => withOrg(ctx, async (_orgId) => {
     const limit = args.limit ?? 100;
     const allErrors: string[] = [];
     let totalSynced = 0;
@@ -278,23 +294,29 @@ export const syncAllServices = action({
       byBrand,
       errors: allErrors,
     };
-  },
+  }),
 });
 
 /**
  * Check sync status - how many services need syncing (internal)
  */
 export const getSyncStatus = internalQuery({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    orgId: v.string(),
+  },
+  handler: async (ctx, args) => {
     const unsynced = await ctx.db
       .query("services")
-      .withIndex("by_sync_status", (q) => q.eq("stripeSynced", false))
+      .withIndex("by_org_sync_status", (q) =>
+        q.eq("orgId", args.orgId).eq("stripeSynced", false)
+      )
       .collect();
 
     const synced = await ctx.db
       .query("services")
-      .withIndex("by_sync_status", (q) => q.eq("stripeSynced", true))
+      .withIndex("by_org_sync_status", (q) =>
+        q.eq("orgId", args.orgId).eq("stripeSynced", true)
+      )
       .collect();
 
     return {
@@ -310,8 +332,11 @@ export const getSyncStatus = internalQuery({
  */
 export const checkSyncStatus = query({
   args: {},
-  handler: async (ctx) => {
-    const services = await ctx.db.query("services").collect();
+  handler: async (ctx) => withOrg(ctx, async (orgId) => {
+    const services = await ctx.db
+      .query("services")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .collect();
 
     // Group by brand and sync status
     const byBrand: Record<string, { synced: number; unsynced: number }> = {};
@@ -337,7 +362,7 @@ export const checkSyncStatus = query({
       needsSync: totalUnsynced > 0,
       byBrand,
     };
-  },
+  }),
 });
 
 /**
@@ -345,7 +370,7 @@ export const checkSyncStatus = query({
  */
 export const checkStripeAccount = action({
   args: {},
-  handler: async (): Promise<{
+  handler: async (ctx): Promise<{
     configured: boolean;
     hasApiKey: boolean;
     hasWebhookSecret: boolean;
@@ -355,6 +380,7 @@ export const checkStripeAccount = action({
     brandAccountsConfigured: boolean;
     missingBrandAccounts: string[];
   }> => {
+    await requireOrgId(ctx);
     const status = checkStripeConfiguration();
     const isOrgKey = isOrganizationKey();
     const brandStatus = checkBrandAccountConfiguration();
@@ -376,13 +402,14 @@ export const checkStripeAccount = action({
  */
 export const pingStripe = action({
   args: {},
-  handler: async (): Promise<{
+  handler: async (ctx): Promise<{
     ok: boolean;
     message: string;
     keyMode: "test" | "live" | "unknown";
     isOrgKey: boolean;
     contextAttached: boolean;
   }> => {
+    await requireOrgId(ctx);
     const stripe = getStripeClient();
     const keyMode = getStripeKeyMode();
     const isOrgKey = isOrganizationKey();

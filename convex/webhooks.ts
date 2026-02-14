@@ -99,10 +99,12 @@ export const getInvoiceByStripeId = internalQuery({
     stripeInvoiceId: v.string(),
   },
   handler: async (ctx, args) => {
-    // Note: This requires iterating since we don't have an index on stripeInvoiceId
-    // In production, you'd want to add this index
-    const invoices = await ctx.db.query("invoices").collect();
-    return invoices.find((inv) => inv.stripeInvoiceId === args.stripeInvoiceId);
+    return await ctx.db
+      .query("invoices")
+      .withIndex("by_stripe_invoice_id", (q) =>
+        q.eq("stripeInvoiceId", args.stripeInvoiceId)
+      )
+      .first();
   },
 });
 
@@ -142,7 +144,9 @@ export const processPaidInvoiceLedgerAttribution = internalMutation({
 
     const lineItems = await ctx.db
       .query("invoiceLineItems")
-      .withIndex("by_invoice", (q) => q.eq("invoiceId", args.invoiceId))
+      .withIndex("by_org_invoice", (q) =>
+        q.eq("orgId", invoice.orgId).eq("invoiceId", args.invoiceId)
+      )
       .collect();
 
     if (lineItems.length === 0) {
@@ -164,7 +168,9 @@ export const processPaidInvoiceLedgerAttribution = internalMutation({
     // Idempotency: webhook retries should not create duplicate brand ledger rows.
     const existingLedgerRows = await ctx.db
       .query("brandLedger")
-      .withIndex("by_invoice", (q) => q.eq("invoiceId", args.invoiceId))
+      .withIndex("by_org_invoice", (q) =>
+        q.eq("orgId", invoice.orgId).eq("invoiceId", args.invoiceId)
+      )
       .collect();
 
     const existingBrands = new Set<(typeof lineItems)[number]["brand"]>(
@@ -194,6 +200,7 @@ export const processPaidInvoiceLedgerAttribution = internalMutation({
       const amountCents = grossAmountCents - platformFeeCents;
 
       await ctx.db.insert("brandLedger", {
+        orgId: invoice.orgId,
         brand,
         invoiceId: args.invoiceId,
         amountCents,

@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { query } from "./_generated/server";
 import { brandUnion } from "./schema";
+import { withOrg } from "./lib/org";
 
 /**
  * List all active services
@@ -11,14 +12,14 @@ export const list = query({
     category: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args) => withOrg(ctx, async (orgId) => {
     const limit = args.limit ?? 100;
 
     // Filter by brand if specified
     if (args.brand) {
       const services = await ctx.db
         .query("services")
-        .withIndex("by_brand", (q) => q.eq("brand", args.brand!))
+        .withIndex("by_org_brand", (q) => q.eq("orgId", orgId).eq("brand", args.brand!))
         .filter((q) => q.eq(q.field("status"), "active"))
         .take(limit);
 
@@ -33,7 +34,9 @@ export const list = query({
     if (args.category) {
       return await ctx.db
         .query("services")
-        .withIndex("by_category", (q) => q.eq("category", args.category!))
+        .withIndex("by_org_category", (q) =>
+          q.eq("orgId", orgId).eq("category", args.category!)
+        )
         .filter((q) => q.eq(q.field("status"), "active"))
         .take(limit);
     }
@@ -41,9 +44,9 @@ export const list = query({
     // Return all active services
     return await ctx.db
       .query("services")
-      .withIndex("by_status", (q) => q.eq("status", "active"))
+      .withIndex("by_org_status", (q) => q.eq("orgId", orgId).eq("status", "active"))
       .take(limit);
-  },
+  }),
 });
 
 /**
@@ -51,9 +54,10 @@ export const list = query({
  */
 export const get = query({
   args: { serviceId: v.id("services") },
-  handler: async (ctx, args) => {
-    return await ctx.db.get(args.serviceId);
-  },
+  handler: async (ctx, args) => withOrg(ctx, async (orgId) => {
+    const service = await ctx.db.get(args.serviceId);
+    return service?.orgId === orgId ? service : null;
+  }),
 });
 
 /**
@@ -61,10 +65,10 @@ export const get = query({
  */
 export const listByBrand = query({
   args: {},
-  handler: async (ctx) => {
+  handler: async (ctx) => withOrg(ctx, async (orgId) => {
     const services = await ctx.db
       .query("services")
-      .withIndex("by_status", (q) => q.eq("status", "active"))
+      .withIndex("by_org_status", (q) => q.eq("orgId", orgId).eq("status", "active"))
       .collect();
 
     // Group by brand
@@ -82,7 +86,7 @@ export const listByBrand = query({
     }
 
     return grouped;
-  },
+  }),
 });
 
 /**
@@ -90,13 +94,13 @@ export const listByBrand = query({
  */
 export const getCategories = query({
   args: {},
-  handler: async (ctx) => {
+  handler: async (ctx) => withOrg(ctx, async (orgId) => {
     const services = await ctx.db
       .query("services")
-      .withIndex("by_status", (q) => q.eq("status", "active"))
+      .withIndex("by_org_status", (q) => q.eq("orgId", orgId).eq("status", "active"))
       .collect();
 
     const categories = new Set(services.map((s) => s.category));
     return [...categories].sort();
-  },
+  }),
 });

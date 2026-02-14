@@ -8,6 +8,7 @@ import { brandUnion, serviceStatusUnion } from "./schema";
  */
 export const seedServices = mutation({
   args: {
+    orgId: v.optional(v.string()),
     services: v.array(
       v.object({
         brand: brandUnion,
@@ -27,9 +28,14 @@ export const seedServices = mutation({
     clearExisting: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
+    const orgId = args.orgId ?? "dev-seed-org";
+
     // Optionally clear existing services
     if (args.clearExisting) {
-      const existing = await ctx.db.query("services").collect();
+      const existing = await ctx.db
+        .query("services")
+        .withIndex("by_org", (q) => q.eq("orgId", orgId))
+        .collect();
       for (const service of existing) {
         await ctx.db.delete(service._id);
       }
@@ -39,7 +45,7 @@ export const seedServices = mutation({
     // Insert new services
     const inserted: string[] = [];
     for (const service of args.services) {
-      const id = await ctx.db.insert("services", service);
+      const id = await ctx.db.insert("services", { ...service, orgId });
       inserted.push(id);
     }
 
@@ -56,6 +62,7 @@ export const seedServices = mutation({
  */
 export const seedSingleService = mutation({
   args: {
+    orgId: v.optional(v.string()),
     brand: brandUnion,
     name: v.string(),
     description: v.string(),
@@ -70,7 +77,8 @@ export const seedSingleService = mutation({
     stripePriceId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const id = await ctx.db.insert("services", args);
+    const { orgId = "dev-seed-org", ...service } = args;
+    const id = await ctx.db.insert("services", { ...service, orgId });
     return { success: true, id };
   },
 });
@@ -79,9 +87,15 @@ export const seedSingleService = mutation({
  * Clear all services (use with caution)
  */
 export const clearServices = mutation({
-  args: {},
-  handler: async (ctx) => {
-    const existing = await ctx.db.query("services").collect();
+  args: {
+    orgId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const orgId = args.orgId ?? "dev-seed-org";
+    const existing = await ctx.db
+      .query("services")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .collect();
     for (const service of existing) {
       await ctx.db.delete(service._id);
     }
@@ -98,12 +112,27 @@ export const clearServices = mutation({
  */
 export const seedClients = mutation({
   args: {
+    orgId: v.optional(v.string()),
     clearExisting: v.optional(v.boolean()),
+    clients: v.optional(
+      v.array(
+        v.object({
+          name: v.string(),
+          company: v.string(),
+          email: v.string(),
+        })
+      )
+    ),
   },
   handler: async (ctx, args) => {
+    const orgId = args.orgId ?? "dev-seed-org";
+
     // Optionally clear existing clients
     if (args.clearExisting) {
-      const existing = await ctx.db.query("clients").collect();
+      const existing = await ctx.db
+        .query("clients")
+        .withIndex("by_org", (q) => q.eq("orgId", orgId))
+        .collect();
       for (const client of existing) {
         await ctx.db.delete(client._id);
       }
@@ -111,7 +140,7 @@ export const seedClients = mutation({
     }
 
     // Sample clients for testing
-    const testClients = [
+    const fallbackClients = [
       {
         name: "John Smith",
         company: "Smith & Co Marketing",
@@ -138,17 +167,19 @@ export const seedClients = mutation({
         email: "robert@wilsonsports.com",
       },
     ];
+    const testClients = args.clients ?? fallbackClients;
 
     const inserted: string[] = [];
     for (const client of testClients) {
       // Check if client already exists
       const existing = await ctx.db
         .query("clients")
-        .withIndex("by_email", (q) => q.eq("email", client.email))
+        .withIndex("by_org_email", (q) => q.eq("orgId", orgId).eq("email", client.email))
         .first();
 
       if (!existing) {
         const id = await ctx.db.insert("clients", {
+          orgId,
           ...client,
           stripeCustomerId: undefined,
         });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { OrganizationSwitcher } from "@clerk/nextjs";
 import { Sidebar, MobileMenuButton } from "./Sidebar";
 
 interface DashboardShellProps {
@@ -31,6 +32,13 @@ export function DashboardShell({ children }: DashboardShellProps) {
       {/* Main Content */}
       <main className="min-h-screen p-4 pt-20 md:pt-6 md:p-6 lg:p-8 ml-0 md:ml-sidebar lg:ml-sidebar-collapsed xl:ml-sidebar transition-all duration-300">
         <div className="max-w-7xl mx-auto">
+          <div className="mb-4 md:mb-6 flex justify-end">
+            <OrganizationSwitcher
+              hidePersonal
+              afterSelectOrganizationUrl="/dashboard"
+              afterCreateOrganizationUrl="/dashboard"
+            />
+          </div>
           {children}
         </div>
       </main>

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { UserButton } from "@clerk/nextjs";
 import {
   LayoutDashboard,
   Briefcase,
@@ -109,14 +110,11 @@ export function Sidebar({ isOpen = false, onToggle }: SidebarProps) {
 
         {/* User Profile */}
         <div className="p-4 border-t border-sidebar-border">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
-              <span className="text-white text-sm font-medium">JG</span>
-            </div>
-            <div className="lg:hidden xl:block">
-              <p className="text-white text-sm font-medium">J. Gillis</p>
-              <p className="text-meta text-sidebar-text">Admin</p>
-            </div>
+          <div className="flex items-center justify-between">
+            <p className="text-meta text-sidebar-text text-xs uppercase tracking-wide">
+              Account
+            </p>
+            <UserButton afterSignOutUrl="/sign-in" />
           </div>
         </div>
       </aside>
