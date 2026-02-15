@@ -11,7 +11,9 @@
 import type * as clients from "../clients.js";
 import type * as http from "../http.js";
 import type * as invoiceActions from "../invoiceActions.js";
+import type * as lib_org from "../lib/org.js";
 import type * as lib_stripe from "../lib/stripe.js";
+import type * as orgBranding from "../orgBranding.js";
 import type * as seed from "../seed.js";
 import type * as services from "../services.js";
 import type * as stripeSync from "../stripeSync.js";
@@ -27,7 +29,9 @@ declare const fullApi: ApiFromModules<{
   clients: typeof clients;
   http: typeof http;
   invoiceActions: typeof invoiceActions;
+  "lib/org": typeof lib_org;
   "lib/stripe": typeof lib_stripe;
+  orgBranding: typeof orgBranding;
   seed: typeof seed;
   services: typeof services;
   stripeSync: typeof stripeSync;

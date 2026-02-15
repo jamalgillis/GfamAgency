@@ -2,15 +2,26 @@ import { auth } from "@clerk/nextjs/server";
 import { OrganizationList } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
 
-export default async function OrganizationSelectPage() {
+type SearchParams = Record<string, string | string[] | undefined>;
+
+export default async function OrganizationSelectPage({
+  searchParams,
+}: {
+  searchParams?: Promise<SearchParams>;
+}) {
   const { userId, orgId } = await auth();
+  const params = (await searchParams) ?? {};
+  const requestedNext = Array.isArray(params.next) ? params.next[0] : params.next;
+  const nextPath = typeof requestedNext === "string" && requestedNext.startsWith("/")
+    ? requestedNext
+    : "/dashboard";
 
   if (!userId) {
     redirect("/sign-in");
   }
 
   if (orgId) {
-    redirect("/dashboard");
+    redirect(nextPath);
   }
 
   return (
@@ -23,8 +34,8 @@ export default async function OrganizationSelectPage() {
 
         <OrganizationList
           hidePersonal
-          afterSelectOrganizationUrl="/dashboard"
-          afterCreateOrganizationUrl="/dashboard"
+          afterSelectOrganizationUrl={nextPath}
+          afterCreateOrganizationUrl={nextPath}
         />
       </div>
     </main>

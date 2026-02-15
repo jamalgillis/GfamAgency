@@ -1046,6 +1046,10 @@
     @apply opacity-100;
   }
 
+  .row-actions.open {
+    @apply opacity-100;
+  }
+
   /* Client Avatar */
   .client-avatar {
     @apply w-9 h-9 rounded-full flex items-center justify-center text-meta-lg font-semibold text-content-inverse flex-shrink-0;

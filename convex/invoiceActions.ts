@@ -1,5 +1,12 @@
 import { v } from "convex/values";
-import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import {
+  action,
+  internalAction,
+  internalMutation,
+  internalQuery,
+  mutation,
+  query,
+} from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { Resend } from "resend";
 import { brandUnion } from "./schema";
@@ -2151,6 +2158,97 @@ export const getMonthlyBrandSummary = query({
 });
 
 /**
+ * Repair legacy brandLedger rows that are missing orgId by deriving orgId from the linked invoice.
+ * Run this after deploying the optional brandLedger.orgId schema update.
+ */
+export const backfillBrandLedgerOrgIds = mutation({
+  args: {
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => withOrg(ctx, async (orgId) => {
+    const limit = Math.min(Math.max(args.limit ?? 2000, 1), 5000);
+    const ledgerEntries = await ctx.db
+      .query("brandLedger")
+      .withIndex("by_created_at")
+      .order("desc")
+      .take(limit);
+
+    let patchedCount = 0;
+    let alreadyCorrectCount = 0;
+    let skippedOtherOrgCount = 0;
+    let missingInvoiceCount = 0;
+
+    for (const entry of ledgerEntries) {
+      const invoice = await ctx.db.get(entry.invoiceId);
+
+      if (!invoice) {
+        missingInvoiceCount += 1;
+        continue;
+      }
+
+      if (invoice.orgId !== orgId) {
+        skippedOtherOrgCount += 1;
+        continue;
+      }
+
+      if (entry.orgId === orgId) {
+        alreadyCorrectCount += 1;
+        continue;
+      }
+
+      await ctx.db.patch(entry._id, { orgId });
+      patchedCount += 1;
+    }
+
+    return {
+      success: true,
+      scannedCount: ledgerEntries.length,
+      patchedCount,
+      alreadyCorrectCount,
+      skippedOtherOrgCount,
+      missingInvoiceCount,
+    };
+  }),
+});
+
+/**
+ * Repair one specific brandLedger row by copying orgId from its linked invoice.
+ */
+export const repairBrandLedgerEntryOrgId = mutation({
+  args: {
+    ledgerEntryId: v.id("brandLedger"),
+  },
+  handler: async (ctx, args) => withOrg(ctx, async (orgId) => {
+    const entry = await ctx.db.get(args.ledgerEntryId);
+    if (!entry) {
+      throw new Error("Ledger entry not found");
+    }
+
+    const invoice = ensureOrgAccess(
+      await ctx.db.get(entry.invoiceId),
+      orgId,
+      "Linked invoice not found"
+    );
+
+    if (entry.orgId === orgId) {
+      return {
+        success: true,
+        patched: false,
+        ledgerEntryId: args.ledgerEntryId,
+      };
+    }
+
+    await ctx.db.patch(args.ledgerEntryId, { orgId: invoice.orgId });
+
+    return {
+      success: true,
+      patched: true,
+      ledgerEntryId: args.ledgerEntryId,
+    };
+  }),
+});
+
+/**
  * Mark specific credited ledger entries as paid out after manual bank transfer.
  */
 export const processManualPayout = mutation({
@@ -2184,7 +2282,16 @@ export const processManualPayout = mutation({
         continue;
       }
 
-      if (entry.orgId !== orgId) {
+      let entryOrgId = entry.orgId;
+      if (entryOrgId !== orgId && !entryOrgId) {
+        const linkedInvoice = await ctx.db.get(entry.invoiceId);
+        if (linkedInvoice?.orgId === orgId) {
+          await ctx.db.patch(ledgerEntryId, { orgId });
+          entryOrgId = orgId;
+        }
+      }
+
+      if (entryOrgId !== orgId) {
         skipped.push({
           ledgerEntryId,
           reason: "org_mismatch",
@@ -2271,6 +2378,53 @@ export const listInvoices = query({
 });
 
 /**
+ * Public query to list invoices for a specific client with line-item previews.
+ */
+export const listInvoicesForClientWithItems = query({
+  args: {
+    clientId: v.id("clients"),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => withOrg(ctx, async (orgId) => {
+    ensureOrgAccess(await ctx.db.get(args.clientId), orgId, "Client not found");
+
+    const limit = args.limit ?? 100;
+    const invoices = await ctx.db
+      .query("invoices")
+      .withIndex("by_org_client", (q) =>
+        q.eq("orgId", orgId).eq("clientId", args.clientId)
+      )
+      .order("desc")
+      .take(limit);
+
+    return await Promise.all(
+      invoices.map(async (invoice) => {
+        const lineItems = await ctx.db
+          .query("invoiceLineItems")
+          .withIndex("by_org_invoice", (q) =>
+            q.eq("orgId", orgId).eq("invoiceId", invoice._id)
+          )
+          .collect();
+
+        return {
+          _id: invoice._id,
+          invoiceNumber: invoice.invoiceNumber,
+          status: invoice.status,
+          totalCents: invoice.totalCents,
+          createdAt: invoice.createdAt,
+          lineItems: lineItems.map((item) => ({
+            _id: item._id,
+            name: item.name,
+            quantity: item.quantity,
+            unitPriceCents: item.customPriceCents ?? item.unitPriceCents,
+          })),
+        };
+      })
+    );
+  }),
+});
+
+/**
  * Public query to get invoice with line items
  */
 export const getInvoiceWithLineItems = query({
@@ -2335,4 +2489,196 @@ export const getRevenueByBrand = query({
 
     return revenueByBrand;
   }),
+});
+
+/**
+ * Backfill orgId for invoices, invoiceLineItems, and services.
+ * Assigns the caller's active org to all documents that are missing orgId.
+ */
+export const backfillAllOrgIds = mutation({
+  args: {
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => withOrg(ctx, async (orgId) => {
+    const limit = Math.min(Math.max(args.limit ?? 2000, 1), 5000);
+    return await backfillOrgIdsImpl(ctx, orgId, limit, false);
+  }),
+});
+
+/**
+ * CLI-safe version of backfillAllOrgIds. Pass orgId explicitly.
+ * Usage: bunx convex run invoiceActions:backfillAllOrgIdsCli '{"orgId":"org_xxx"}'
+ */
+export const backfillAllOrgIdsCli = internalMutation({
+  args: {
+    orgId: v.string(),
+    force: v.optional(v.boolean()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = Math.min(Math.max(args.limit ?? 2000, 1), 5000);
+    return await backfillOrgIdsImpl(ctx, args.orgId, limit, args.force ?? false);
+  },
+});
+
+async function backfillOrgIdsImpl(
+  ctx: { db: any },
+  orgId: string,
+  limit: number,
+  force: boolean,
+) {
+  const tables = ["invoices", "invoiceLineItems", "services", "clients", "brandLedger"] as const;
+  const results: Record<string, { scanned: number; patched: number; alreadyCorrect: number }> = {};
+
+  for (const table of tables) {
+    const docs = await ctx.db.query(table).take(limit);
+    let patched = 0;
+    let alreadyCorrect = 0;
+
+    for (const doc of docs) {
+      const d = doc as { _id: any; orgId?: string };
+      if (d.orgId === orgId) {
+        alreadyCorrect += 1;
+        continue;
+      }
+      if (!d.orgId || force) {
+        await ctx.db.patch(d._id, { orgId });
+        patched += 1;
+      }
+    }
+
+    results[table] = { scanned: docs.length, patched, alreadyCorrect };
+  }
+
+  return { success: true, orgId, results };
+}
+
+/**
+ * Repointable org-scoped tables.
+ */
+const repointableTables = [
+  "services",
+  "invoices",
+  "invoiceLineItems",
+  "brandLedger",
+  "clients",
+  "orgBranding",
+] as const;
+
+const repointableTableValidator = v.union(
+  v.literal("services"),
+  v.literal("invoices"),
+  v.literal("invoiceLineItems"),
+  v.literal("brandLedger"),
+  v.literal("clients"),
+  v.literal("orgBranding"),
+);
+
+type RepointableTable = (typeof repointableTables)[number];
+
+/**
+ * One page of orgId repointing for a single table.
+ */
+export const repointAllDataToOrgPageCli = internalMutation({
+  args: {
+    orgId: v.string(),
+    table: repointableTableValidator,
+    cursor: v.optional(v.string()),
+    pageSize: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const pageSize = Math.min(Math.max(args.pageSize ?? 256, 1), 1000);
+    const page = await ctx.db
+      .query(args.table)
+      .paginate({ cursor: args.cursor ?? null, numItems: pageSize });
+
+    let patched = 0;
+    let alreadyCorrect = 0;
+
+    for (const doc of page.page as Array<{ _id: any; orgId?: string }>) {
+      if (doc.orgId === args.orgId) {
+        alreadyCorrect += 1;
+        continue;
+      }
+
+      await ctx.db.patch(doc._id, { orgId: args.orgId });
+      patched += 1;
+    }
+
+    return {
+      table: args.table,
+      scanned: page.page.length,
+      patched,
+      alreadyCorrect,
+      continueCursor: page.continueCursor,
+      isDone: page.isDone,
+    };
+  },
+});
+
+/**
+ * Reassign every org-scoped document in the database to a single Clerk orgId.
+ * CLI usage:
+ * bunx convex run invoiceActions:repointAllDataToOrgCli '{"orgId":"org_xxx"}'
+ */
+export const repointAllDataToOrgCli = internalAction({
+  args: {
+    orgId: v.string(),
+    pageSize: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const pageSize = Math.min(Math.max(args.pageSize ?? 256, 1), 1000);
+    const results: Record<
+      string,
+      {
+        scanned: number;
+        patched: number;
+        alreadyCorrect: number;
+      }
+    > = {};
+
+    for (const table of repointableTables) {
+      let cursor: string | undefined = undefined;
+      let scanned = 0;
+      let patched = 0;
+      let alreadyCorrect = 0;
+
+      while (true) {
+        const pageResult: {
+          scanned: number;
+          patched: number;
+          alreadyCorrect: number;
+          continueCursor?: string;
+          isDone: boolean;
+        } = await ctx.runMutation(
+          (internal as any).invoiceActions.repointAllDataToOrgPageCli,
+          {
+            orgId: args.orgId,
+            table: table as RepointableTable,
+            pageSize,
+            cursor,
+          },
+        );
+
+        scanned += pageResult.scanned;
+        patched += pageResult.patched;
+        alreadyCorrect += pageResult.alreadyCorrect;
+
+        if (pageResult.isDone) {
+          break;
+        }
+
+        cursor = pageResult.continueCursor;
+      }
+
+      results[table] = { scanned, patched, alreadyCorrect };
+    }
+
+    return {
+      success: true,
+      orgId: args.orgId,
+      pageSize,
+      results,
+    };
+  },
 });

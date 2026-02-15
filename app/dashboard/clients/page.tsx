@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { useQuery, useMutation } from "convex/react";
 import {
   Search,
@@ -23,6 +24,23 @@ import {
 import { ThemeSwitch } from "@/components/ThemeSwitch";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+
+type InvoiceStatus = "draft" | "open" | "paid" | "void" | "uncollectible";
+
+interface ClientInvoiceLineItemData {
+  id: string;
+  name: string;
+  quantity: number;
+}
+
+interface ClientInvoiceWithItemsData {
+  id: Id<"invoices">;
+  invoiceNumber: string;
+  amount: number;
+  status: InvoiceStatus;
+  createdAt: number;
+  lineItems: ClientInvoiceLineItemData[];
+}
 
 interface ClientData {
   id: Id<"clients">;
@@ -50,6 +68,24 @@ const formatCurrency = (amount: number) =>
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);
+
+const formatDate = (timestamp: number) =>
+  new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(timestamp));
+
+const formatInvoiceStatus = (status: InvoiceStatus) =>
+  status.charAt(0).toUpperCase() + status.slice(1);
+
+const invoiceStatusStyle: Record<InvoiceStatus, { text: string; bg: string }> = {
+  draft: { text: "#94A3B8", bg: "rgba(148, 163, 184, 0.16)" },
+  open: { text: "#F59E0B", bg: "rgba(245, 158, 11, 0.16)" },
+  paid: { text: "#10B981", bg: "rgba(16, 185, 129, 0.16)" },
+  void: { text: "#64748B", bg: "rgba(100, 116, 139, 0.16)" },
+  uncollectible: { text: "#EF4444", bg: "rgba(239, 68, 68, 0.16)" },
+};
 
 type ModalMode = "add" | "edit" | null;
 
@@ -79,9 +115,20 @@ export default function ClientsPage() {
 
   // Delete confirmation
   const [deletingClient, setDeletingClient] = useState<ClientData | null>(null);
+  const [deleteError, setDeleteError] = useState("");
+
+  // Invoices viewer
+  const [viewingClient, setViewingClient] = useState<ClientData | null>(null);
+  const [invoiceSearchQuery, setInvoiceSearchQuery] = useState("");
+  const [selectedProductFilter, setSelectedProductFilter] = useState("all");
 
   // Action menu
-  const [openActionMenu, setOpenActionMenu] = useState<string | null>(null);
+  const [openActionMenu, setOpenActionMenu] = useState<Id<"clients"> | null>(null);
+
+  const clientInvoicesWithItems = useQuery(
+    api.invoiceActions.listInvoicesForClientWithItems,
+    viewingClient ? { clientId: viewingClient.id, limit: 200 } : "skip"
+  );
 
   const isLoading = clientsFromDb === undefined;
 
@@ -90,7 +137,11 @@ export default function ClientsPage() {
     if (!clientsFromDb) return [];
 
     // Build invoice stats per client
-    const invoiceStats = new Map<string, { count: number; revenue: number }>();
+    const invoiceStats = new Map<string, {
+      count: number;
+      revenue: number;
+    }>();
+
     if (invoicesFromDb) {
       for (const invoice of invoicesFromDb) {
         const clientId = invoice.clientId;
@@ -117,6 +168,47 @@ export default function ClientsPage() {
       };
     });
   }, [clientsFromDb, invoicesFromDb]);
+
+  const viewingClientInvoices = useMemo<ClientInvoiceWithItemsData[]>(() => {
+    if (!clientInvoicesWithItems) return [];
+
+    return clientInvoicesWithItems.map((invoice) => ({
+      id: invoice._id,
+      invoiceNumber: invoice.invoiceNumber,
+      amount: invoice.totalCents / 100,
+      status: invoice.status as InvoiceStatus,
+      createdAt: invoice.createdAt,
+      lineItems: invoice.lineItems.map((item) => ({
+        id: item._id,
+        name: item.name,
+        quantity: item.quantity,
+      })),
+    }));
+  }, [clientInvoicesWithItems]);
+
+  const productFilterOptions = useMemo(() => {
+    const productNames = new Set<string>();
+    for (const invoice of viewingClientInvoices) {
+      for (const item of invoice.lineItems) {
+        productNames.add(item.name);
+      }
+    }
+    return Array.from(productNames).sort((a, b) => a.localeCompare(b));
+  }, [viewingClientInvoices]);
+
+  const filteredViewingClientInvoices = useMemo(() => {
+    const query = invoiceSearchQuery.trim().toLowerCase();
+    return viewingClientInvoices.filter((invoice) => {
+      const matchesSearch =
+        query === "" ||
+        invoice.invoiceNumber.toLowerCase().includes(query) ||
+        invoice.lineItems.some((item) => item.name.toLowerCase().includes(query));
+      const matchesProduct =
+        selectedProductFilter === "all" ||
+        invoice.lineItems.some((item) => item.name === selectedProductFilter);
+      return matchesSearch && matchesProduct;
+    });
+  }, [viewingClientInvoices, invoiceSearchQuery, selectedProductFilter]);
 
   // Summary stats
   const summary = useMemo(() => {
@@ -162,9 +254,13 @@ export default function ClientsPage() {
   // Close action menu on outside click
   useEffect(() => {
     if (!openActionMenu) return;
-    const handler = () => setOpenActionMenu(null);
-    document.addEventListener("click", handler);
-    return () => document.removeEventListener("click", handler);
+    const handler = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("[data-client-action-menu]")) return;
+      setOpenActionMenu(null);
+    };
+    document.addEventListener("pointerdown", handler);
+    return () => document.removeEventListener("pointerdown", handler);
   }, [openActionMenu]);
 
   // Modal handlers
@@ -232,18 +328,41 @@ export default function ClientsPage() {
 
   const handleDelete = useCallback(async () => {
     if (!deletingClient) return;
+    setDeleteError("");
+
     try {
       await removeClient({ clientId: deletingClient.id });
       setDeletingClient(null);
+      setDeleteError("");
     } catch (err) {
-      // If delete fails, just close
-      setDeletingClient(null);
+      setDeleteError(
+        err instanceof Error ? err.message : "Failed to delete client."
+      );
     }
   }, [deletingClient, removeClient]);
 
   const confirmDelete = (client: ClientData) => {
     setDeletingClient(client);
+    setDeleteError("");
     setOpenActionMenu(null);
+  };
+
+  const openInvoicesModal = (client: ClientData) => {
+    setViewingClient(client);
+    setInvoiceSearchQuery("");
+    setSelectedProductFilter("all");
+    setOpenActionMenu(null);
+  };
+
+  const closeInvoicesModal = () => {
+    setViewingClient(null);
+    setInvoiceSearchQuery("");
+    setSelectedProductFilter("all");
+  };
+
+  const closeDeleteModal = () => {
+    setDeletingClient(null);
+    setDeleteError("");
   };
 
   return (
@@ -351,13 +470,13 @@ export default function ClientsPage() {
 
       {/* Client Table */}
       {isLoading ? (
-        <div className="invoices-table-card opacity-0 animate-fade-in-up" style={{ animationDelay: "250ms" }}>
+        <div className="invoices-table-card relative overflow-visible opacity-0 animate-fade-in-up" style={{ animationDelay: "250ms" }}>
           <div className="p-8 text-center text-content-muted">Loading clients...</div>
         </div>
       ) : (
-        <div className="invoices-table-card opacity-0 animate-fade-in-up" style={{ animationDelay: "250ms" }}>
+        <div className="invoices-table-card relative overflow-visible opacity-0 animate-fade-in-up" style={{ animationDelay: "250ms" }}>
           {/* Desktop Table */}
-          <div className="hidden lg:block overflow-x-auto">
+          <div className="hidden lg:block">
             <div className="clients-table-header">
               <div>Client</div>
               <div>Company</div>
@@ -376,7 +495,9 @@ export default function ClientsPage() {
               paginatedClients.map((client, index) => (
                 <div
                   key={client.id}
-                  className="clients-table-row opacity-0 animate-slide-in-left"
+                  className={`clients-table-row relative opacity-0 animate-slide-in-left ${
+                    openActionMenu === client.id ? "z-40" : "z-0"
+                  }`}
                   style={{ animationDelay: `${300 + index * 50}ms` }}
                 >
                   <div className="flex items-center gap-3">
@@ -407,8 +528,8 @@ export default function ClientsPage() {
                       <span className="text-meta text-content-muted">Not synced</span>
                     )}
                   </div>
-                  <div className="relative">
-                    <div className="row-actions">
+                  <div className="relative" data-client-action-menu>
+                    <div className={`row-actions ${openActionMenu === client.id ? "open" : ""}`}>
                       <button
                         className="action-btn"
                         title="Actions"
@@ -421,7 +542,18 @@ export default function ClientsPage() {
                       </button>
                     </div>
                     {openActionMenu === client.id && (
-                      <div className="dropdown-menu right-0 left-auto" onClick={(e) => e.stopPropagation()}>
+                      <div
+                        className="dropdown-menu right-0 left-auto mt-1"
+                        style={{ zIndex: 120 }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          className="dropdown-item"
+                          onClick={() => openInvoicesModal(client)}
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          View Invoices
+                        </button>
                         <button
                           className="dropdown-item"
                           onClick={() => openEditModal(client)}
@@ -470,6 +602,7 @@ export default function ClientsPage() {
                     </div>
                     <button
                       className="action-btn flex-shrink-0"
+                      data-client-action-menu
                       onClick={(e) => {
                         e.stopPropagation();
                         setOpenActionMenu(openActionMenu === client.id ? null : client.id);
@@ -493,7 +626,14 @@ export default function ClientsPage() {
                     </span>
                   </div>
                   {openActionMenu === client.id && (
-                    <div className="mt-2 ml-12 flex gap-2">
+                    <div className="mt-2 ml-12 flex gap-2" data-client-action-menu>
+                      <button
+                        className="btn-secondary text-meta-lg"
+                        onClick={() => openInvoicesModal(client)}
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        Invoices
+                      </button>
                       <button
                         className="btn-secondary text-meta-lg"
                         onClick={() => openEditModal(client)}
@@ -555,6 +695,132 @@ export default function ClientsPage() {
                 onClick={() => setCurrentPage(currentPage + 1)}
               >
                 <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Client Invoices Modal */}
+      {viewingClient && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={closeInvoicesModal}
+          />
+          <div className="relative bg-surface-secondary rounded-card-lg border border-border p-6 w-full max-w-2xl animate-fade-in-up">
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h2 className="text-lg font-semibold text-content">
+                  {viewingClient.name}&apos;s Invoices
+                </h2>
+                <p className="text-sm text-content-muted mt-1">
+                  {(clientInvoicesWithItems?.length ?? viewingClient.invoiceCount)} linked invoice
+                  {(clientInvoicesWithItems?.length ?? viewingClient.invoiceCount) === 1 ? "" : "s"} for{" "}
+                  {viewingClient.company}
+                </p>
+              </div>
+              <button className="btn-icon" onClick={closeInvoicesModal}>
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr),220px] gap-3 mb-4">
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-content-muted" />
+                <input
+                  type="text"
+                  value={invoiceSearchQuery}
+                  onChange={(e) => setInvoiceSearchQuery(e.target.value)}
+                  placeholder="Search invoice or product..."
+                  className="input-field pl-10 w-full"
+                />
+              </div>
+              <select
+                value={selectedProductFilter}
+                onChange={(e) => setSelectedProductFilter(e.target.value)}
+                className="input-field w-full"
+              >
+                <option value="all">All products</option>
+                {productFilterOptions.map((productName) => (
+                  <option key={productName} value={productName}>
+                    {productName}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {clientInvoicesWithItems === undefined ? (
+              <div className="rounded-xl border border-dashed border-border p-6 text-center text-content-muted">
+                Loading invoices...
+              </div>
+            ) : viewingClientInvoices.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border p-6 text-center text-content-muted">
+                No invoices are associated with this client yet.
+              </div>
+            ) : filteredViewingClientInvoices.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border p-6 text-center text-content-muted">
+                No invoices match the selected product filter.
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+                {filteredViewingClientInvoices.map((invoice) => (
+                  <div
+                    key={invoice.id}
+                    className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 rounded-xl border border-border px-4 py-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="font-semibold text-content">{invoice.invoiceNumber}</div>
+                      <div className="text-sm text-content-muted">
+                        {formatDate(invoice.createdAt)} &middot; {formatCurrency(invoice.amount)}
+                      </div>
+                      {invoice.lineItems.length === 0 ? (
+                        <div className="text-xs text-content-muted mt-2">
+                          No products captured on this invoice.
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {invoice.lineItems.slice(0, 3).map((item) => (
+                            <span
+                              key={`${invoice.id}-${item.id}`}
+                              className="inline-flex items-center px-2 py-1 rounded-full text-xs text-content-secondary bg-surface-tertiary border border-border"
+                            >
+                              {item.name} x{item.quantity}
+                            </span>
+                          ))}
+                          {invoice.lineItems.length > 3 && (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs text-content-muted bg-surface-tertiary border border-border">
+                              +{invoice.lineItems.length - 3} more
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium"
+                        style={{
+                          color: invoiceStatusStyle[invoice.status].text,
+                          background: invoiceStatusStyle[invoice.status].bg,
+                        }}
+                      >
+                        {formatInvoiceStatus(invoice.status)}
+                      </span>
+                      <Link
+                        href={`/dashboard/invoices/${invoice.id}`}
+                        className="btn-secondary text-meta-lg"
+                      >
+                        Open
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex justify-end mt-5">
+              <button className="btn-secondary" onClick={closeInvoicesModal}>
+                Close
               </button>
             </div>
           </div>
@@ -647,17 +913,20 @@ export default function ClientsPage() {
       {/* Delete Confirmation Modal */}
       {deletingClient && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setDeletingClient(null)} />
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={closeDeleteModal} />
           <div className="relative bg-surface-secondary rounded-card-lg border border-border p-6 w-full max-w-sm animate-fade-in-up">
             <h2 className="text-lg font-semibold text-content mb-2">Delete Client</h2>
             <p className="text-sm text-content-muted mb-6">
               Are you sure you want to delete <strong className="text-content">{deletingClient.name}</strong>?
               This action cannot be undone.
             </p>
+            {deleteError && (
+              <p className="text-sm text-error mb-4">{deleteError}</p>
+            )}
             <div className="flex gap-3">
               <button
                 className="btn-secondary flex-1 justify-center"
-                onClick={() => setDeletingClient(null)}
+                onClick={closeDeleteModal}
               >
                 Cancel
               </button>

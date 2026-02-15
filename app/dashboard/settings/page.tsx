@@ -2,8 +2,8 @@
 
 import { useState, useCallback } from "react";
 import { useQuery, useAction } from "convex/react";
+import { useUser, useOrganization, useClerk } from "@clerk/nextjs";
 import {
-  Settings,
   Sun,
   Moon,
   Monitor,
@@ -20,6 +20,10 @@ import {
   FileText,
   Briefcase,
   ChevronRight,
+  LogOut,
+  User,
+  Mail,
+  KeyRound,
 } from "lucide-react";
 import { ThemeSwitch } from "@/components/ThemeSwitch";
 import { useTheme } from "@/components/ThemeProvider";
@@ -28,7 +32,6 @@ import { api } from "@/convex/_generated/api";
 import {
   BRAND_THEMES,
   AGENCY_THEME,
-  type BrandTheme,
 } from "@/lib/brand-theme";
 
 type Theme = "light" | "dark" | "system";
@@ -50,6 +53,9 @@ const knownBrands: BrandType[] = ["Sankofa", "Lighthouse", "Centex", "GFAM Media
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
+  const { user, isLoaded: userLoaded } = useUser();
+  const { organization, isLoaded: orgLoaded } = useOrganization();
+  const { signOut, openUserProfile, openOrganizationProfile } = useClerk();
 
   // Data queries
   const syncStatus = useQuery(api.stripeSync.checkSyncStatus);
@@ -139,7 +145,7 @@ export default function SettingsPage() {
           <div className="min-w-0">
             <h1 className="text-xl sm:text-2xl font-semibold text-content">Settings</h1>
             <p className="text-content-muted text-sm mt-1">
-              Manage your preferences, integrations, and system configuration
+              Manage your account, preferences, and integrations
             </p>
           </div>
           <ThemeSwitch />
@@ -150,10 +156,188 @@ export default function SettingsPage() {
         {/* Left Column - Main Settings */}
         <div className="lg:col-span-2 space-y-6">
 
-          {/* Appearance Section */}
+          {/* Profile Section */}
           <section
             className="settings-section card p-6 opacity-0 animate-fade-in-up"
             style={{ animationDelay: "50ms" }}
+          >
+            <div className="flex items-center gap-3 mb-5">
+              <div className="settings-section-icon" style={{ background: "rgba(16, 185, 129, 0.12)" }}>
+                <User className="w-5 h-5" style={{ color: "#10B981" }} />
+              </div>
+              <div>
+                <h2 className="text-base font-semibold text-content">Profile</h2>
+                <p className="text-sm text-content-muted">Your account details</p>
+              </div>
+            </div>
+
+            {userLoaded && user ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-4">
+                  {user.imageUrl ? (
+                    <img
+                      src={user.imageUrl}
+                      alt={user.fullName ?? "Profile"}
+                      className="w-14 h-14 rounded-full border-2 border-border"
+                    />
+                  ) : (
+                    <div className="client-avatar w-14 h-14 text-lg">
+                      {user.fullName
+                        ?.split(" ")
+                        .slice(0, 2)
+                        .map((n) => n[0])
+                        .join("") ?? "U"}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <div className="text-base font-semibold text-content">{user.fullName}</div>
+                    <div className="text-sm text-content-muted">{user.primaryEmailAddress?.emailAddress}</div>
+                  </div>
+                </div>
+
+                <div className="settings-status-row">
+                  <div className="flex items-center gap-3">
+                    <Mail className="w-4 h-4 text-content-muted" />
+                    <div>
+                      <div className="text-sm font-medium text-content">Email</div>
+                      <div className="text-meta text-content-muted">{user.primaryEmailAddress?.emailAddress}</div>
+                    </div>
+                  </div>
+                  <CheckCircle className="w-4 h-4 text-success" />
+                </div>
+
+                <div className="settings-status-row">
+                  <div className="flex items-center gap-3">
+                    <KeyRound className="w-4 h-4 text-content-muted" />
+                    <div>
+                      <div className="text-sm font-medium text-content">User ID</div>
+                      <div className="text-meta text-content-muted font-mono">{user.id.slice(0, 20)}...</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    className="btn-secondary text-sm"
+                    onClick={() => openUserProfile()}
+                  >
+                    <User className="w-3.5 h-3.5" />
+                    Manage Profile
+                  </button>
+                  <button
+                    className="btn-secondary text-sm text-error"
+                    onClick={() => signOut({ redirectUrl: "/sign-in" })}
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    Sign Out
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm text-content-muted">Loading profile...</div>
+            )}
+          </section>
+
+          {/* Organization Section */}
+          <section
+            className="settings-section card p-6 opacity-0 animate-fade-in-up"
+            style={{ animationDelay: "100ms" }}
+          >
+            <div className="flex items-center gap-3 mb-5">
+              <div className="settings-section-icon" style={{ background: "rgba(59, 130, 246, 0.12)" }}>
+                <Building2 className="w-5 h-5" style={{ color: "#3B82F6" }} />
+              </div>
+              <div>
+                <h2 className="text-base font-semibold text-content">Organization</h2>
+                <p className="text-sm text-content-muted">Team and brand management</p>
+              </div>
+            </div>
+
+            {/* Active Clerk Organization */}
+            {orgLoaded && organization ? (
+              <div className="settings-org-card mb-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {organization.imageUrl ? (
+                      <img
+                        src={organization.imageUrl}
+                        alt={organization.name}
+                        className="w-10 h-10 rounded-lg border border-border"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-surface-tertiary text-lg">
+                        {AGENCY_THEME.icon}
+                      </div>
+                    )}
+                    <div>
+                      <div className="text-sm font-semibold text-content">{organization.name}</div>
+                      <div className="text-meta text-content-muted">
+                        {organization.membersCount} member{organization.membersCount !== 1 ? "s" : ""}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    className="btn-secondary text-meta-lg"
+                    onClick={() => openOrganizationProfile()}
+                  >
+                    <Users className="w-3.5 h-3.5" />
+                    Manage
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="settings-org-card mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-surface-tertiary text-lg">
+                    {AGENCY_THEME.icon}
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-content">{AGENCY_THEME.name}</div>
+                    <div className="text-meta text-content-muted">{AGENCY_THEME.tagline}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Sub-brands */}
+            <div className="space-y-2">
+              {knownBrands.map((brandName) => {
+                const brandTheme = BRAND_THEMES[brandName];
+                const syncInfo = syncStatus?.byBrand?.[brandName];
+                return (
+                  <div key={brandName} className="settings-brand-row">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-sm"
+                        style={{ background: `${brandColorMap[brandName]}15` }}
+                      >
+                        {brandTheme.icon}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <BrandBadge brand={brandName} variant="pill" />
+                        </div>
+                        <div className="text-meta text-content-muted mt-0.5">{brandTheme.tagline}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {syncInfo && (
+                        <span className="text-meta text-content-muted">
+                          {syncInfo.synced + syncInfo.unsynced} services
+                        </span>
+                      )}
+                      <ChevronRight className="w-4 h-4 text-content-muted" />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Appearance Section */}
+          <section
+            className="settings-section card p-6 opacity-0 animate-fade-in-up"
+            style={{ animationDelay: "150ms" }}
           >
             <div className="flex items-center gap-3 mb-5">
               <div className="settings-section-icon" style={{ background: "rgba(139, 92, 246, 0.12)" }}>
@@ -189,7 +373,7 @@ export default function SettingsPage() {
           {/* Stripe Integration Section */}
           <section
             className="settings-section card p-6 opacity-0 animate-fade-in-up"
-            style={{ animationDelay: "100ms" }}
+            style={{ animationDelay: "200ms" }}
           >
             <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-3">
@@ -349,69 +533,6 @@ export default function SettingsPage() {
               )}
             </div>
           </section>
-
-          {/* Organization & Brands Section */}
-          <section
-            className="settings-section card p-6 opacity-0 animate-fade-in-up"
-            style={{ animationDelay: "150ms" }}
-          >
-            <div className="flex items-center gap-3 mb-5">
-              <div className="settings-section-icon" style={{ background: "rgba(59, 130, 246, 0.12)" }}>
-                <Building2 className="w-5 h-5" style={{ color: "#3B82F6" }} />
-              </div>
-              <div>
-                <h2 className="text-base font-semibold text-content">Organization</h2>
-                <p className="text-sm text-content-muted">GFAM Agency brand hierarchy</p>
-              </div>
-            </div>
-
-            {/* Parent Org */}
-            <div className="settings-org-card mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-surface-tertiary text-lg">
-                  {AGENCY_THEME.icon}
-                </div>
-                <div>
-                  <div className="text-sm font-semibold text-content">{AGENCY_THEME.name}</div>
-                  <div className="text-meta text-content-muted">{AGENCY_THEME.tagline}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Sub-brands */}
-            <div className="space-y-2">
-              {knownBrands.map((brandName) => {
-                const brandTheme = BRAND_THEMES[brandName];
-                const syncInfo = syncStatus?.byBrand?.[brandName];
-                return (
-                  <div key={brandName} className="settings-brand-row">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-sm"
-                        style={{ background: `${brandColorMap[brandName]}15` }}
-                      >
-                        {brandTheme.icon}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <BrandBadge brand={brandName} variant="pill" />
-                        </div>
-                        <div className="text-meta text-content-muted mt-0.5">{brandTheme.tagline}</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {syncInfo && (
-                        <span className="text-meta text-content-muted">
-                          {syncInfo.synced + syncInfo.unsynced} services
-                        </span>
-                      )}
-                      <ChevronRight className="w-4 h-4 text-content-muted" />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
         </div>
 
         {/* Right Column - Quick Info */}
@@ -484,8 +605,8 @@ export default function SettingsPage() {
                 <span className="text-meta-lg font-medium text-content">Stripe</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-meta-lg text-content-muted">Styling</span>
-                <span className="text-meta-lg font-medium text-content">Tailwind CSS</span>
+                <span className="text-meta-lg text-content-muted">Auth</span>
+                <span className="text-meta-lg font-medium text-content">Clerk</span>
               </div>
             </div>
           </div>
@@ -515,6 +636,16 @@ export default function SettingsPage() {
               >
                 <Database className="w-4 h-4 text-warning" />
                 <span>Convex Dashboard</span>
+                <ChevronRight className="w-3.5 h-3.5 ml-auto text-content-muted" />
+              </a>
+              <a
+                href="https://dashboard.clerk.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="settings-quick-link"
+              >
+                <Shield className="w-4 h-4" style={{ color: "#6C47FF" }} />
+                <span>Clerk Dashboard</span>
                 <ChevronRight className="w-3.5 h-3.5 ml-auto text-content-muted" />
               </a>
             </div>

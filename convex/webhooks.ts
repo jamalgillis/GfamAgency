@@ -166,12 +166,26 @@ export const processPaidInvoiceLedgerAttribution = internalMutation({
     }
 
     // Idempotency: webhook retries should not create duplicate brand ledger rows.
-    const existingLedgerRows = await ctx.db
+    // Include legacy rows missing orgId via by_invoice and backfill them.
+    const existingLedgerRowsByOrg = await ctx.db
       .query("brandLedger")
       .withIndex("by_org_invoice", (q) =>
         q.eq("orgId", invoice.orgId).eq("invoiceId", args.invoiceId)
       )
       .collect();
+
+    const existingLedgerRowsByInvoice = await ctx.db
+      .query("brandLedger")
+      .withIndex("by_invoice", (q) => q.eq("invoiceId", args.invoiceId))
+      .collect();
+
+    const existingLedgerRowsMap = new Map(
+      existingLedgerRowsByOrg.map((entry) => [entry._id, entry])
+    );
+    for (const entry of existingLedgerRowsByInvoice) {
+      existingLedgerRowsMap.set(entry._id, entry);
+    }
+    const existingLedgerRows = Array.from(existingLedgerRowsMap.values());
 
     const existingBrands = new Set<(typeof lineItems)[number]["brand"]>(
       existingLedgerRows.map((entry) => entry.brand as (typeof lineItems)[number]["brand"])
@@ -181,12 +195,20 @@ export const processPaidInvoiceLedgerAttribution = internalMutation({
     let patchedCount = 0;
     const createdAt = Date.now();
 
-    // Backfill payment intent ID for existing rows created before audit field rollout.
+    // Backfill orgId and payment intent ID for legacy rows.
     for (const entry of existingLedgerRows) {
+      const updates: { orgId?: string; stripePaymentIntentId?: string } = {};
+
+      if (entry.orgId !== invoice.orgId) {
+        updates.orgId = invoice.orgId;
+      }
+
       if (!entry.stripePaymentIntentId) {
-        await ctx.db.patch(entry._id, {
-          stripePaymentIntentId: args.stripePaymentIntentId,
-        });
+        updates.stripePaymentIntentId = args.stripePaymentIntentId;
+      }
+
+      if (updates.orgId || updates.stripePaymentIntentId) {
+        await ctx.db.patch(entry._id, updates);
         patchedCount += 1;
       }
     }

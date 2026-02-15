@@ -26,7 +26,7 @@ export async function withOrg<Ctx extends AuthContext, T>(
   return handler(orgId);
 }
 
-export function ensureOrgAccess<T extends { orgId: string }>(
+export function ensureOrgAccess<T extends { orgId?: string }>(
   document: T | null,
   orgId: string,
   notFoundMessage: string

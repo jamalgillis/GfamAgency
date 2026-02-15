@@ -14,6 +14,11 @@ import {
   X,
 } from "lucide-react";
 import { BrandFilter } from "./BrandFilter";
+import {
+  dashboardPathToTenantPath,
+  getTenantSlugFromPath,
+  tenantPathToDashboardPath,
+} from "@/lib/tenant-routing";
 
 interface NavItem {
   href: string;
@@ -32,10 +37,32 @@ const navItems: NavItem[] = [
 interface SidebarProps {
   isOpen?: boolean;
   onToggle?: () => void;
+  branding?: {
+    displayName: string;
+    shortName: string;
+    logoMark: string;
+    logoUrl?: string;
+    primaryColor: string;
+    secondaryColor: string;
+  };
 }
 
-export function Sidebar({ isOpen = false, onToggle }: SidebarProps) {
+export function Sidebar({ isOpen = false, onToggle, branding }: SidebarProps) {
   const pathname = usePathname();
+  const tenantSlug = getTenantSlugFromPath(pathname ?? "");
+  const pathnameForMatching = tenantSlug
+    ? tenantPathToDashboardPath(pathname ?? "") ?? pathname ?? ""
+    : pathname ?? "";
+
+  const resolvedBranding = branding ?? {
+    displayName: "GFAM Agency",
+    shortName: "GFAM",
+    logoMark: "G",
+    primaryColor: "#10B981",
+    secondaryColor: "#3B82F6",
+  };
+
+  const logoGradient = `linear-gradient(135deg, ${resolvedBranding.primaryColor}, ${resolvedBranding.secondaryColor})`;
 
   // Close sidebar when route changes on mobile
   useEffect(() => {
@@ -66,12 +93,23 @@ export function Sidebar({ isOpen = false, onToggle }: SidebarProps) {
         {/* Logo */}
         <div className="p-6 border-b border-sidebar-border flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-brand-sankofa to-brand-gfam flex items-center justify-center flex-shrink-0">
-              <span className="text-white font-bold text-lg">G</span>
-            </div>
+            {resolvedBranding.logoUrl ? (
+              <img
+                src={resolvedBranding.logoUrl}
+                alt={`${resolvedBranding.displayName} logo`}
+                className="w-10 h-10 rounded-lg border border-sidebar-border/60 object-cover flex-shrink-0"
+              />
+            ) : (
+              <div
+                className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                style={{ background: logoGradient }}
+              >
+                <span className="text-white font-bold text-lg">{resolvedBranding.logoMark}</span>
+              </div>
+            )}
             <div className="lg:hidden xl:block">
-              <h1 className="text-white font-semibold text-lg">GFAM</h1>
-              <p className="text-meta text-sidebar-text">Agency</p>
+              <h1 className="text-white font-semibold text-lg">{resolvedBranding.shortName}</h1>
+              <p className="text-meta text-sidebar-text">{resolvedBranding.displayName}</p>
             </div>
           </div>
           {/* Close button - mobile only */}
@@ -86,14 +124,15 @@ export function Sidebar({ isOpen = false, onToggle }: SidebarProps) {
         {/* Navigation */}
         <nav className="py-4 flex-1 overflow-y-auto scrollbar-hide">
           {navItems.map((item) => {
-            const isActive = pathname === item.href ||
-              (item.href !== "/dashboard" && pathname?.startsWith(item.href));
+            const href = tenantSlug ? dashboardPathToTenantPath(item.href, tenantSlug) : item.href;
+            const isActive = pathnameForMatching === item.href ||
+              (item.href !== "/dashboard" && pathnameForMatching.startsWith(item.href));
             const Icon = item.icon;
 
             return (
               <Link
                 key={item.href}
-                href={item.href}
+                href={href}
                 className={`sidebar-link ${isActive ? "active" : ""}`}
               >
                 <Icon className="w-5 h-5 flex-shrink-0" />

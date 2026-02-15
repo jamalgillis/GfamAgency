@@ -6,13 +6,13 @@ export const brandUnion = v.union(
   v.literal("Sankofa"),
   v.literal("Lighthouse"),
   v.literal("Centex"),
-  v.literal("GFAM Media Studios")
+  v.literal("GFAM Media Studios"),
 );
 
 // Define service status
 export const serviceStatusUnion = v.union(
   v.literal("active"),
-  v.literal("inactive")
+  v.literal("inactive"),
 );
 
 export default defineSchema({
@@ -67,7 +67,7 @@ export default defineSchema({
       v.literal("open"),
       v.literal("paid"),
       v.literal("void"),
-      v.literal("uncollectible")
+      v.literal("uncollectible"),
     ),
     totalCents: v.number(), // Total in cents for precision
     notes: v.optional(v.string()),
@@ -124,7 +124,7 @@ export default defineSchema({
       v.literal("pending"),
       v.literal("credited"),
       v.literal("withdrawable"),
-      v.literal("paid_out")
+      v.literal("paid_out"),
     ),
     createdAt: v.number(),
   })
@@ -147,4 +147,20 @@ export default defineSchema({
     .index("by_org", ["orgId"])
     .index("by_org_email", ["orgId", "email"])
     .index("by_email", ["email"]),
+
+  // White-label branding configuration scoped to a Clerk organization.
+  orgBranding: defineTable({
+    orgId: v.string(),
+    slug: v.string(), // URL slug used for /{tenantSlug}/...
+    displayName: v.string(), // Full name shown in UI
+    shortName: v.optional(v.string()), // Compact sidebar/mobile label
+    logoMark: v.optional(v.string()), // Single-character fallback mark
+    logoUrl: v.optional(v.string()), // Optional hosted logo URL
+    primaryColor: v.optional(v.string()),
+    secondaryColor: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_slug", ["slug"]),
 });
