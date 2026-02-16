@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { UserButton } from "@clerk/nextjs";
+import { OrganizationSwitcher, UserButton } from "@clerk/nextjs";
 import {
   LayoutDashboard,
   Briefcase,
@@ -12,6 +12,8 @@ import {
   Settings,
   Menu,
   X,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { BrandFilter } from "./BrandFilter";
 import {
@@ -37,32 +39,18 @@ const navItems: NavItem[] = [
 interface SidebarProps {
   isOpen?: boolean;
   onToggle?: () => void;
-  branding?: {
-    displayName: string;
-    shortName: string;
-    logoMark: string;
-    logoUrl?: string;
-    primaryColor: string;
-    secondaryColor: string;
-  };
+  collapsed?: boolean;
+  onCollapseToggle?: () => void;
 }
 
-export function Sidebar({ isOpen = false, onToggle, branding }: SidebarProps) {
+export function Sidebar({ isOpen = false, onToggle, collapsed = false, onCollapseToggle }: SidebarProps) {
   const pathname = usePathname();
   const tenantSlug = getTenantSlugFromPath(pathname ?? "");
   const pathnameForMatching = tenantSlug
     ? tenantPathToDashboardPath(pathname ?? "") ?? pathname ?? ""
     : pathname ?? "";
 
-  const resolvedBranding = branding ?? {
-    displayName: "GFAM Agency",
-    shortName: "GFAM",
-    logoMark: "G",
-    primaryColor: "#10B981",
-    secondaryColor: "#3B82F6",
-  };
-
-  const logoGradient = `linear-gradient(135deg, ${resolvedBranding.primaryColor}, ${resolvedBranding.secondaryColor})`;
+  const switcherRedirect = tenantSlug ? `/${tenantSlug}` : "/dashboard";
 
   // Close sidebar when route changes on mobile
   useEffect(() => {
@@ -86,36 +74,51 @@ export function Sidebar({ isOpen = false, onToggle, branding }: SidebarProps) {
       <aside
         className={`
           fixed left-0 top-0 h-screen flex flex-col bg-sidebar z-50 transition-all duration-300
-          w-[280px] md:w-sidebar lg:w-sidebar-collapsed xl:w-sidebar
+          ${collapsed ? "w-sidebar-collapsed" : "w-[280px] md:w-sidebar"}
           ${isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
         `}
       >
-        {/* Logo */}
+        {/* Organization Switcher */}
         <div className="p-6 border-b border-sidebar-border flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {resolvedBranding.logoUrl ? (
-              <img
-                src={resolvedBranding.logoUrl}
-                alt={`${resolvedBranding.displayName} logo`}
-                className="w-10 h-10 rounded-lg border border-sidebar-border/60 object-cover flex-shrink-0"
-              />
-            ) : (
-              <div
-                className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-                style={{ background: logoGradient }}
-              >
-                <span className="text-white font-bold text-lg">{resolvedBranding.logoMark}</span>
-              </div>
-            )}
-            <div className="lg:hidden xl:block">
-              <h1 className="text-white font-semibold text-lg">{resolvedBranding.shortName}</h1>
-              <p className="text-meta text-sidebar-text">{resolvedBranding.displayName}</p>
-            </div>
-          </div>
+          {collapsed ? (
+            <OrganizationSwitcher
+              hidePersonal
+              afterSelectOrganizationUrl={switcherRedirect}
+              afterCreateOrganizationUrl={switcherRedirect}
+              appearance={{
+                elements: {
+                  rootBox: "w-full",
+                  organizationSwitcherTrigger:
+                    "w-full justify-center px-0 py-0 border-none shadow-none bg-transparent hover:bg-transparent focus:shadow-none",
+                  organizationPreviewAvatarBox: "w-10 h-10 rounded-lg flex-shrink-0",
+                  organizationPreviewMainIdentifier: "hidden",
+                  organizationPreviewSecondaryIdentifier: "hidden",
+                  organizationSwitcherTriggerIcon: "hidden",
+                },
+              }}
+            />
+          ) : (
+            <OrganizationSwitcher
+              hidePersonal
+              afterSelectOrganizationUrl={switcherRedirect}
+              afterCreateOrganizationUrl={switcherRedirect}
+              appearance={{
+                elements: {
+                  rootBox: "w-full",
+                  organizationSwitcherTrigger:
+                    "w-full justify-start gap-3 px-0 py-0 border-none shadow-none bg-transparent hover:bg-transparent focus:shadow-none",
+                  organizationPreviewAvatarBox: "w-10 h-10 rounded-lg flex-shrink-0",
+                  organizationPreviewMainIdentifier: "text-white font-semibold text-lg",
+                  organizationPreviewSecondaryIdentifier: "text-sidebar-text text-xs",
+                  organizationSwitcherTriggerIcon: "text-sidebar-text",
+                },
+              }}
+            />
+          )}
           {/* Close button - mobile only */}
           <button
             onClick={onToggle}
-            className="p-2 rounded-lg text-sidebar-text hover:text-white hover:bg-sidebar-hover md:hidden transition-colors"
+            className="p-2 rounded-lg text-sidebar-text hover:text-white hover:bg-sidebar-hover md:hidden transition-colors flex-shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
@@ -133,27 +136,53 @@ export function Sidebar({ isOpen = false, onToggle, branding }: SidebarProps) {
               <Link
                 key={item.href}
                 href={href}
-                className={`sidebar-link ${isActive ? "active" : ""}`}
+                className={`sidebar-link ${isActive ? "active" : ""} ${collapsed ? "justify-center px-0" : ""}`}
+                title={collapsed ? item.label : undefined}
               >
                 <Icon className="w-5 h-5 flex-shrink-0" />
-                <span className="lg:hidden xl:inline">{item.label}</span>
+                {!collapsed && <span>{item.label}</span>}
               </Link>
             );
           })}
 
           {/* Brand Filter Section */}
-          <div className="mt-6 px-5 lg:hidden xl:block">
-            <BrandFilter />
-          </div>
+          {!collapsed && (
+            <div className="mt-6 px-5">
+              <BrandFilter />
+            </div>
+          )}
         </nav>
 
-        {/* User Profile */}
-        <div className="p-4 border-t border-sidebar-border">
-          <div className="flex items-center justify-between">
-            <p className="text-meta text-sidebar-text text-xs uppercase tracking-wide">
-              Account
-            </p>
-            <UserButton afterSignOutUrl="/sign-in" />
+        {/* Bottom Section */}
+        <div className="border-t border-sidebar-border">
+          {/* Collapse Toggle - desktop only */}
+          <button
+            onClick={onCollapseToggle}
+            className="hidden md:flex items-center gap-3 w-full px-5 py-3 text-sidebar-text hover:text-white hover:bg-sidebar-hover transition-colors"
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {collapsed ? (
+              <PanelLeftOpen className="w-5 h-5 flex-shrink-0 mx-auto" />
+            ) : (
+              <>
+                <PanelLeftClose className="w-5 h-5 flex-shrink-0" />
+                <span className="text-sm">Collapse</span>
+              </>
+            )}
+          </button>
+
+          {/* User Profile */}
+          <div className={`p-4 border-t border-sidebar-border ${collapsed ? "flex justify-center" : ""}`}>
+            {collapsed ? (
+              <UserButton afterSignOutUrl="/sign-in" />
+            ) : (
+              <div className="flex items-center justify-between">
+                <p className="text-meta text-sidebar-text text-xs uppercase tracking-wide">
+                  Account
+                </p>
+                <UserButton afterSignOutUrl="/sign-in" />
+              </div>
+            )}
           </div>
         </div>
       </aside>

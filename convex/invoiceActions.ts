@@ -2612,38 +2612,109 @@ export const getInvoiceWithLineItems = query({
  */
 export const getRevenueByBrand = query({
   args: {
-    status: v.optional(v.string()),
+    status: v.optional(
+      v.union(
+        v.literal("draft"),
+        v.literal("open"),
+        v.literal("paid"),
+        v.literal("void"),
+        v.literal("uncollectible")
+      )
+    ),
+    timeRange: v.optional(
+      v.union(
+        v.literal("this_month"),
+        v.literal("last_month"),
+        v.literal("this_quarter"),
+        v.literal("all_time")
+      )
+    ),
   },
   handler: async (ctx, args) => withOrg(ctx, async (orgId) => {
+    const getRangeWindow = (timeRange: "this_month" | "last_month" | "this_quarter") => {
+      const now = new Date();
+
+      if (timeRange === "this_month") {
+        const start = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+        return { start, end: now.getTime() };
+      }
+
+      if (timeRange === "last_month") {
+        const start = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime();
+        const end = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+        return { start, end };
+      }
+
+      const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+      const start = new Date(now.getFullYear(), quarterStartMonth, 1).getTime();
+      return { start, end: now.getTime() };
+    };
+
     const invoices = await ctx.db
       .query("invoices")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .collect();
 
-    // Filter by status if provided
-    const filteredInvoices = args.status
+    const filteredByStatus = args.status
       ? invoices.filter((inv) => inv.status === args.status)
       : invoices;
 
-    // Get all line items for these invoices
-    const revenueByBrand: Record<string, number> = {};
+    const rangeWindow =
+      args.timeRange && args.timeRange !== "all_time"
+        ? getRangeWindow(args.timeRange)
+        : null;
 
-    for (const invoice of filteredInvoices) {
-      const lineItems = await ctx.db
-        .query("invoiceLineItems")
-        .withIndex("by_org_invoice", (q) =>
-          q.eq("orgId", orgId).eq("invoiceId", invoice._id)
-        )
-        .collect();
+    const filteredInvoices =
+      rangeWindow
+        ? filteredByStatus.filter((invoice) => {
+            const { start, end } = rangeWindow;
+            return invoice.createdAt >= start && invoice.createdAt < end;
+          })
+        : filteredByStatus;
 
-      for (const item of lineItems) {
-        const amount =
-          (item.customPriceCents ?? item.unitPriceCents) * item.quantity;
-        revenueByBrand[item.brand] = (revenueByBrand[item.brand] ?? 0) + amount;
-      }
+    const invoiceIds = new Set(filteredInvoices.map((invoice) => invoice._id));
+
+    const brandRevenueCents: Record<string, number> = {
+      Sankofa: 0,
+      Lighthouse: 0,
+      Centex: 0,
+      "GFAM Media Studios": 0,
+    };
+
+    if (invoiceIds.size === 0) {
+      return {
+        totalRevenueCents: 0,
+        brands: Object.entries(brandRevenueCents).map(([brand, revenueCents]) => ({
+          brand,
+          revenueCents,
+        })),
+      };
     }
 
-    return revenueByBrand;
+    const lineItems = await ctx.db
+      .query("invoiceLineItems")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .collect();
+
+    for (const item of lineItems) {
+      if (!invoiceIds.has(item.invoiceId)) {
+        continue;
+      }
+
+      const amount = (item.customPriceCents ?? item.unitPriceCents) * item.quantity;
+      brandRevenueCents[item.brand] = (brandRevenueCents[item.brand] ?? 0) + amount;
+    }
+
+    const brands = Object.entries(brandRevenueCents).map(([brand, revenueCents]) => ({
+      brand,
+      revenueCents,
+    }));
+    const totalRevenueCents = brands.reduce((sum, brand) => sum + brand.revenueCents, 0);
+
+    return {
+      totalRevenueCents,
+      brands,
+    };
   }),
 });
 

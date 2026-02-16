@@ -2,15 +2,14 @@
 
 import { useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "convex/react";
 import { DollarSign, Clock, Briefcase, Users } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import { useAuthQuery } from "@/hooks/useAuthQuery";
 import { Header } from "@/components/Header";
 import { KpiCard } from "@/components/KpiCard";
 import { RevenueChart } from "@/components/RevenueChart";
 import { QuickActions } from "@/components/QuickActions";
 import { InvoiceTable, type Invoice } from "@/components/InvoiceTable";
-import { kpiData, revenueByBrand } from "@/data/dashboard-sample";
 
 const formatInvoiceDate = (timestamp: number) =>
   new Intl.DateTimeFormat("en-US", {
@@ -18,6 +17,14 @@ const formatInvoiceDate = (timestamp: number) =>
     day: "numeric",
     year: "numeric",
   }).format(new Date(timestamp));
+
+const formatCurrency = (amount: number) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
 
 const getInitials = (name: string) =>
   name
@@ -29,15 +36,48 @@ const getInitials = (name: string) =>
 
 export default function DashboardPage() {
   const router = useRouter();
-  const invoices = useQuery(api.invoiceActions.listInvoices, { limit: 8 });
-  const clients = useQuery(api.clients.list, { limit: 200 });
+
+  const recentInvoicesFromDb = useAuthQuery(api.invoiceActions.listInvoices, { limit: 8 });
+  const invoicesForKpi = useAuthQuery(api.invoiceActions.listInvoices, { limit: 5000 });
+  const clients = useAuthQuery(api.clients.list, { limit: 5000 });
+  const activeServices = useAuthQuery(api.services.list, { limit: 5000 });
+
+  const dashboardKpis = useMemo(() => {
+    if (!invoicesForKpi || !clients || !activeServices) {
+      return null;
+    }
+
+    let paidRevenueCents = 0;
+    let paidInvoiceCount = 0;
+    let pendingAmountCents = 0;
+    let pendingInvoiceCount = 0;
+
+    for (const invoice of invoicesForKpi) {
+      if (invoice.status === "paid") {
+        paidRevenueCents += invoice.totalCents;
+        paidInvoiceCount += 1;
+      } else if (invoice.status === "open") {
+        pendingAmountCents += invoice.totalCents;
+        pendingInvoiceCount += 1;
+      }
+    }
+
+    return {
+      totalRevenue: formatCurrency(paidRevenueCents / 100),
+      paidInvoiceCount,
+      pendingInvoiceCount,
+      pendingAmount: formatCurrency(pendingAmountCents / 100),
+      activeServicesCount: activeServices.length,
+      totalClientsCount: clients.length,
+    };
+  }, [invoicesForKpi, clients, activeServices]);
 
   const recentInvoices = useMemo<Invoice[]>(() => {
-    if (!invoices || !clients) return [];
+    if (!recentInvoicesFromDb || !clients) return [];
 
     const clientsById = new Map(clients.map((client) => [client._id, client]));
 
-    return invoices.map((invoice) => {
+    return recentInvoicesFromDb.map((invoice) => {
       const client = clientsById.get(invoice.clientId);
       const clientName = client?.name ?? "Unknown Client";
 
@@ -54,9 +94,9 @@ export default function DashboardPage() {
         status: invoice.status,
       };
     });
-  }, [invoices, clients]);
+  }, [recentInvoicesFromDb, clients]);
 
-  const isLoadingRecentInvoices = invoices === undefined || clients === undefined;
+  const isLoadingRecentInvoices = recentInvoicesFromDb === undefined || clients === undefined;
 
   const handleNewInvoice = () => {
     router.push("/dashboard/invoices/new");
@@ -83,33 +123,31 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
         <KpiCard
           title="Total Revenue"
-          value={kpiData.totalRevenue.value}
+          value={dashboardKpis?.totalRevenue ?? "$0"}
           icon={DollarSign}
-          trend={kpiData.totalRevenue.trend}
+          trend={dashboardKpis ? { value: `${dashboardKpis.paidInvoiceCount} paid` } : undefined}
           variant={1}
           delay={50}
         />
         <KpiCard
           title="Pending Invoices"
-          value={kpiData.pendingInvoices.count}
+          value={dashboardKpis?.pendingInvoiceCount ?? 0}
           icon={Clock}
-          trend={{ value: kpiData.pendingInvoices.amount }}
+          trend={{ value: dashboardKpis?.pendingAmount ?? "$0" }}
           variant={2}
           delay={100}
         />
         <KpiCard
           title="Active Services"
-          value={kpiData.activeServices.count}
+          value={dashboardKpis?.activeServicesCount ?? 0}
           icon={Briefcase}
-          trend={{ value: kpiData.activeServices.trend }}
           variant={3}
           delay={150}
         />
         <KpiCard
           title="Total Clients"
-          value={kpiData.totalClients.count}
+          value={dashboardKpis?.totalClientsCount ?? 0}
           icon={Users}
-          trend={{ value: kpiData.totalClients.trend }}
           variant={4}
           delay={200}
         />
@@ -118,7 +156,7 @@ export default function DashboardPage() {
       {/* Charts and Quick Actions Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
         <div className="lg:col-span-2">
-          <RevenueChart data={revenueByBrand} />
+          <RevenueChart />
         </div>
         <QuickActions onAction={handleQuickAction} />
       </div>

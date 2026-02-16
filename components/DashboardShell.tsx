@@ -2,11 +2,11 @@
 
 import { type CSSProperties, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
-import { OrganizationSwitcher } from "@clerk/nextjs";
 import { useAuth } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
 import { Sidebar, MobileMenuButton } from "./Sidebar";
 import { api } from "@/convex/_generated/api";
+// Note: Can't use useAuthQuery here because orgBranding may not exist in the API schema yet
 import { getTenantSlugFromPath } from "@/lib/tenant-routing";
 
 interface DashboardShellProps {
@@ -15,15 +15,18 @@ interface DashboardShellProps {
 
 export function DashboardShell({ children }: DashboardShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const pathname = usePathname();
-  const { orgRole } = useAuth();
-  const orgBranding = useQuery((api as any).orgBranding?.getCurrent ?? "skip");
+  const { isLoaded, isSignedIn, orgId } = useAuth();
+  const isAuthReady = isLoaded && isSignedIn && !!orgId;
+  const orgBrandingQuery = (api as any).orgBranding?.getCurrent;
+  const orgBranding = useQuery(
+    isAuthReady && orgBrandingQuery ? orgBrandingQuery : "skip",
+  );
 
   const toggleSidebar = () => setSidebarOpen((prev) => !prev);
+  const toggleCollapse = () => setSidebarCollapsed((prev) => !prev);
   const tenantSlug = getTenantSlugFromPath(pathname ?? "");
-  const canSwitchOrganizations = typeof orgRole === "string" &&
-    (orgRole.includes("admin") || orgRole.includes("owner"));
-
   const branding = useMemo(() => ({
     displayName: orgBranding?.displayName ?? "GFAM Agency",
     shortName: orgBranding?.shortName ?? "GFAM",
@@ -34,7 +37,6 @@ export function DashboardShell({ children }: DashboardShellProps) {
   }), [orgBranding]);
 
   const logoGradient = `linear-gradient(135deg, ${branding.primaryColor}, ${branding.secondaryColor})`;
-  const switcherRedirect = tenantSlug ? `/${tenantSlug}` : "/dashboard";
   const tenantCssVars = useMemo(() => ({
     "--brand-sankofa": branding.primaryColor,
     "--brand-gfam": branding.secondaryColor,
@@ -44,7 +46,12 @@ export function DashboardShell({ children }: DashboardShellProps) {
 
   return (
     <div className="min-h-screen bg-surface" style={tenantCssVars}>
-      <Sidebar isOpen={sidebarOpen} onToggle={toggleSidebar} branding={branding} />
+      <Sidebar
+        isOpen={sidebarOpen}
+        onToggle={toggleSidebar}
+        collapsed={sidebarCollapsed}
+        onCollapseToggle={toggleCollapse}
+      />
 
       {/* Mobile Header Bar */}
       <div className="fixed top-0 left-0 right-0 h-16 bg-surface border-b border-border flex items-center justify-between px-4 z-30 md:hidden">
@@ -67,17 +74,12 @@ export function DashboardShell({ children }: DashboardShellProps) {
       </div>
 
       {/* Main Content */}
-      <main className="min-h-screen p-4 pt-20 md:pt-6 md:p-6 lg:p-8 ml-0 md:ml-sidebar lg:ml-sidebar-collapsed xl:ml-sidebar transition-all duration-300">
+      <main
+        className={`min-h-screen p-4 pt-20 md:pt-6 md:p-6 lg:p-8 ml-0 transition-all duration-300 ${
+          sidebarCollapsed ? "md:ml-sidebar-collapsed" : "md:ml-sidebar"
+        }`}
+      >
         <div className="max-w-7xl mx-auto">
-          {canSwitchOrganizations && (
-            <div className="mb-4 md:mb-6 flex justify-end">
-              <OrganizationSwitcher
-                hidePersonal
-                afterSelectOrganizationUrl={switcherRedirect}
-                afterCreateOrganizationUrl={switcherRedirect}
-              />
-            </div>
-          )}
           {children}
         </div>
       </main>
