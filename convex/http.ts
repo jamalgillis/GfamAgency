@@ -3,8 +3,108 @@ import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import Stripe from "stripe";
 import { getWebhookSecret, PARENT_ORGANIZATION } from "./lib/stripe";
+import { buildInvoicePdfDocument } from "./lib/invoicePdf";
 
 const http = httpRouter();
+
+function safePdfFileName(invoiceNumber: string): string {
+  return `Invoice-${invoiceNumber.replace(/[^a-zA-Z0-9_-]/g, "-")}.pdf`;
+}
+
+http.route({
+  path: "/invoice-pdf",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const url = new URL(request.url);
+    const invoiceId = url.searchParams.get("invoiceId");
+    const token = url.searchParams.get("token");
+
+    if (!invoiceId || !token) {
+      return new Response("Missing invoiceId or token", { status: 400 });
+    }
+
+    let data:
+      | {
+          invoice: {
+            _id: string;
+            invoiceNumber: string;
+            status: string;
+            participatingBrands: string[];
+            createdAt: number;
+            notes?: string;
+          };
+          client: {
+            name: string;
+            company: string;
+            email: string;
+          };
+          lineItems: Array<{
+            brand: string;
+            category: string;
+            name: string;
+            description?: string;
+            quantity: number;
+            unitPriceCents: number;
+            customPriceCents?: number;
+            isCustomItem: boolean;
+          }>;
+        }
+      | null = null;
+
+    try {
+      data = await ctx.runQuery("invoiceActions:getInvoiceForPdfDownload" as any, {
+        invoiceId,
+        accessToken: token,
+      });
+    } catch {
+      return new Response("Invalid invoice id", { status: 400 });
+    }
+
+    if (!data) {
+      return new Response("Invoice not found", { status: 404 });
+    }
+
+    const dueDate = new Date(data.invoice.createdAt);
+    dueDate.setDate(dueDate.getDate() + 30);
+
+    const pdf = buildInvoicePdfDocument({
+      invoiceNumber: data.invoice.invoiceNumber,
+      status: data.invoice.status,
+      issueDate: data.invoice.createdAt,
+      dueDate: dueDate.getTime(),
+      participatingBrands: data.invoice.participatingBrands,
+      client: {
+        name: data.client.name,
+        company: data.client.company,
+        email: data.client.email,
+      },
+      notes: data.invoice.notes,
+      lineItems: data.lineItems.map((item) => ({
+        brand: item.brand,
+        category: item.category,
+        name: item.name,
+        description: item.description,
+        quantity: item.quantity,
+        unitPriceCents: item.unitPriceCents,
+        customPriceCents: item.customPriceCents,
+        isCustomItem: item.isCustomItem,
+      })),
+    });
+    const pdfBody = new Uint8Array(pdf.length);
+    pdfBody.set(pdf);
+
+    return new Response(pdfBody, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="${safePdfFileName(
+          data.invoice.invoiceNumber
+        )}"`,
+        "Cache-Control": "private, no-store, max-age=0",
+      },
+    });
+  }),
+});
 
 /**
  * Single webhook endpoint for GFAM Agency Stripe account

@@ -342,6 +342,54 @@ function formatDateValue(date: Date): string {
   }).format(date);
 }
 
+function normalizeBaseUrl(value: string): string {
+  return value.replace(/\/+$/, "");
+}
+
+function getInvoiceDownloadBaseUrl(): string | null {
+  const explicitSiteUrl =
+    process.env.NEXT_PUBLIC_CONVEX_SITE_URL ?? process.env.CONVEX_SITE_URL;
+  if (explicitSiteUrl) {
+    return normalizeBaseUrl(explicitSiteUrl);
+  }
+
+  const convexCloudUrl = process.env.NEXT_PUBLIC_CONVEX_URL ?? process.env.CONVEX_URL;
+  if (!convexCloudUrl) {
+    return null;
+  }
+
+  try {
+    const parsedUrl = new URL(convexCloudUrl);
+    if (parsedUrl.hostname.endsWith(".convex.cloud")) {
+      parsedUrl.hostname = `${parsedUrl.hostname.slice(0, -".convex.cloud".length)}.convex.site`;
+    }
+
+    parsedUrl.pathname = "";
+    parsedUrl.search = "";
+    parsedUrl.hash = "";
+    return normalizeBaseUrl(parsedUrl.toString());
+  } catch {
+    return null;
+  }
+}
+
+function buildInvoicePdfDownloadUrl(
+  invoiceId: Id<"invoices">,
+  accessToken: string
+): string | undefined {
+  const baseUrl = getInvoiceDownloadBaseUrl();
+  if (!baseUrl) {
+    return undefined;
+  }
+
+  const params = new URLSearchParams({
+    invoiceId,
+    token: accessToken,
+  });
+
+  return `${baseUrl}/invoice-pdf?${params.toString()}`;
+}
+
 function getInvoiceDisplayBrand(participatingBrands: string[]): string {
   return participatingBrands.length === 1 ? participatingBrands[0] : "Sankofa";
 }
@@ -367,6 +415,7 @@ function renderInvoiceEmailHtml(params: {
   subtotalCents: number;
   totalCents: number;
   checkoutUrl: string;
+  pdfDownloadUrl?: string;
 }): string {
   const lineItemRows = params.lineItems
     .map((item) => {
@@ -374,20 +423,22 @@ function renderInvoiceEmailHtml(params: {
       const amountCents = rateCents * item.quantity;
       return `
         <tr>
-          <td style="padding:10px;border-bottom:1px solid #e5e7eb;">
-            <div style="font-weight:600;color:#111827;">${escapeHtml(item.name)}</div>
-            <div style="font-size:12px;color:#6b7280;margin-top:4px;">${escapeHtml(
+          <td style="padding:10px;border-bottom:1px solid #e5e7eb;vertical-align:top;">
+            <div class="item-title" style="font-weight:600;color:#111827;line-height:1.35;">${escapeHtml(
+              item.name
+            )}</div>
+            <div class="item-desc" style="font-size:12px;color:#6b7280;margin-top:4px;line-height:1.4;">${escapeHtml(
               item.description || ""
             )}</div>
-            <div style="display:inline-block;margin-top:6px;padding:3px 8px;border-radius:999px;background:#f3f4f6;font-size:11px;color:#374151;">${escapeHtml(
+            <div style="display:inline-block;margin-top:6px;padding:3px 8px;border-radius:999px;background:#f3f4f6;font-size:11px;color:#374151;line-height:1.2;">${escapeHtml(
               item.brand
             )}</div>
           </td>
-          <td style="padding:10px;border-bottom:1px solid #e5e7eb;text-align:center;">${item.quantity}</td>
-          <td style="padding:10px;border-bottom:1px solid #e5e7eb;text-align:right;">${formatCurrencyFromCents(
+          <td style="padding:10px;border-bottom:1px solid #e5e7eb;text-align:center;vertical-align:top;">${item.quantity}</td>
+          <td style="padding:10px;border-bottom:1px solid #e5e7eb;text-align:right;vertical-align:top;">${formatCurrencyFromCents(
             rateCents
           )}</td>
-          <td style="padding:10px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:600;">${formatCurrencyFromCents(
+          <td style="padding:10px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:600;vertical-align:top;">${formatCurrencyFromCents(
             amountCents
           )}</td>
         </tr>
@@ -404,91 +455,158 @@ function renderInvoiceEmailHtml(params: {
     )
     .join("");
 
+  const downloadButton = params.pdfDownloadUrl
+    ? `<a href="${escapeHtml(
+        params.pdfDownloadUrl
+      )}" class="btn btn-secondary" style="display:inline-block;background:#ffffff;color:#111827;text-decoration:none;padding:12px 16px;border-radius:8px;font-weight:600;border:1px solid #d1d5db;font-size:14px;line-height:1.2;margin-left:10px;">Download PDF</a>`
+    : "";
+
   return `
-    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#f9fafb;padding:24px;">
-      <div style="max-width:760px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:14px;overflow:hidden;">
-        <div style="padding:24px 24px 10px 24px;border-bottom:1px solid #e5e7eb;">
-          <h1 style="margin:0;font-size:28px;color:#111827;">${escapeHtml(params.displayBrand)}</h1>
-          <p style="margin:6px 0 0 0;color:#6b7280;font-size:13px;">Invoice ${escapeHtml(
-            params.invoiceNumber
-          )}</p>
-        </div>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="x-apple-disable-message-reformatting" />
+    <title>Invoice ${escapeHtml(params.invoiceNumber)}</title>
+    <style>
+      body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+      table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+      table { border-collapse: collapse !important; }
+      .outer { padding: 24px; }
+      .container { width: 100%; max-width: 760px; }
+      .stack-col { width: 50%; }
+      .btn { display: inline-block; padding: 12px 16px; border-radius: 8px; font-weight: 600; text-decoration: none; font-size: 14px; line-height: 1.2; }
+      .btn-secondary { margin-left: 10px; }
+      .totals-box { width: 240px; margin-left: auto; }
 
-        <div style="padding:22px 24px;">
-          <div style="display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap;">
-            <div>
-              <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#9ca3af;">Bill To</div>
-              <div style="margin-top:6px;font-weight:600;color:#111827;">${escapeHtml(
-                params.clientCompany
-              )}</div>
-              <div style="color:#4b5563;">${escapeHtml(params.clientName)}</div>
-              <div style="color:#4b5563;">${escapeHtml(params.clientEmail)}</div>
-            </div>
-            <div>
-              <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#9ca3af;">Details</div>
-              <div style="margin-top:6px;color:#4b5563;">Issue Date: ${escapeHtml(
-                params.issueDate
-              )}</div>
-              <div style="color:#4b5563;">Due Date: ${escapeHtml(params.dueDate)}</div>
-              <div style="color:#4b5563;">Payment Terms: Net 30</div>
-            </div>
-          </div>
+      @media screen and (max-width: 600px) {
+        .outer { padding: 12px !important; }
+        .inner-pad { padding: 18px !important; }
+        .stack-col { display: block !important; width: 100% !important; padding-left: 0 !important; padding-right: 0 !important; }
+        .mobile-gap { padding-top: 14px !important; }
+        .btn, .btn-secondary { display: block !important; width: 100% !important; box-sizing: border-box !important; margin: 0 0 10px 0 !important; text-align: center !important; }
+        .invoice-table th, .invoice-table td { padding: 8px !important; font-size: 12px !important; }
+        .item-title { font-size: 13px !important; }
+        .item-desc { font-size: 12px !important; line-height: 1.4 !important; }
+        .totals-box { width: 100% !important; margin-left: 0 !important; }
+      }
+    </style>
+  </head>
+  <body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+    <table role="presentation" width="100%" style="background:#f3f4f6;">
+      <tr>
+        <td align="center" class="outer" style="padding:24px;">
+          <table role="presentation" width="100%" class="container" style="max-width:760px;background:#ffffff;border:1px solid #e5e7eb;border-radius:14px;overflow:hidden;">
+            <tr>
+              <td class="inner-pad" style="padding:24px 24px 10px 24px;border-bottom:1px solid #e5e7eb;">
+                <h1 style="margin:0;font-size:28px;color:#111827;line-height:1.2;">${escapeHtml(
+                  params.displayBrand
+                )}</h1>
+                <p style="margin:6px 0 0 0;color:#6b7280;font-size:13px;">Invoice ${escapeHtml(
+                  params.invoiceNumber
+                )}</p>
+              </td>
+            </tr>
 
-          <div style="margin-top:18px;padding:14px;border:1px solid #e5e7eb;border-radius:12px;background:#f8fafc;">
-            <a href="${escapeHtml(
-              params.checkoutUrl
-            )}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:8px;font-weight:600;">Pay Invoice</a>
-          </div>
+            <tr>
+              <td class="inner-pad" style="padding:22px 24px;">
+                <table role="presentation" width="100%">
+                  <tr>
+                    <td class="stack-col" valign="top" style="width:50%;padding-right:8px;">
+                      <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#9ca3af;">Bill To</div>
+                      <div style="margin-top:6px;font-weight:600;color:#111827;">${escapeHtml(
+                        params.clientCompany
+                      )}</div>
+                      <div style="color:#4b5563;line-height:1.5;">${escapeHtml(
+                        params.clientName
+                      )}</div>
+                      <div style="color:#4b5563;line-height:1.5;">${escapeHtml(
+                        params.clientEmail
+                      )}</div>
+                    </td>
+                    <td class="stack-col mobile-gap" valign="top" style="width:50%;padding-left:8px;">
+                      <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#9ca3af;">Details</div>
+                      <div style="margin-top:6px;color:#4b5563;line-height:1.5;">Issue Date: ${escapeHtml(
+                        params.issueDate
+                      )}</div>
+                      <div style="color:#4b5563;line-height:1.5;">Due Date: ${escapeHtml(
+                        params.dueDate
+                      )}</div>
+                      <div style="color:#4b5563;line-height:1.5;">Payment Terms: Net 30</div>
+                    </td>
+                  </tr>
+                </table>
 
-          <table style="width:100%;border-collapse:collapse;margin-top:18px;">
-            <thead>
-              <tr style="background:#f9fafb;">
-                <th style="text-align:left;padding:10px;font-size:12px;color:#6b7280;">Description</th>
-                <th style="text-align:center;padding:10px;font-size:12px;color:#6b7280;">Qty</th>
-                <th style="text-align:right;padding:10px;font-size:12px;color:#6b7280;">Rate</th>
-                <th style="text-align:right;padding:10px;font-size:12px;color:#6b7280;">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${lineItemRows}
-            </tbody>
+                <table role="presentation" width="100%" style="margin-top:18px;">
+                  <tr>
+                    <td style="padding:14px;border:1px solid #e5e7eb;border-radius:12px;background:#f8fafc;">
+                      <a href="${escapeHtml(
+                        params.checkoutUrl
+                      )}" class="btn" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;padding:12px 16px;border-radius:8px;font-weight:600;font-size:14px;line-height:1.2;">Pay Invoice</a>
+                      ${downloadButton}
+                    </td>
+                  </tr>
+                </table>
+
+                <table class="invoice-table" role="presentation" width="100%" style="margin-top:18px;width:100%;">
+                  <thead>
+                    <tr style="background:#f9fafb;">
+                      <th style="text-align:left;padding:10px;font-size:12px;color:#6b7280;">Description</th>
+                      <th style="text-align:center;padding:10px;font-size:12px;color:#6b7280;">Qty</th>
+                      <th style="text-align:right;padding:10px;font-size:12px;color:#6b7280;">Rate</th>
+                      <th style="text-align:right;padding:10px;font-size:12px;color:#6b7280;">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${lineItemRows}
+                  </tbody>
+                </table>
+
+                <table role="presentation" class="totals-box" style="width:240px;margin-top:16px;margin-left:auto;">
+                  <tr>
+                    <td style="padding:6px 0;color:#4b5563;">Subtotal</td>
+                    <td style="padding:6px 0;color:#4b5563;text-align:right;">${formatCurrencyFromCents(
+                      params.subtotalCents
+                    )}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:8px 0;font-size:18px;font-weight:700;color:#111827;border-top:1px solid #e5e7eb;">Total</td>
+                    <td style="padding:8px 0;font-size:18px;font-weight:700;color:#111827;border-top:1px solid #e5e7eb;text-align:right;">${formatCurrencyFromCents(
+                      params.totalCents
+                    )}</td>
+                  </tr>
+                </table>
+
+                <div style="margin-top:18px;">
+                  <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#9ca3af;">Notes</div>
+                  <div style="margin-top:6px;color:#374151;font-size:14px;line-height:1.5;">${escapeHtml(
+                    params.notes || "No notes added"
+                  )}</div>
+                </div>
+
+                ${
+                  params.participatingBrands.length > 1
+                    ? `<div style="margin-top:18px;">
+                         <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#9ca3af;margin-bottom:8px;">Services Provided By</div>
+                         ${brandPills}
+                       </div>`
+                    : ""
+                }
+              </td>
+            </tr>
+
+            <tr>
+              <td class="inner-pad" style="padding:18px 24px;border-top:1px solid #e5e7eb;background:#fafafa;text-align:center;">
+                <div style="font-size:14px;color:#111827;line-height:1.5;">Thank you for your business Sankofa Marketing Group</div>
+              </td>
+            </tr>
           </table>
-
-          <div style="margin-top:16px;display:flex;justify-content:flex-end;">
-            <div style="min-width:240px;">
-              <div style="display:flex;justify-content:space-between;padding:6px 0;color:#4b5563;">
-                <span>Subtotal</span>
-                <span>${formatCurrencyFromCents(params.subtotalCents)}</span>
-              </div>
-              <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:18px;font-weight:700;color:#111827;border-top:1px solid #e5e7eb;">
-                <span>Total</span>
-                <span>${formatCurrencyFromCents(params.totalCents)}</span>
-              </div>
-            </div>
-          </div>
-
-          <div style="margin-top:18px;">
-            <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#9ca3af;">Notes</div>
-            <div style="margin-top:6px;color:#374151;font-size:14px;">${escapeHtml(
-              params.notes || "No notes added"
-            )}</div>
-          </div>
-
-          ${
-            params.participatingBrands.length > 1
-              ? `<div style="margin-top:18px;">
-                   <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#9ca3af;margin-bottom:8px;">Services Provided By</div>
-                   ${brandPills}
-                 </div>`
-              : ""
-          }
-        </div>
-
-        <div style="padding:18px 24px;border-top:1px solid #e5e7eb;background:#fafafa;text-align:center;">
-          <div style="font-size:14px;color:#111827;">Thank you for your business Sankfoa Marketing Group</div>
-        </div>
-      </div>
-    </div>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
   `;
 }
 
@@ -510,6 +628,7 @@ async function sendInvoiceEmailWithResend(params: {
     customPriceCents?: number;
   }>;
   checkoutUrl?: string;
+  pdfDownloadUrl?: string;
 }) {
   if (!params.checkoutUrl) {
     return { sent: false, skipped: "missing_checkout_url" as const };
@@ -548,6 +667,7 @@ async function sendInvoiceEmailWithResend(params: {
     subtotalCents,
     totalCents: subtotalCents,
     checkoutUrl: params.checkoutUrl,
+    pdfDownloadUrl: params.pdfDownloadUrl,
   });
 
   const resend = new Resend(resendApiKey);
@@ -1128,6 +1248,7 @@ export const createCheckoutSessionForInvoice = action({
           notes: invoice.notes,
           lineItems,
           checkoutUrl: checkoutSession.url ?? undefined,
+          pdfDownloadUrl: buildInvoicePdfDownloadUrl(invoice._id, checkoutSession.id),
         });
 
         emailSent = emailResult.sent;
@@ -1825,6 +1946,7 @@ export const sendDraftInvoice = action({
             notes: invoice.notes,
             lineItems,
             checkoutUrl: checkoutSession.url ?? undefined,
+            pdfDownloadUrl: buildInvoicePdfDownloadUrl(invoice._id, checkoutSession.id),
           });
 
           emailSent = emailResult.sent;
@@ -2010,6 +2132,40 @@ export const getInvoiceLineItemsByInvoiceId = internalQuery({
         q.eq("orgId", args.orgId).eq("invoiceId", args.invoiceId)
       )
       .collect();
+  },
+});
+
+/**
+ * Internal query for public invoice PDF downloads.
+ * Access is token-gated by the Stripe Checkout Session ID stored on the invoice.
+ */
+export const getInvoiceForPdfDownload = internalQuery({
+  args: {
+    invoiceId: v.id("invoices"),
+    accessToken: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const invoice = await ctx.db.get(args.invoiceId);
+    if (!invoice) return null;
+
+    if (!invoice.stripeCheckoutSessionId) return null;
+    if (invoice.stripeCheckoutSessionId !== args.accessToken) return null;
+
+    const client = await ctx.db.get(invoice.clientId);
+    if (!client || client.orgId !== invoice.orgId) return null;
+
+    const lineItems = await ctx.db
+      .query("invoiceLineItems")
+      .withIndex("by_org_invoice", (q) =>
+        q.eq("orgId", invoice.orgId).eq("invoiceId", invoice._id)
+      )
+      .collect();
+
+    return {
+      invoice,
+      client,
+      lineItems,
+    };
   },
 });
 
