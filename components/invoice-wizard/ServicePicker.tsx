@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search, Plus, X, DollarSign, Tag, FileText } from "lucide-react";
 import { ServiceCard } from "./ServiceCard";
 import type { WizardService, SelectedServiceItem } from "@/data/wizard-sample";
-import { brandTabs, getServicesByBrand } from "@/data/wizard-sample";
+import { brandTabs } from "@/data/wizard-sample";
 import type { BrandType } from "@/lib/brand-theme";
 
 interface ServicePickerProps {
@@ -14,6 +14,8 @@ interface ServicePickerProps {
   onQuantityChange: (serviceId: string, quantity: number) => void;
   onAddCustomService: (service: WizardService) => void;
   onCustomRateChange?: (serviceId: string, customRate: number) => void;
+  allowCustomItems?: boolean;
+  allowCustomRateOverrides?: boolean;
 }
 
 export function ServicePicker({
@@ -23,6 +25,8 @@ export function ServicePicker({
   onQuantityChange,
   onAddCustomService,
   onCustomRateChange,
+  allowCustomItems = true,
+  allowCustomRateOverrides = true,
 }: ServicePickerProps) {
   const [activeBrand, setActiveBrand] = useState<BrandType>("Sankofa");
   const [search, setSearch] = useState("");
@@ -35,6 +39,18 @@ export function ServicePicker({
   const [customBrand, setCustomBrand] = useState<BrandType>("Sankofa");
   const [customCategory, setCustomCategory] = useState("custom");
 
+  const availableBrandTabs = useMemo(() => {
+    const catalogBrands = new Set(services.map((service) => service.brand));
+    return brandTabs.filter((tab) => catalogBrands.has(tab.id));
+  }, [services]);
+
+  useEffect(() => {
+    if (availableBrandTabs.length === 0) return;
+    if (!availableBrandTabs.some((tab) => tab.id === activeBrand)) {
+      setActiveBrand(availableBrandTabs[0].id);
+    }
+  }, [activeBrand, availableBrandTabs]);
+
   // Count selected services per brand
   const getSelectedCount = (brand: BrandType) => {
     return Array.from(selectedServices.values()).filter(
@@ -43,11 +59,13 @@ export function ServicePicker({
   };
 
   // Filter services by active brand and search
-  const filteredServices = getServicesByBrand(activeBrand).filter(
-    (service) =>
+  const filteredServices = services.filter((service) => {
+    if (service.brand !== activeBrand) return false;
+    return (
       service.name.toLowerCase().includes(search.toLowerCase()) ||
       service.description.toLowerCase().includes(search.toLowerCase())
-  );
+    );
+  });
 
   // Handle adding custom service
   const handleAddCustomService = () => {
@@ -75,32 +93,40 @@ export function ServicePicker({
   return (
     <div className="space-y-6">
       {/* Custom Service Toggle */}
-      <div className="flex items-center justify-between">
-        <button
-          onClick={() => setShowCustomForm(!showCustomForm)}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
-            showCustomForm
-              ? "border-brand-sankofa bg-brand-sankofa/10 text-brand-sankofa"
-              : "border-border hover:border-content-muted text-content-secondary hover:text-content"
-          }`}
-        >
-          {showCustomForm ? (
-            <X className="w-4 h-4" />
-          ) : (
-            <Plus className="w-4 h-4" />
-          )}
-          <span className="text-sm font-medium">
-            {showCustomForm ? "Cancel" : "Add Custom Item"}
-          </span>
-        </button>
+      {allowCustomItems ? (
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => setShowCustomForm(!showCustomForm)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
+              showCustomForm
+                ? "border-brand-sankofa bg-brand-sankofa/10 text-brand-sankofa"
+                : "border-border hover:border-content-muted text-content-secondary hover:text-content"
+            }`}
+          >
+            {showCustomForm ? (
+              <X className="w-4 h-4" />
+            ) : (
+              <Plus className="w-4 h-4" />
+            )}
+            <span className="text-sm font-medium">
+              {showCustomForm ? "Cancel" : "Add Custom Item"}
+            </span>
+          </button>
 
-        <p className="text-meta text-content-muted">
-          For ad-hoc pricing or legacy client discounts
-        </p>
-      </div>
+          <p className="text-meta text-content-muted">
+            For ad-hoc pricing or legacy client discounts
+          </p>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-border bg-surface-tertiary px-4 py-3">
+          <p className="text-sm text-content-secondary">
+            Custom line items are disabled in subscription mode.
+          </p>
+        </div>
+      )}
 
       {/* Custom Service Form */}
-      {showCustomForm && (
+      {allowCustomItems && showCustomForm && (
         <div className="card p-5 border-2 border-dashed border-brand-sankofa/30 bg-brand-sankofa/5 animate-fade-in-up">
           <div className="flex items-center gap-2 mb-4">
             <Tag className="w-4 h-4 text-brand-sankofa" />
@@ -140,7 +166,7 @@ export function ServicePicker({
                 onChange={(e) => setCustomBrand(e.target.value as BrandType)}
                 className="input-field"
               >
-                {brandTabs.map((tab) => (
+                {(availableBrandTabs.length > 0 ? availableBrandTabs : brandTabs).map((tab) => (
                   <option key={tab.id} value={tab.id}>
                     {tab.label} - {tab.subtitle}
                   </option>
@@ -211,7 +237,7 @@ export function ServicePicker({
 
       {/* Brand tabs */}
       <div className="flex gap-2 overflow-x-auto pb-2">
-        {brandTabs.map((tab) => {
+        {availableBrandTabs.map((tab) => {
           const count = getSelectedCount(tab.id);
           const isActive = activeBrand === tab.id;
 
@@ -263,7 +289,7 @@ export function ServicePicker({
                 onToggle={() => onToggleService(service)}
                 onQuantityChange={(qty) => onQuantityChange(service.id, qty)}
                 onCustomRateChange={
-                  onCustomRateChange
+                  onCustomRateChange && allowCustomRateOverrides
                     ? (rate) => onCustomRateChange(service.id, rate)
                     : undefined
                 }

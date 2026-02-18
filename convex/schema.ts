@@ -15,6 +15,24 @@ export const serviceStatusUnion = v.union(
   v.literal("inactive"),
 );
 
+export const billingTypeUnion = v.union(
+  v.literal("one_time"),
+  v.literal("recurring"),
+);
+
+export const recurringIntervalUnion = v.union(
+  v.literal("day"),
+  v.literal("week"),
+  v.literal("month"),
+  v.literal("year"),
+);
+
+export const dunningActionUnion = v.union(
+  v.literal("none"),
+  v.literal("pause"),
+  v.literal("cancel"),
+);
+
 export default defineSchema({
   services: defineTable({
     orgId: v.string(),
@@ -29,6 +47,9 @@ export default defineSchema({
     price: v.string(), // Display price (e.g., "$500 - $1,000")
     priceValue: v.number(), // Base numeric value for calculations (in dollars)
     priceSuffix: v.optional(v.string()), // e.g., "/month", "/episode"
+    billingType: v.optional(billingTypeUnion), // Defaults to one_time if omitted
+    recurringInterval: v.optional(recurringIntervalUnion),
+    recurringIntervalCount: v.optional(v.number()),
 
     // Metadata
     tags: v.array(v.string()),
@@ -38,6 +59,7 @@ export default defineSchema({
     stripeSynced: v.boolean(),
     stripeProductId: v.optional(v.string()), // Stripe Product ID (prod_xxx)
     stripePriceId: v.optional(v.string()), // Stripe Price ID (price_xxx)
+    stripeRecurringPriceId: v.optional(v.string()), // Stripe recurring Price ID (price_xxx)
   })
     .index("by_org", ["orgId"])
     .index("by_org_brand", ["orgId", "brand"])
@@ -62,6 +84,13 @@ export default defineSchema({
     stripeCheckoutSessionId: v.optional(v.string()), // Optional for Checkout Session flow
     revisesInvoiceId: v.optional(v.id("invoices")), // If this is a revision, link to original invoice
     revisesStripeInvoiceId: v.optional(v.string()), // Stripe invoice ID of the original
+    sourceType: v.optional(
+      v.union(v.literal("one_time"), v.literal("subscription"))
+    ),
+    subscriptionId: v.optional(v.id("subscriptions")),
+    stripeSubscriptionId: v.optional(v.string()),
+    billingPeriodStart: v.optional(v.number()),
+    billingPeriodEnd: v.optional(v.number()),
     status: v.union(
       v.literal("draft"),
       v.literal("open"),
@@ -71,6 +100,8 @@ export default defineSchema({
     ),
     totalCents: v.number(), // Total in cents for precision
     notes: v.optional(v.string()),
+    sentAt: v.optional(v.number()),
+    paidAt: v.optional(v.number()),
     createdAt: v.number(), // Timestamp
   })
     .index("by_org", ["orgId"])
@@ -78,10 +109,67 @@ export default defineSchema({
     .index("by_org_status", ["orgId", "status"])
     .index("by_org_client", ["orgId", "clientId"])
     .index("by_org_stripe_invoice_id", ["orgId", "stripeInvoiceId"])
+    .index("by_org_source_type", ["orgId", "sourceType"])
+    .index("by_org_subscription", ["orgId", "subscriptionId"])
+    .index("by_org_stripe_subscription_id", ["orgId", "stripeSubscriptionId"])
     .index("by_primary_brand", ["primaryBrand"])
     .index("by_status", ["status"])
     .index("by_client", ["clientId"])
     .index("by_stripe_invoice_id", ["stripeInvoiceId"]),
+
+  subscriptions: defineTable({
+    orgId: v.string(),
+    clientId: v.id("clients"),
+    primaryBrand: v.string(),
+    participatingBrands: v.array(v.string()),
+    stripeSubscriptionId: v.string(),
+    stripeCustomerId: v.string(),
+    status: v.union(
+      v.literal("active"),
+      v.literal("trialing"),
+      v.literal("past_due"),
+      v.literal("paused"),
+      v.literal("canceled"),
+      v.literal("incomplete"),
+      v.literal("incomplete_expired"),
+      v.literal("unpaid"),
+    ),
+    currentPeriodStart: v.optional(v.number()),
+    currentPeriodEnd: v.optional(v.number()),
+    cancelAt: v.optional(v.number()),
+    canceledAt: v.optional(v.number()),
+    endedAt: v.optional(v.number()),
+    dunningEnabled: v.optional(v.boolean()),
+    dunningMaxAttempts: v.optional(v.number()),
+    dunningRetryIntervalDays: v.optional(v.number()),
+    dunningAction: v.optional(dunningActionUnion),
+    dunningFailureCount: v.optional(v.number()),
+    dunningLastFailureAt: v.optional(v.number()),
+    dunningLastFailedInvoiceId: v.optional(v.string()),
+    dunningLastActionAt: v.optional(v.number()),
+    notes: v.optional(v.string()),
+    items: v.array(
+      v.object({
+        serviceId: v.optional(v.id("services")),
+        brand: brandUnion,
+        category: v.string(),
+        name: v.string(),
+        description: v.optional(v.string()),
+        quantity: v.number(),
+        stripePriceId: v.optional(v.string()),
+        unitPriceCents: v.number(),
+      }),
+    ),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_client", ["orgId", "clientId"])
+    .index("by_org_status", ["orgId", "status"])
+    .index("by_org_primary_brand", ["orgId", "primaryBrand"])
+    .index("by_org_stripe_subscription_id", ["orgId", "stripeSubscriptionId"])
+    .index("by_client", ["clientId"])
+    .index("by_stripe_subscription_id", ["stripeSubscriptionId"]),
 
   // Line items for each invoice - supports both catalog and custom pricing
   invoiceLineItems: defineTable({

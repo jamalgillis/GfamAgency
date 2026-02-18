@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   Briefcase,
   FileText,
+  Repeat,
   Users,
   Settings,
   Menu,
@@ -32,6 +33,7 @@ const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/services", label: "Services", icon: Briefcase },
   { href: "/dashboard/invoices", label: "Invoices", icon: FileText },
+  { href: "/dashboard/subscriptions", label: "Subscriptions", icon: Repeat },
   { href: "/dashboard/clients", label: "Clients", icon: Users },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];

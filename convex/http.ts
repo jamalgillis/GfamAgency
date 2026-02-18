@@ -138,6 +138,10 @@ http.route({
     // Handle the event
     try {
       switch (event.type) {
+        case "invoice.created":
+          await handleInvoiceCreated(ctx, event.data.object as Stripe.Invoice);
+          break;
+
         case "invoice.paid":
           await handleInvoicePaid(ctx, event.data.object as Stripe.Invoice);
           break;
@@ -160,6 +164,15 @@ http.route({
 
         case "invoice.sent":
           await handleInvoiceSent(ctx, event.data.object as Stripe.Invoice);
+          break;
+
+        case "customer.subscription.created":
+        case "customer.subscription.updated":
+          await handleSubscriptionUpdated(ctx, event.data.object as Stripe.Subscription);
+          break;
+
+        case "customer.subscription.deleted":
+          await handleSubscriptionDeleted(ctx, event.data.object as Stripe.Subscription);
           break;
 
         case "payment_intent.succeeded":
@@ -195,12 +208,101 @@ http.route({
   }),
 });
 
+function toMillis(timestampSeconds?: number | null): number | undefined {
+  if (!timestampSeconds || timestampSeconds <= 0) {
+    return undefined;
+  }
+  return timestampSeconds * 1000;
+}
+
+function mapStripeSubscriptionStatus(
+  status: string | null | undefined
+):
+  | "active"
+  | "trialing"
+  | "past_due"
+  | "paused"
+  | "canceled"
+  | "incomplete"
+  | "incomplete_expired"
+  | "unpaid" {
+  switch (status) {
+    case "active":
+    case "trialing":
+    case "past_due":
+    case "paused":
+    case "canceled":
+    case "incomplete":
+    case "incomplete_expired":
+    case "unpaid":
+      return status;
+    default:
+      return "incomplete";
+  }
+}
+
+function getStripeSubscriptionIdFromInvoice(
+  invoice: Stripe.Invoice,
+): string | undefined {
+  return typeof invoice.subscription === "string"
+    ? invoice.subscription
+    : invoice.subscription && typeof invoice.subscription === "object" && "id" in invoice.subscription
+      ? invoice.subscription.id
+      : undefined;
+}
+
+async function resolveConvexInvoiceIdForWebhook(
+  ctx: any,
+  invoice: Stripe.Invoice,
+): Promise<string | undefined> {
+  const stripeSubscriptionId = getStripeSubscriptionIdFromInvoice(invoice);
+
+  if (stripeSubscriptionId) {
+    const syncResult = await ctx.runAction(
+      internal.invoiceActions.syncSubscriptionInvoiceFromStripe,
+      {
+        stripeInvoiceId: invoice.id,
+        stripeSubscriptionId,
+      },
+    );
+
+    if (syncResult.success && syncResult.invoiceId) {
+      return syncResult.invoiceId;
+    }
+  }
+
+  return invoice.metadata?.convexInvoiceId;
+}
+
+/**
+ * Handle invoice.created event.
+ * Subscription invoices are synced into local invoice records immediately.
+ */
+async function handleInvoiceCreated(ctx: any, invoice: Stripe.Invoice) {
+  if (!invoice.subscription) {
+    return;
+  }
+
+  const syncedInvoiceId = await resolveConvexInvoiceIdForWebhook(ctx, invoice);
+  if (!syncedInvoiceId) {
+    console.log(
+      `[${PARENT_ORGANIZATION}] Subscription invoice ${invoice.id} is not tracked locally`
+    );
+    return;
+  }
+
+  console.log(
+    `[${PARENT_ORGANIZATION}] Synced subscription invoice ${invoice.id} -> ${syncedInvoiceId}`
+  );
+}
+
 /**
  * Handle invoice.paid event
  */
 async function handleInvoicePaid(ctx: any, invoice: Stripe.Invoice) {
-  const convexInvoiceId = invoice.metadata?.convexInvoiceId;
+  const convexInvoiceId = await resolveConvexInvoiceIdForWebhook(ctx, invoice);
   const brand = invoice.metadata?.primaryBrand ?? PARENT_ORGANIZATION;
+  const stripeSubscriptionId = getStripeSubscriptionIdFromInvoice(invoice);
 
   if (!convexInvoiceId) {
     console.log(`[${brand}] Invoice ${invoice.id} has no convexInvoiceId metadata`);
@@ -213,9 +315,7 @@ async function handleInvoicePaid(ctx: any, invoice: Stripe.Invoice) {
     convexInvoiceId,
     status: "paid",
     stripeInvoiceId: invoice.id,
-    paidAt: invoice.status_transitions?.paid_at
-      ? invoice.status_transitions.paid_at * 1000
-      : Date.now(),
+    paidAt: toMillis(invoice.status_transitions?.paid_at) ?? Date.now(),
   });
 
   const paymentIntent = invoice.payment_intent;
@@ -239,14 +339,21 @@ async function handleInvoicePaid(ctx: any, invoice: Stripe.Invoice) {
     settlementId: invoice.id,
     stripePaymentIntentId,
   });
+
+  if (stripeSubscriptionId) {
+    await ctx.runMutation(internal.invoiceActions.resetSubscriptionDunningFailureState, {
+      stripeSubscriptionId,
+    });
+  }
 }
 
 /**
  * Handle invoice.payment_failed event
  */
 async function handleInvoicePaymentFailed(ctx: any, invoice: Stripe.Invoice) {
-  const convexInvoiceId = invoice.metadata?.convexInvoiceId;
+  const convexInvoiceId = await resolveConvexInvoiceIdForWebhook(ctx, invoice);
   const brand = invoice.metadata?.primaryBrand ?? PARENT_ORGANIZATION;
+  const stripeSubscriptionId = getStripeSubscriptionIdFromInvoice(invoice);
 
   if (!convexInvoiceId) {
     console.log(`[${brand}] Invoice ${invoice.id} has no convexInvoiceId metadata`);
@@ -260,13 +367,29 @@ async function handleInvoicePaymentFailed(ctx: any, invoice: Stripe.Invoice) {
     stripeInvoiceId: invoice.id,
     failureMessage: invoice.last_finalization_error?.message || "Payment failed",
   });
+
+  if (stripeSubscriptionId) {
+    const dunningResult = await ctx.runAction(
+      internal.invoiceActions.applySubscriptionDunningPolicyFromPaymentFailure,
+      {
+        stripeSubscriptionId,
+        stripeInvoiceId: invoice.id,
+      },
+    );
+
+    if (!dunningResult.success) {
+      console.warn(
+        `[${brand}] Failed to apply dunning policy for ${stripeSubscriptionId}: ${dunningResult.error ?? "unknown error"}`
+      );
+    }
+  }
 }
 
 /**
  * Handle invoice.voided event
  */
 async function handleInvoiceVoided(ctx: any, invoice: Stripe.Invoice) {
-  const convexInvoiceId = invoice.metadata?.convexInvoiceId;
+  const convexInvoiceId = await resolveConvexInvoiceIdForWebhook(ctx, invoice);
   const brand = invoice.metadata?.primaryBrand ?? PARENT_ORGANIZATION;
 
   if (!convexInvoiceId) {
@@ -287,7 +410,7 @@ async function handleInvoiceVoided(ctx: any, invoice: Stripe.Invoice) {
  * Handle invoice.marked_uncollectible event
  */
 async function handleInvoiceUncollectible(ctx: any, invoice: Stripe.Invoice) {
-  const convexInvoiceId = invoice.metadata?.convexInvoiceId;
+  const convexInvoiceId = await resolveConvexInvoiceIdForWebhook(ctx, invoice);
   const brand = invoice.metadata?.primaryBrand ?? PARENT_ORGANIZATION;
 
   if (!convexInvoiceId) {
@@ -308,7 +431,7 @@ async function handleInvoiceUncollectible(ctx: any, invoice: Stripe.Invoice) {
  * Handle invoice.finalized event
  */
 async function handleInvoiceFinalized(ctx: any, invoice: Stripe.Invoice) {
-  const convexInvoiceId = invoice.metadata?.convexInvoiceId;
+  const convexInvoiceId = await resolveConvexInvoiceIdForWebhook(ctx, invoice);
   const brand = invoice.metadata?.primaryBrand ?? PARENT_ORGANIZATION;
 
   if (!convexInvoiceId) {
@@ -323,6 +446,7 @@ async function handleInvoiceFinalized(ctx: any, invoice: Stripe.Invoice) {
     convexInvoiceId,
     status: "open",
     stripeInvoiceId: invoice.id,
+    sentAt: toMillis(invoice.status_transitions?.finalized_at),
   });
 }
 
@@ -330,7 +454,7 @@ async function handleInvoiceFinalized(ctx: any, invoice: Stripe.Invoice) {
  * Handle invoice.sent event
  */
 async function handleInvoiceSent(ctx: any, invoice: Stripe.Invoice) {
-  const convexInvoiceId = invoice.metadata?.convexInvoiceId;
+  const convexInvoiceId = await resolveConvexInvoiceIdForWebhook(ctx, invoice);
   const brand = invoice.metadata?.primaryBrand ?? PARENT_ORGANIZATION;
 
   if (!convexInvoiceId) {
@@ -347,6 +471,42 @@ async function handleInvoiceSent(ctx: any, invoice: Stripe.Invoice) {
     stripeInvoiceId: invoice.id,
     sentAt: Date.now(),
   });
+}
+
+/**
+ * Handle customer.subscription.* create/update events.
+ */
+async function handleSubscriptionUpdated(ctx: any, subscription: Stripe.Subscription) {
+  const syncResult = await ctx.runAction(internal.invoiceActions.syncSubscriptionFromStripe, {
+    stripeSubscriptionId: subscription.id,
+  });
+
+  if (!syncResult.success && syncResult.skipped !== "subscription_not_tracked") {
+    console.warn(
+      `[${PARENT_ORGANIZATION}] Failed to sync subscription ${subscription.id}: ${syncResult.error ?? "unknown error"}`
+    );
+  }
+}
+
+/**
+ * Handle customer.subscription.deleted events.
+ */
+async function handleSubscriptionDeleted(ctx: any, subscription: Stripe.Subscription) {
+  const result = await ctx.runMutation(internal.invoiceActions.updateSubscriptionFromWebhook, {
+    stripeSubscriptionId: subscription.id,
+    status: mapStripeSubscriptionStatus(subscription.status),
+    currentPeriodStart: toMillis(subscription.current_period_start),
+    currentPeriodEnd: toMillis(subscription.current_period_end),
+    cancelAt: toMillis(subscription.cancel_at),
+    canceledAt: toMillis(subscription.canceled_at),
+    endedAt: toMillis(subscription.ended_at),
+  });
+
+  if (!result.success) {
+    console.log(
+      `[${PARENT_ORGANIZATION}] Subscription ${subscription.id} delete webhook skipped (${result.error})`
+    );
+  }
 }
 
 /**

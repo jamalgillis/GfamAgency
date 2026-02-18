@@ -9,6 +9,7 @@ import {
 } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { Resend } from "resend";
+import Stripe from "stripe";
 import { brandUnion } from "./schema";
 import {
   getStripeClient,
@@ -35,6 +36,50 @@ const lineItemValidator = v.object({
   isCustomItem: v.boolean(),
 });
 
+const subscriptionStatusValidator = v.union(
+  v.literal("active"),
+  v.literal("trialing"),
+  v.literal("past_due"),
+  v.literal("paused"),
+  v.literal("canceled"),
+  v.literal("incomplete"),
+  v.literal("incomplete_expired"),
+  v.literal("unpaid"),
+);
+
+const subscriptionLineItemValidator = v.object({
+  serviceId: v.optional(v.id("services")),
+  brand: brandUnion,
+  category: v.string(),
+  name: v.string(),
+  description: v.optional(v.string()),
+  quantity: v.number(),
+  stripePriceId: v.optional(v.string()),
+  unitPriceCents: v.number(),
+});
+
+const sourceTypeValidator = v.union(
+  v.literal("one_time"),
+  v.literal("subscription"),
+);
+
+const dunningActionValidator = v.union(
+  v.literal("none"),
+  v.literal("pause"),
+  v.literal("cancel"),
+);
+
+const prorationBehaviorValidator = v.union(
+  v.literal("always_invoice"),
+  v.literal("create_prorations"),
+  v.literal("none"),
+);
+
+const subscriptionPlanUpdateItemValidator = v.object({
+  stripePriceId: v.string(),
+  quantity: v.number(),
+});
+
 type InvoiceBrand = Exclude<StripeBrand, typeof PARENT_ORGANIZATION>;
 
 type InvoiceLineItemInput = {
@@ -49,6 +94,112 @@ type InvoiceLineItemInput = {
   customPriceCents?: number;
   isCustomItem: boolean;
 };
+
+type SubscriptionLineItemInput = {
+  serviceId?: Id<"services">;
+  brand: InvoiceBrand;
+  category: string;
+  name: string;
+  description?: string;
+  quantity: number;
+  stripePriceId?: string;
+  unitPriceCents: number;
+};
+
+type SubscriptionStatus =
+  | "active"
+  | "trialing"
+  | "past_due"
+  | "paused"
+  | "canceled"
+  | "incomplete"
+  | "incomplete_expired"
+  | "unpaid";
+
+type SubscriptionDunningAction = "none" | "pause" | "cancel";
+
+function toMillis(timestampSeconds?: number | null): number | undefined {
+  if (!timestampSeconds || timestampSeconds <= 0) {
+    return undefined;
+  }
+  return timestampSeconds * 1000;
+}
+
+function mapStripeInvoiceStatus(
+  status: string | null | undefined
+): "draft" | "open" | "paid" | "void" | "uncollectible" {
+  switch (status) {
+    case "draft":
+      return "draft";
+    case "paid":
+      return "paid";
+    case "void":
+      return "void";
+    case "uncollectible":
+      return "uncollectible";
+    case "open":
+    default:
+      return "open";
+  }
+}
+
+function mapStripeSubscriptionStatus(
+  status: string | null | undefined
+): SubscriptionStatus {
+  switch (status) {
+    case "active":
+    case "trialing":
+    case "past_due":
+    case "paused":
+    case "canceled":
+    case "incomplete":
+    case "incomplete_expired":
+    case "unpaid":
+      return status;
+    default:
+      return "incomplete";
+  }
+}
+
+function getSubscriptionStatusFromStripe(
+  status: string | null | undefined,
+  pauseCollection: Stripe.Subscription.PauseCollection | null | undefined,
+): SubscriptionStatus {
+  const mappedStatus = mapStripeSubscriptionStatus(status);
+  if (mappedStatus === "canceled" || mappedStatus === "incomplete_expired") {
+    return mappedStatus;
+  }
+  if (pauseCollection) {
+    return "paused";
+  }
+  return mappedStatus;
+}
+
+function normalizeDunningSettings(value: {
+  dunningEnabled?: boolean;
+  dunningMaxAttempts?: number;
+  dunningRetryIntervalDays?: number;
+  dunningAction?: SubscriptionDunningAction;
+}) {
+  return {
+    dunningEnabled: value.dunningEnabled ?? true,
+    dunningMaxAttempts: Math.max(1, value.dunningMaxAttempts ?? 3),
+    dunningRetryIntervalDays: Math.max(1, value.dunningRetryIntervalDays ?? 3),
+    dunningAction: value.dunningAction ?? "pause",
+  } as const;
+}
+
+function toInvoiceBrand(value: string | undefined, fallback: InvoiceBrand): InvoiceBrand {
+  switch (value) {
+    case "Sankofa":
+    case "Lighthouse":
+    case "Centex":
+    case "GFAM Media Studios":
+      return value;
+    default:
+      return fallback;
+  }
+}
 
 function calculateInvoiceTotals(
   lineItems: Array<
@@ -251,6 +402,308 @@ async function replaceStripeInvoiceItems(
   }
 
   return normalizedLineItems;
+}
+
+function parseParticipatingBrandsMetadata(value: string | undefined): string[] {
+  if (!value) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed.filter((item): item is string => typeof item === "string");
+  } catch {
+    return [];
+  }
+}
+
+function parseStripeInvoiceLineItems(params: {
+  stripeInvoice: Stripe.Invoice;
+  fallbackBrand: InvoiceBrand;
+  fallbackCategory?: string;
+}): InvoiceLineItemInput[] {
+  const lineItems: InvoiceLineItemInput[] = [];
+  const lines = params.stripeInvoice.lines?.data ?? [];
+
+  for (const line of lines) {
+    const quantity = Math.max(1, line.quantity ?? 1);
+    const metadata = line.metadata ?? {};
+    const priceMetadata =
+      line.price && typeof line.price === "object" && !("deleted" in line.price)
+        ? line.price.metadata
+        : undefined;
+
+    const rawBrand =
+      metadata.brand ??
+      priceMetadata?.brand ??
+      params.stripeInvoice.metadata?.primaryBrand ??
+      params.fallbackBrand;
+    const brand = toInvoiceBrand(rawBrand, params.fallbackBrand);
+
+    const category =
+      metadata.category ??
+      priceMetadata?.category ??
+      params.fallbackCategory ??
+      "subscription";
+
+    const stripePriceId =
+      line.price && typeof line.price === "object" && !("deleted" in line.price)
+        ? line.price.id
+        : undefined;
+
+    const priceUnitAmount =
+      line.price && typeof line.price === "object" && !("deleted" in line.price)
+        ? line.price.unit_amount
+        : undefined;
+    const unitPriceCents =
+      typeof priceUnitAmount === "number"
+        ? priceUnitAmount
+        : Math.round((line.amount ?? 0) / quantity);
+
+    const serviceId = metadata.serviceId
+      ? (metadata.serviceId as Id<"services">)
+      : undefined;
+
+    lineItems.push({
+      serviceId,
+      brand,
+      category,
+      name: line.description || `Subscription item (${brand})`,
+      description: line.description || undefined,
+      quantity,
+      stripePriceId,
+      unitPriceCents,
+      customPriceCents: stripePriceId ? undefined : unitPriceCents,
+      isCustomItem: !stripePriceId,
+    });
+  }
+
+  return lineItems;
+}
+
+async function resolveRecurringStripePriceForSubscriptionItem(
+  ctx: any,
+  stripe: Stripe,
+  context: Stripe.RequestOptions | undefined,
+  orgId: string,
+  item: InvoiceLineItemInput,
+): Promise<{ stripePriceId: string; unitPriceCents: number }> {
+  if (item.quantity <= 0) {
+    throw new Error(`Subscription item "${item.name}" must have quantity > 0`);
+  }
+
+  const hasCustomPrice =
+    item.customPriceCents !== undefined &&
+    item.customPriceCents !== item.unitPriceCents;
+  if (hasCustomPrice) {
+    throw new Error(
+      `Custom recurring pricing is not supported in Phase 1 for "${item.name}".`
+    );
+  }
+
+  const effectiveUnitPrice = item.customPriceCents ?? item.unitPriceCents;
+  let service:
+    | {
+        _id: Id<"services">;
+        name: string;
+        description: string;
+        category: string;
+        brand: InvoiceBrand;
+        priceValue: number;
+        tags: string[];
+        stripeProductId?: string;
+        stripePriceId?: string;
+        stripeRecurringPriceId?: string;
+        recurringInterval?: "day" | "week" | "month" | "year";
+        recurringIntervalCount?: number;
+      }
+    | null = null;
+
+  if (item.serviceId) {
+    service = await ctx.runQuery(api.services.get, {
+      serviceId: item.serviceId,
+    });
+  }
+
+  if (item.serviceId && service && !service.stripeProductId) {
+    service = await ensureStripeServiceSync(ctx, stripe, orgId, item.serviceId);
+  }
+
+  const candidatePriceIds = [
+    item.stripePriceId,
+    service?.stripeRecurringPriceId,
+    service?.stripePriceId,
+  ].filter((value): value is string => !!value);
+
+  for (const priceId of candidatePriceIds) {
+    try {
+      const price = await stripe.prices.retrieve(priceId, context);
+      if ("deleted" in price && price.deleted) {
+        continue;
+      }
+
+      if (price.recurring) {
+        if (item.serviceId && service && service.stripeRecurringPriceId !== price.id) {
+          await ctx.runMutation(internal.stripeSync.updateServiceRecurringStripePriceId, {
+            orgId,
+            serviceId: item.serviceId,
+            stripeRecurringPriceId: price.id,
+          });
+        }
+
+        return {
+          stripePriceId: price.id,
+          unitPriceCents:
+            typeof price.unit_amount === "number" ? price.unit_amount : effectiveUnitPrice,
+        };
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      console.warn(`⚠️ Unable to validate Stripe Price ${priceId}: ${message}`);
+    }
+  }
+
+  if (!service?.stripeProductId) {
+    throw new Error(
+      `Service "${item.name}" is missing stripeProductId and no recurring Stripe Price is available.`
+    );
+  }
+
+  const recurringInterval = service.recurringInterval ?? "month";
+  const recurringIntervalCount = Math.max(1, service.recurringIntervalCount ?? 1);
+
+  const recurringPrice = await stripe.prices.create(
+    {
+      product: service.stripeProductId,
+      unit_amount: effectiveUnitPrice,
+      currency: "usd",
+      recurring: {
+        interval: recurringInterval,
+        interval_count: recurringIntervalCount,
+      },
+      metadata: buildStripeMetadata(item.brand as StripeBrand, item.category, {
+        convexServiceId: item.serviceId ?? "",
+        billingType: "recurring",
+      }),
+    },
+    context,
+  );
+
+  if (item.serviceId) {
+    await ctx.runMutation(internal.stripeSync.updateServiceRecurringStripePriceId, {
+      orgId,
+      serviceId: item.serviceId,
+      stripeRecurringPriceId: recurringPrice.id,
+    });
+  }
+
+  return {
+    stripePriceId: recurringPrice.id,
+    unitPriceCents: effectiveUnitPrice,
+  };
+}
+
+async function ensureStripeServiceSync(
+  ctx: any,
+  stripe: Stripe,
+  orgId: string,
+  serviceId: Id<"services">,
+): Promise<{
+  _id: Id<"services">;
+  name: string;
+  description: string;
+  category: string;
+  brand: InvoiceBrand;
+  priceValue: number;
+  tags: string[];
+  stripeProductId?: string;
+  stripePriceId?: string;
+  stripeRecurringPriceId?: string;
+}> {
+  const service = await ctx.runQuery(api.services.get, { serviceId });
+  if (!service) {
+    throw new Error("Service not found while syncing Stripe product.");
+  }
+
+  if (service.stripeProductId && service.stripeRecurringPriceId) {
+    return service;
+  }
+
+  const serviceContext = getStripeContext(service.brand as StripeBrand);
+  const unitAmountCents = Math.max(1, Math.round(service.priceValue * 100));
+  const metadata = buildStripeMetadata(service.brand as StripeBrand, service.category, {
+    convexServiceId: service._id,
+    tags: service.tags.join(","),
+  });
+
+  let stripeProductId = service.stripeProductId;
+  if (!stripeProductId) {
+    const product = await stripe.products.create(
+      {
+        name: service.name,
+        description: service.description,
+        metadata,
+      },
+      serviceContext,
+    );
+    stripeProductId = product.id;
+  }
+
+  let stripePriceId = service.stripePriceId;
+  if (!stripePriceId) {
+    const oneTimePrice = await stripe.prices.create(
+      {
+        product: stripeProductId,
+        unit_amount: unitAmountCents,
+        currency: "usd",
+        metadata: {
+          ...metadata,
+          billingType: "one_time",
+        },
+      },
+      serviceContext,
+    );
+    stripePriceId = oneTimePrice.id;
+  }
+
+  let stripeRecurringPriceId = service.stripeRecurringPriceId;
+  if (!stripeRecurringPriceId) {
+    const recurringPrice = await stripe.prices.create(
+      {
+        product: stripeProductId,
+        unit_amount: unitAmountCents,
+        currency: "usd",
+        recurring: {
+          interval: "month",
+          interval_count: 1,
+        },
+        metadata: {
+          ...metadata,
+          billingType: "recurring",
+        },
+      },
+      serviceContext,
+    );
+    stripeRecurringPriceId = recurringPrice.id;
+  }
+
+  await ctx.runMutation(internal.stripeSync.updateServiceStripeIds, {
+    orgId,
+    serviceId,
+    stripeProductId,
+    stripePriceId,
+    stripeRecurringPriceId,
+  });
+
+  const syncedService = await ctx.runQuery(api.services.get, { serviceId });
+  if (!syncedService?.stripeProductId || !syncedService.stripeRecurringPriceId) {
+    throw new Error("Failed to confirm Stripe service sync.");
+  }
+
+  return syncedService;
 }
 
 async function ensureStripeCustomer(
@@ -716,6 +1169,453 @@ export const updateClientStripeId = internalMutation({
 });
 
 /**
+ * Internal query to get a subscription by Stripe subscription ID.
+ */
+export const getSubscriptionByStripeId = internalQuery({
+  args: {
+    stripeSubscriptionId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("subscriptions")
+      .withIndex("by_stripe_subscription_id", (q) =>
+        q.eq("stripeSubscriptionId", args.stripeSubscriptionId)
+      )
+      .first();
+  },
+});
+
+/**
+ * Internal query to get a subscription by ID scoped to an org.
+ */
+export const getSubscriptionById = internalQuery({
+  args: {
+    orgId: v.string(),
+    subscriptionId: v.id("subscriptions"),
+  },
+  handler: async (ctx, args) => {
+    const subscription = await ctx.db.get(args.subscriptionId);
+    return subscription?.orgId === args.orgId ? subscription : null;
+  },
+});
+
+/**
+ * Internal mutation to upsert a subscription record from app or webhook flows.
+ */
+export const upsertSubscriptionRecord = internalMutation({
+  args: {
+    orgId: v.string(),
+    clientId: v.id("clients"),
+    primaryBrand: v.string(),
+    participatingBrands: v.array(v.string()),
+    stripeSubscriptionId: v.string(),
+    stripeCustomerId: v.string(),
+    status: subscriptionStatusValidator,
+    currentPeriodStart: v.optional(v.number()),
+    currentPeriodEnd: v.optional(v.number()),
+    cancelAt: v.optional(v.number()),
+    canceledAt: v.optional(v.number()),
+    endedAt: v.optional(v.number()),
+    dunningEnabled: v.optional(v.boolean()),
+    dunningMaxAttempts: v.optional(v.number()),
+    dunningRetryIntervalDays: v.optional(v.number()),
+    dunningAction: v.optional(dunningActionValidator),
+    notes: v.optional(v.string()),
+    items: v.array(subscriptionLineItemValidator),
+  },
+  handler: async (ctx, args) => {
+    ensureOrgAccess(await ctx.db.get(args.clientId), args.orgId, "Client not found");
+
+    const existing = await ctx.db
+      .query("subscriptions")
+      .withIndex("by_org_stripe_subscription_id", (q) =>
+        q
+          .eq("orgId", args.orgId)
+          .eq("stripeSubscriptionId", args.stripeSubscriptionId)
+      )
+      .first();
+
+    const now = Date.now();
+    const dunningSettings = normalizeDunningSettings(args);
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        clientId: args.clientId,
+        primaryBrand: args.primaryBrand,
+        participatingBrands: args.participatingBrands,
+        stripeCustomerId: args.stripeCustomerId,
+        status: args.status,
+        currentPeriodStart: args.currentPeriodStart,
+        currentPeriodEnd: args.currentPeriodEnd,
+        cancelAt: args.cancelAt,
+        canceledAt: args.canceledAt,
+        endedAt: args.endedAt,
+        dunningEnabled:
+          args.dunningEnabled ?? existing.dunningEnabled ?? dunningSettings.dunningEnabled,
+        dunningMaxAttempts:
+          args.dunningMaxAttempts ??
+          existing.dunningMaxAttempts ??
+          dunningSettings.dunningMaxAttempts,
+        dunningRetryIntervalDays:
+          args.dunningRetryIntervalDays ??
+          existing.dunningRetryIntervalDays ??
+          dunningSettings.dunningRetryIntervalDays,
+        dunningAction:
+          args.dunningAction ?? existing.dunningAction ?? dunningSettings.dunningAction,
+        notes: args.notes,
+        items: args.items,
+        updatedAt: now,
+      });
+      return existing._id;
+    }
+
+    return await ctx.db.insert("subscriptions", {
+      orgId: args.orgId,
+      clientId: args.clientId,
+      primaryBrand: args.primaryBrand,
+      participatingBrands: args.participatingBrands,
+      stripeSubscriptionId: args.stripeSubscriptionId,
+      stripeCustomerId: args.stripeCustomerId,
+      status: args.status,
+      currentPeriodStart: args.currentPeriodStart,
+      currentPeriodEnd: args.currentPeriodEnd,
+      cancelAt: args.cancelAt,
+      canceledAt: args.canceledAt,
+      endedAt: args.endedAt,
+      dunningEnabled: dunningSettings.dunningEnabled,
+      dunningMaxAttempts: dunningSettings.dunningMaxAttempts,
+      dunningRetryIntervalDays: dunningSettings.dunningRetryIntervalDays,
+      dunningAction: dunningSettings.dunningAction,
+      dunningFailureCount: 0,
+      notes: args.notes,
+      items: args.items,
+      createdAt: now,
+      updatedAt: now,
+    });
+  },
+});
+
+/**
+ * Internal mutation to update only status/timing fields on an existing subscription.
+ */
+export const updateSubscriptionStatus = internalMutation({
+  args: {
+    subscriptionId: v.id("subscriptions"),
+    status: subscriptionStatusValidator,
+    currentPeriodStart: v.optional(v.number()),
+    currentPeriodEnd: v.optional(v.number()),
+    cancelAt: v.optional(v.number()),
+    canceledAt: v.optional(v.number()),
+    endedAt: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const subscription = await ctx.db.get(args.subscriptionId);
+    if (!subscription) {
+      throw new Error("Subscription not found");
+    }
+
+    await ctx.db.patch(args.subscriptionId, {
+      status: args.status,
+      currentPeriodStart: args.currentPeriodStart,
+      currentPeriodEnd: args.currentPeriodEnd,
+      cancelAt: args.cancelAt,
+      canceledAt: args.canceledAt,
+      endedAt: args.endedAt,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+/**
+ * Internal mutation to update a subscription by Stripe subscription ID from webhook payloads.
+ */
+export const updateSubscriptionFromWebhook = internalMutation({
+  args: {
+    stripeSubscriptionId: v.string(),
+    status: subscriptionStatusValidator,
+    currentPeriodStart: v.optional(v.number()),
+    currentPeriodEnd: v.optional(v.number()),
+    cancelAt: v.optional(v.number()),
+    canceledAt: v.optional(v.number()),
+    endedAt: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const subscription = await ctx.db
+      .query("subscriptions")
+      .withIndex("by_stripe_subscription_id", (q) =>
+        q.eq("stripeSubscriptionId", args.stripeSubscriptionId)
+      )
+      .first();
+
+    if (!subscription) {
+      return { success: false, error: "Subscription not found" as const };
+    }
+
+    await ctx.db.patch(subscription._id, {
+      status: args.status,
+      currentPeriodStart: args.currentPeriodStart,
+      currentPeriodEnd: args.currentPeriodEnd,
+      cancelAt: args.cancelAt,
+      canceledAt: args.canceledAt,
+      endedAt: args.endedAt,
+      updatedAt: Date.now(),
+    });
+
+    return { success: true, subscriptionId: subscription._id };
+  },
+});
+
+/**
+ * Internal mutation to update dunning policy settings for a subscription.
+ */
+export const updateSubscriptionDunningPolicyRecord = internalMutation({
+  args: {
+    orgId: v.string(),
+    subscriptionId: v.id("subscriptions"),
+    dunningEnabled: v.boolean(),
+    dunningMaxAttempts: v.number(),
+    dunningRetryIntervalDays: v.number(),
+    dunningAction: dunningActionValidator,
+  },
+  handler: async (ctx, args) => {
+    const subscription = ensureOrgAccess(
+      await ctx.db.get(args.subscriptionId),
+      args.orgId,
+      "Subscription not found",
+    );
+
+    const normalized = normalizeDunningSettings({
+      dunningEnabled: args.dunningEnabled,
+      dunningMaxAttempts: args.dunningMaxAttempts,
+      dunningRetryIntervalDays: args.dunningRetryIntervalDays,
+      dunningAction: args.dunningAction,
+    });
+
+    await ctx.db.patch(subscription._id, {
+      dunningEnabled: normalized.dunningEnabled,
+      dunningMaxAttempts: normalized.dunningMaxAttempts,
+      dunningRetryIntervalDays: normalized.dunningRetryIntervalDays,
+      dunningAction: normalized.dunningAction,
+      updatedAt: Date.now(),
+    });
+
+    return {
+      success: true,
+      subscriptionId: subscription._id,
+      dunningEnabled: normalized.dunningEnabled,
+      dunningMaxAttempts: normalized.dunningMaxAttempts,
+      dunningRetryIntervalDays: normalized.dunningRetryIntervalDays,
+      dunningAction: normalized.dunningAction,
+    };
+  },
+});
+
+/**
+ * Internal mutation to record a subscription payment failure attempt.
+ * Uses stripeInvoiceId for idempotency across webhook retries.
+ */
+export const recordSubscriptionDunningFailure = internalMutation({
+  args: {
+    stripeSubscriptionId: v.string(),
+    stripeInvoiceId: v.string(),
+    failedAt: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const subscription = await ctx.db
+      .query("subscriptions")
+      .withIndex("by_stripe_subscription_id", (q) =>
+        q.eq("stripeSubscriptionId", args.stripeSubscriptionId)
+      )
+      .first();
+
+    if (!subscription) {
+      return { success: false, error: "subscription_not_tracked" as const };
+    }
+
+    const settings = normalizeDunningSettings(subscription);
+    const failedAt = args.failedAt ?? Date.now();
+    const lastFailedInvoiceId = subscription.dunningLastFailedInvoiceId;
+    const isDuplicate = lastFailedInvoiceId === args.stripeInvoiceId;
+    const priorFailureCount = subscription.dunningFailureCount ?? 0;
+    const failureCount = isDuplicate ? priorFailureCount : priorFailureCount + 1;
+
+    if (!isDuplicate) {
+      await ctx.db.patch(subscription._id, {
+        dunningFailureCount: failureCount,
+        dunningLastFailureAt: failedAt,
+        dunningLastFailedInvoiceId: args.stripeInvoiceId,
+        updatedAt: Date.now(),
+      });
+    }
+
+    const shouldEscalate =
+      !isDuplicate &&
+      settings.dunningEnabled &&
+      settings.dunningAction !== "none" &&
+      failureCount >= settings.dunningMaxAttempts &&
+      subscription.status !== "canceled" &&
+      subscription.status !== "incomplete_expired";
+
+    return {
+      success: true,
+      subscriptionId: subscription._id,
+      stripeSubscriptionId: subscription.stripeSubscriptionId,
+      primaryBrand: subscription.primaryBrand,
+      dunningEnabled: settings.dunningEnabled,
+      dunningAction: settings.dunningAction,
+      dunningMaxAttempts: settings.dunningMaxAttempts,
+      dunningRetryIntervalDays: settings.dunningRetryIntervalDays,
+      failureCount,
+      isDuplicate,
+      shouldEscalate,
+    };
+  },
+});
+
+/**
+ * Internal mutation to reset dunning failure counters after successful payment.
+ */
+export const resetSubscriptionDunningFailureState = internalMutation({
+  args: {
+    stripeSubscriptionId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const subscription = await ctx.db
+      .query("subscriptions")
+      .withIndex("by_stripe_subscription_id", (q) =>
+        q.eq("stripeSubscriptionId", args.stripeSubscriptionId)
+      )
+      .first();
+
+    if (!subscription) {
+      return { success: false, error: "subscription_not_tracked" as const };
+    }
+
+    await ctx.db.patch(subscription._id, {
+      dunningFailureCount: 0,
+      dunningLastFailureAt: undefined,
+      dunningLastFailedInvoiceId: undefined,
+      updatedAt: Date.now(),
+    });
+
+    return { success: true, subscriptionId: subscription._id };
+  },
+});
+
+/**
+ * Internal mutation to stamp when an automated dunning action executed.
+ */
+export const markSubscriptionDunningAction = internalMutation({
+  args: {
+    stripeSubscriptionId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const subscription = await ctx.db
+      .query("subscriptions")
+      .withIndex("by_stripe_subscription_id", (q) =>
+        q.eq("stripeSubscriptionId", args.stripeSubscriptionId)
+      )
+      .first();
+
+    if (!subscription) {
+      return { success: false, error: "subscription_not_tracked" as const };
+    }
+
+    await ctx.db.patch(subscription._id, {
+      dunningLastActionAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    return { success: true, subscriptionId: subscription._id };
+  },
+});
+
+/**
+ * Internal mutation to upsert a local invoice record for subscription billing cycles.
+ */
+export const upsertSubscriptionInvoiceRecord = internalMutation({
+  args: {
+    orgId: v.string(),
+    clientId: v.id("clients"),
+    subscriptionId: v.id("subscriptions"),
+    stripeSubscriptionId: v.string(),
+    stripeInvoiceId: v.string(),
+    invoiceNumber: v.string(),
+    primaryBrand: v.string(),
+    participatingBrands: v.array(v.string()),
+    status: v.union(
+      v.literal("draft"),
+      v.literal("open"),
+      v.literal("paid"),
+      v.literal("void"),
+      v.literal("uncollectible"),
+    ),
+    totalCents: v.number(),
+    notes: v.optional(v.string()),
+    billingPeriodStart: v.optional(v.number()),
+    billingPeriodEnd: v.optional(v.number()),
+    sentAt: v.optional(v.number()),
+    paidAt: v.optional(v.number()),
+    createdAt: v.number(),
+  },
+  handler: async (ctx, args) => {
+    ensureOrgAccess(await ctx.db.get(args.clientId), args.orgId, "Client not found");
+    ensureOrgAccess(
+      await ctx.db.get(args.subscriptionId),
+      args.orgId,
+      "Subscription not found",
+    );
+
+    const existing = await ctx.db
+      .query("invoices")
+      .withIndex("by_org_stripe_invoice_id", (q) =>
+        q.eq("orgId", args.orgId).eq("stripeInvoiceId", args.stripeInvoiceId)
+      )
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        invoiceNumber: args.invoiceNumber,
+        primaryBrand: args.primaryBrand,
+        participatingBrands: args.participatingBrands,
+        clientId: args.clientId,
+        subscriptionId: args.subscriptionId,
+        stripeSubscriptionId: args.stripeSubscriptionId,
+        sourceType: "subscription",
+        status: args.status,
+        totalCents: args.totalCents,
+        notes: args.notes,
+        billingPeriodStart: args.billingPeriodStart,
+        billingPeriodEnd: args.billingPeriodEnd,
+        sentAt: args.sentAt,
+        paidAt: args.paidAt,
+      });
+      return existing._id;
+    }
+
+    return await ctx.db.insert("invoices", {
+      orgId: args.orgId,
+      invoiceNumber: args.invoiceNumber,
+      primaryBrand: args.primaryBrand,
+      participatingBrands: args.participatingBrands,
+      clientId: args.clientId,
+      stripeInvoiceId: args.stripeInvoiceId,
+      sourceType: "subscription",
+      subscriptionId: args.subscriptionId,
+      stripeSubscriptionId: args.stripeSubscriptionId,
+      status: args.status,
+      totalCents: args.totalCents,
+      notes: args.notes,
+      billingPeriodStart: args.billingPeriodStart,
+      billingPeriodEnd: args.billingPeriodEnd,
+      sentAt: args.sentAt,
+      paidAt: args.paidAt,
+      createdAt: args.createdAt,
+    });
+  },
+});
+
+/**
  * Internal mutation to create invoice record in Convex
  */
 export const createInvoiceRecord = internalMutation({
@@ -729,6 +1629,11 @@ export const createInvoiceRecord = internalMutation({
     stripeCheckoutSessionId: v.optional(v.string()),
     revisesInvoiceId: v.optional(v.id("invoices")),
     revisesStripeInvoiceId: v.optional(v.string()),
+    sourceType: v.optional(sourceTypeValidator),
+    subscriptionId: v.optional(v.id("subscriptions")),
+    stripeSubscriptionId: v.optional(v.string()),
+    billingPeriodStart: v.optional(v.number()),
+    billingPeriodEnd: v.optional(v.number()),
     status: v.union(
       v.literal("draft"),
       v.literal("open"),
@@ -738,6 +1643,9 @@ export const createInvoiceRecord = internalMutation({
     ),
     totalCents: v.number(),
     notes: v.optional(v.string()),
+    sentAt: v.optional(v.number()),
+    paidAt: v.optional(v.number()),
+    createdAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     ensureOrgAccess(await ctx.db.get(args.clientId), args.orgId, "Client not found");
@@ -760,10 +1668,17 @@ export const createInvoiceRecord = internalMutation({
       stripeCheckoutSessionId: args.stripeCheckoutSessionId,
       revisesInvoiceId: args.revisesInvoiceId,
       revisesStripeInvoiceId: args.revisesStripeInvoiceId,
+      sourceType: args.sourceType ?? "one_time",
+      subscriptionId: args.subscriptionId,
+      stripeSubscriptionId: args.stripeSubscriptionId,
+      billingPeriodStart: args.billingPeriodStart,
+      billingPeriodEnd: args.billingPeriodEnd,
       status: args.status,
       totalCents: args.totalCents,
       notes: args.notes,
-      createdAt: Date.now(),
+      sentAt: args.sentAt,
+      paidAt: args.paidAt,
+      createdAt: args.createdAt ?? Date.now(),
     });
   },
 });
@@ -1133,6 +2048,968 @@ export const reviseLedgerInvoice = action({
       return { success: false, error: errorMessage };
     }
   }),
+});
+
+/**
+ * Create a Stripe subscription and persist a local subscription record.
+ * Phase 1 constraints:
+ * - single-brand subscriptions only
+ * - no custom recurring pricing overrides
+ */
+export const createSubscription = action({
+  args: {
+    clientId: v.id("clients"),
+    lineItems: v.array(lineItemValidator),
+    notes: v.optional(v.string()),
+    collectionMethod: v.optional(
+      v.union(v.literal("send_invoice"), v.literal("charge_automatically")),
+    ),
+    daysUntilDue: v.optional(v.number()),
+  },
+  handler: async (ctx, args): Promise<{
+    success: boolean;
+    subscriptionId?: Id<"subscriptions">;
+    stripeSubscriptionId?: string;
+    latestStripeInvoiceId?: string;
+    latestInvoiceId?: Id<"invoices">;
+    error?: string;
+  }> => withOrg(ctx, async (orgId) => {
+    try {
+      if (args.lineItems.length === 0) {
+        return { success: false, error: "At least one line item is required" };
+      }
+
+      const client = await ctx.runQuery(internal.invoiceActions.getClientById, {
+        orgId,
+        clientId: args.clientId,
+      });
+
+      if (!client) {
+        return { success: false, error: "Client not found" };
+      }
+
+      const { participatingBrands, primaryBrand } = calculateInvoiceTotals(args.lineItems);
+
+      if (participatingBrands.length !== 1) {
+        return {
+          success: false,
+          error: "Phase 1 supports single-brand subscriptions only.",
+        };
+      }
+
+      const subscriptionBrand = toInvoiceBrand(
+        primaryBrand,
+        participatingBrands[0] as InvoiceBrand,
+      );
+
+      const stripe = getStripeClient();
+      const context = getStripeContext(subscriptionBrand as StripeBrand);
+      const stripeCustomerId = await ensureStripeCustomer(
+        ctx,
+        stripe,
+        client,
+        context,
+        orgId,
+      );
+
+      const stripeItems: Stripe.SubscriptionCreateParams.Item[] = [];
+      const normalizedItems: SubscriptionLineItemInput[] = [];
+
+      for (const lineItem of args.lineItems) {
+        const resolved = await resolveRecurringStripePriceForSubscriptionItem(
+          ctx,
+          stripe,
+          context,
+          orgId,
+          lineItem,
+        );
+
+        stripeItems.push({
+          price: resolved.stripePriceId,
+          quantity: lineItem.quantity,
+        });
+
+        normalizedItems.push({
+          serviceId: lineItem.serviceId,
+          brand: lineItem.brand,
+          category: lineItem.category,
+          name: lineItem.name,
+          description: lineItem.description,
+          quantity: lineItem.quantity,
+          stripePriceId: resolved.stripePriceId,
+          unitPriceCents: resolved.unitPriceCents,
+        });
+      }
+
+      const collectionMethod = args.collectionMethod ?? "send_invoice";
+      const subscriptionPayload: Stripe.SubscriptionCreateParams = {
+        customer: stripeCustomerId,
+        items: stripeItems,
+        collection_method: collectionMethod,
+        metadata: {
+          agency: PARENT_ORGANIZATION,
+          primaryBrand: subscriptionBrand,
+          participatingBrands: JSON.stringify(participatingBrands),
+          convexClientId: args.clientId,
+        },
+      };
+
+      if (collectionMethod === "send_invoice") {
+        subscriptionPayload.days_until_due = Math.max(1, args.daysUntilDue ?? 30);
+      }
+
+      const stripeSubscription = await stripe.subscriptions.create(
+        subscriptionPayload,
+        context,
+      );
+
+      const subscriptionId = await ctx.runMutation(
+        internal.invoiceActions.upsertSubscriptionRecord,
+        {
+          orgId,
+          clientId: args.clientId,
+          primaryBrand: subscriptionBrand,
+          participatingBrands,
+          stripeSubscriptionId: stripeSubscription.id,
+          stripeCustomerId,
+          status: getSubscriptionStatusFromStripe(
+            stripeSubscription.status,
+            stripeSubscription.pause_collection,
+          ),
+          currentPeriodStart: toMillis(stripeSubscription.current_period_start),
+          currentPeriodEnd: toMillis(stripeSubscription.current_period_end),
+          cancelAt: toMillis(stripeSubscription.cancel_at),
+          canceledAt: toMillis(stripeSubscription.canceled_at),
+          endedAt: toMillis(stripeSubscription.ended_at),
+          notes: args.notes,
+          items: normalizedItems,
+        },
+      );
+
+      const latestStripeInvoiceId =
+        typeof stripeSubscription.latest_invoice === "string"
+          ? stripeSubscription.latest_invoice
+          : stripeSubscription.latest_invoice &&
+              typeof stripeSubscription.latest_invoice === "object" &&
+              "id" in stripeSubscription.latest_invoice
+            ? stripeSubscription.latest_invoice.id
+            : undefined;
+
+      let latestInvoiceId: Id<"invoices"> | undefined;
+      if (latestStripeInvoiceId) {
+        const syncResult = await ctx.runAction(
+          internal.invoiceActions.syncSubscriptionInvoiceFromStripe,
+          {
+            stripeInvoiceId: latestStripeInvoiceId,
+            stripeSubscriptionId: stripeSubscription.id,
+          },
+        );
+
+        if (syncResult.success && syncResult.invoiceId) {
+          latestInvoiceId = syncResult.invoiceId;
+        }
+      }
+
+      return {
+        success: true,
+        subscriptionId,
+        stripeSubscriptionId: stripeSubscription.id,
+        latestStripeInvoiceId,
+        latestInvoiceId,
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error("❌ Failed to create subscription:", errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  }),
+});
+
+/**
+ * Pause recurring billing for a subscription.
+ * Stripe implementation uses pause_collection behavior=void.
+ */
+export const pauseSubscription = action({
+  args: {
+    subscriptionId: v.id("subscriptions"),
+  },
+  handler: async (ctx, args): Promise<{
+    success: boolean;
+    subscriptionId?: Id<"subscriptions">;
+    status?: SubscriptionStatus;
+    error?: string;
+  }> => withOrg(ctx, async (orgId) => {
+    try {
+      const subscription = await ctx.runQuery(
+        internal.invoiceActions.getSubscriptionById,
+        {
+          orgId,
+          subscriptionId: args.subscriptionId,
+        },
+      );
+
+      if (!subscription) {
+        return { success: false, error: "Subscription not found" };
+      }
+
+      if (subscription.status === "canceled" || subscription.status === "incomplete_expired") {
+        return {
+          success: false,
+          error: "Canceled subscriptions can’t be paused.",
+        };
+      }
+
+      if (subscription.status === "paused") {
+        return { success: true, subscriptionId: subscription._id, status: "paused" };
+      }
+
+      const stripe = getStripeClient();
+      const context = getStripeContext(subscription.primaryBrand as StripeBrand);
+
+      await stripe.subscriptions.update(
+        subscription.stripeSubscriptionId,
+        {
+          pause_collection: {
+            behavior: "void",
+          },
+        },
+        context,
+      );
+
+      const syncResult = await ctx.runAction(
+        internal.invoiceActions.syncSubscriptionFromStripe,
+        {
+          stripeSubscriptionId: subscription.stripeSubscriptionId,
+        },
+      );
+
+      if (!syncResult.success || !syncResult.subscriptionId) {
+        return {
+          success: false,
+          error: syncResult.error ?? "Failed to sync paused subscription",
+        };
+      }
+
+      return { success: true, subscriptionId: syncResult.subscriptionId, status: "paused" };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error("❌ Failed to pause subscription:", errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  }),
+});
+
+/**
+ * Resume billing for a paused/scheduled-cancel subscription.
+ */
+export const resumeSubscription = action({
+  args: {
+    subscriptionId: v.id("subscriptions"),
+  },
+  handler: async (ctx, args): Promise<{
+    success: boolean;
+    subscriptionId?: Id<"subscriptions">;
+    status?: SubscriptionStatus;
+    error?: string;
+  }> => withOrg(ctx, async (orgId) => {
+    try {
+      const subscription = await ctx.runQuery(
+        internal.invoiceActions.getSubscriptionById,
+        {
+          orgId,
+          subscriptionId: args.subscriptionId,
+        },
+      );
+
+      if (!subscription) {
+        return { success: false, error: "Subscription not found" };
+      }
+
+      if (subscription.status === "canceled" || subscription.status === "incomplete_expired") {
+        return {
+          success: false,
+          error: "Canceled subscriptions can’t be resumed.",
+        };
+      }
+
+      const stripe = getStripeClient();
+      const context = getStripeContext(subscription.primaryBrand as StripeBrand);
+
+      await stripe.subscriptions.update(
+        subscription.stripeSubscriptionId,
+        {
+          pause_collection: null,
+          cancel_at_period_end: false,
+        },
+        context,
+      );
+
+      const syncResult = await ctx.runAction(
+        internal.invoiceActions.syncSubscriptionFromStripe,
+        {
+          stripeSubscriptionId: subscription.stripeSubscriptionId,
+        },
+      );
+
+      if (!syncResult.success || !syncResult.subscriptionId) {
+        return {
+          success: false,
+          error: syncResult.error ?? "Failed to sync resumed subscription",
+        };
+      }
+
+      const refreshed = await ctx.runQuery(internal.invoiceActions.getSubscriptionById, {
+        orgId,
+        subscriptionId: syncResult.subscriptionId,
+      });
+
+      return {
+        success: true,
+        subscriptionId: syncResult.subscriptionId,
+        status: refreshed?.status as SubscriptionStatus | undefined,
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error("❌ Failed to resume subscription:", errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  }),
+});
+
+/**
+ * Cancel a subscription now or at period end.
+ */
+export const cancelSubscription = action({
+  args: {
+    subscriptionId: v.id("subscriptions"),
+    atPeriodEnd: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args): Promise<{
+    success: boolean;
+    subscriptionId?: Id<"subscriptions">;
+    status?: SubscriptionStatus;
+    canceledAtPeriodEnd?: boolean;
+    error?: string;
+  }> => withOrg(ctx, async (orgId) => {
+    try {
+      const subscription = await ctx.runQuery(
+        internal.invoiceActions.getSubscriptionById,
+        {
+          orgId,
+          subscriptionId: args.subscriptionId,
+        },
+      );
+
+      if (!subscription) {
+        return { success: false, error: "Subscription not found" };
+      }
+
+      if (subscription.status === "canceled") {
+        return {
+          success: true,
+          subscriptionId: subscription._id,
+          status: "canceled",
+          canceledAtPeriodEnd: false,
+        };
+      }
+
+      const stripe = getStripeClient();
+      const context = getStripeContext(subscription.primaryBrand as StripeBrand);
+      const cancelAtPeriodEnd = args.atPeriodEnd ?? true;
+
+      if (cancelAtPeriodEnd) {
+        await stripe.subscriptions.update(
+          subscription.stripeSubscriptionId,
+          {
+            cancel_at_period_end: true,
+          },
+          context,
+        );
+      } else {
+        await stripe.subscriptions.cancel(subscription.stripeSubscriptionId, {}, context);
+      }
+
+      const syncResult = await ctx.runAction(
+        internal.invoiceActions.syncSubscriptionFromStripe,
+        {
+          stripeSubscriptionId: subscription.stripeSubscriptionId,
+        },
+      );
+
+      if (!syncResult.success || !syncResult.subscriptionId) {
+        return {
+          success: false,
+          error: syncResult.error ?? "Failed to sync canceled subscription",
+        };
+      }
+
+      const refreshed = await ctx.runQuery(internal.invoiceActions.getSubscriptionById, {
+        orgId,
+        subscriptionId: syncResult.subscriptionId,
+      });
+
+      return {
+        success: true,
+        subscriptionId: syncResult.subscriptionId,
+        status: refreshed?.status as SubscriptionStatus | undefined,
+        canceledAtPeriodEnd: cancelAtPeriodEnd,
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error("❌ Failed to cancel subscription:", errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  }),
+});
+
+/**
+ * Update subscription quantities with a configurable proration behavior.
+ */
+export const updateSubscriptionPlan = action({
+  args: {
+    subscriptionId: v.id("subscriptions"),
+    items: v.array(subscriptionPlanUpdateItemValidator),
+    prorationBehavior: prorationBehaviorValidator,
+  },
+  handler: async (ctx, args): Promise<{
+    success: boolean;
+    subscriptionId?: Id<"subscriptions">;
+    latestInvoiceId?: Id<"invoices">;
+    latestStripeInvoiceId?: string;
+    error?: string;
+  }> => withOrg(ctx, async (orgId) => {
+    try {
+      if (args.items.length === 0) {
+        return { success: false, error: "At least one item update is required." };
+      }
+
+      const subscription = await ctx.runQuery(
+        internal.invoiceActions.getSubscriptionById,
+        {
+          orgId,
+          subscriptionId: args.subscriptionId,
+        },
+      );
+
+      if (!subscription) {
+        return { success: false, error: "Subscription not found" };
+      }
+
+      if (subscription.status === "canceled" || subscription.status === "incomplete_expired") {
+        return { success: false, error: "Canceled subscriptions can’t be updated." };
+      }
+
+      const stripe = getStripeClient();
+      const context = getStripeContext(subscription.primaryBrand as StripeBrand);
+
+      const stripeSubscription = await stripe.subscriptions.retrieve(
+        subscription.stripeSubscriptionId,
+        {
+          expand: ["items.data.price"],
+        },
+        context,
+      );
+
+      const subscriptionItemsByPriceId = new Map<string, Stripe.SubscriptionItem>();
+      for (const item of stripeSubscription.items.data) {
+        const priceId =
+          item.price && typeof item.price === "object" && !("deleted" in item.price)
+            ? item.price.id
+            : undefined;
+        if (priceId) {
+          subscriptionItemsByPriceId.set(priceId, item);
+        }
+      }
+
+      const updates: Stripe.SubscriptionUpdateParams.Item[] = [];
+      for (const item of args.items) {
+        const quantity = Math.max(1, Math.round(item.quantity));
+        const existingStripeItem = subscriptionItemsByPriceId.get(item.stripePriceId);
+        if (!existingStripeItem) {
+          return {
+            success: false,
+            error: `Stripe price ${item.stripePriceId} is not on this subscription.`,
+          };
+        }
+
+        updates.push({
+          id: existingStripeItem.id,
+          quantity,
+        });
+      }
+
+      const updatedSubscription = await stripe.subscriptions.update(
+        subscription.stripeSubscriptionId,
+        {
+          items: updates,
+          proration_behavior: args.prorationBehavior,
+        },
+        context,
+      );
+
+      const syncResult = await ctx.runAction(
+        internal.invoiceActions.syncSubscriptionFromStripe,
+        {
+          stripeSubscriptionId: updatedSubscription.id,
+        },
+      );
+
+      if (!syncResult.success || !syncResult.subscriptionId) {
+        return {
+          success: false,
+          error: syncResult.error ?? "Failed to sync updated subscription",
+        };
+      }
+
+      const latestStripeInvoiceId =
+        typeof updatedSubscription.latest_invoice === "string"
+          ? updatedSubscription.latest_invoice
+          : updatedSubscription.latest_invoice &&
+              typeof updatedSubscription.latest_invoice === "object" &&
+              "id" in updatedSubscription.latest_invoice
+            ? updatedSubscription.latest_invoice.id
+            : undefined;
+
+      let latestInvoiceId: Id<"invoices"> | undefined;
+      if (latestStripeInvoiceId) {
+        const invoiceSync = await ctx.runAction(
+          internal.invoiceActions.syncSubscriptionInvoiceFromStripe,
+          {
+            stripeInvoiceId: latestStripeInvoiceId,
+            stripeSubscriptionId: updatedSubscription.id,
+          },
+        );
+
+        if (invoiceSync.success && invoiceSync.invoiceId) {
+          latestInvoiceId = invoiceSync.invoiceId;
+        }
+      }
+
+      return {
+        success: true,
+        subscriptionId: syncResult.subscriptionId,
+        latestInvoiceId,
+        latestStripeInvoiceId,
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error("❌ Failed to update subscription plan:", errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  }),
+});
+
+/**
+ * Update dunning policy values for a subscription.
+ */
+export const updateSubscriptionDunningPolicy = action({
+  args: {
+    subscriptionId: v.id("subscriptions"),
+    dunningEnabled: v.boolean(),
+    dunningMaxAttempts: v.number(),
+    dunningRetryIntervalDays: v.number(),
+    dunningAction: dunningActionValidator,
+  },
+  handler: async (ctx, args): Promise<{
+    success: boolean;
+    subscriptionId?: Id<"subscriptions">;
+    dunningEnabled?: boolean;
+    dunningMaxAttempts?: number;
+    dunningRetryIntervalDays?: number;
+    dunningAction?: SubscriptionDunningAction;
+    error?: string;
+  }> => withOrg(ctx, async (orgId) => {
+    try {
+      const result = await ctx.runMutation(
+        internal.invoiceActions.updateSubscriptionDunningPolicyRecord,
+        {
+          orgId,
+          subscriptionId: args.subscriptionId,
+          dunningEnabled: args.dunningEnabled,
+          dunningMaxAttempts: args.dunningMaxAttempts,
+          dunningRetryIntervalDays: args.dunningRetryIntervalDays,
+          dunningAction: args.dunningAction,
+        },
+      );
+
+      if (!result.success) {
+        return { success: false, error: "Failed to update dunning policy" };
+      }
+
+      return {
+        success: true,
+        subscriptionId: result.subscriptionId,
+        dunningEnabled: result.dunningEnabled,
+        dunningMaxAttempts: result.dunningMaxAttempts,
+        dunningRetryIntervalDays: result.dunningRetryIntervalDays,
+        dunningAction: result.dunningAction as SubscriptionDunningAction,
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error("❌ Failed to update dunning policy:", errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  }),
+});
+
+/**
+ * Apply dunning policy based on a subscription payment failure event.
+ */
+export const applySubscriptionDunningPolicyFromPaymentFailure = internalAction({
+  args: {
+    stripeSubscriptionId: v.string(),
+    stripeInvoiceId: v.string(),
+  },
+  handler: async (ctx, args): Promise<{
+    success: boolean;
+    skipped?: string;
+    appliedAction?: SubscriptionDunningAction;
+    failureCount?: number;
+    error?: string;
+  }> => {
+    try {
+      const failureRecord = await ctx.runMutation(
+        internal.invoiceActions.recordSubscriptionDunningFailure,
+        {
+          stripeSubscriptionId: args.stripeSubscriptionId,
+          stripeInvoiceId: args.stripeInvoiceId,
+          failedAt: Date.now(),
+        },
+      );
+
+      if (!failureRecord.success) {
+        return { success: true, skipped: failureRecord.error };
+      }
+
+      if (failureRecord.isDuplicate) {
+        return {
+          success: true,
+          skipped: "duplicate_failure_event",
+          failureCount: failureRecord.failureCount,
+        };
+      }
+
+      if (!failureRecord.shouldEscalate) {
+        return {
+          success: true,
+          skipped: "below_dunning_threshold",
+          failureCount: failureRecord.failureCount,
+        };
+      }
+
+      const actionToApply = failureRecord.dunningAction;
+      const stripe = getStripeClient();
+      const context = getStripeContext(failureRecord.primaryBrand as StripeBrand);
+
+      if (actionToApply === "pause") {
+        await stripe.subscriptions.update(
+          failureRecord.stripeSubscriptionId,
+          {
+            pause_collection: {
+              behavior: "void",
+            },
+          },
+          context,
+        );
+      } else if (actionToApply === "cancel") {
+        await stripe.subscriptions.cancel(failureRecord.stripeSubscriptionId, {}, context);
+      } else {
+        return {
+          success: true,
+          skipped: "dunning_action_none",
+          failureCount: failureRecord.failureCount,
+        };
+      }
+
+      await ctx.runMutation(internal.invoiceActions.markSubscriptionDunningAction, {
+        stripeSubscriptionId: failureRecord.stripeSubscriptionId,
+      });
+
+      await ctx.runAction(internal.invoiceActions.syncSubscriptionFromStripe, {
+        stripeSubscriptionId: failureRecord.stripeSubscriptionId,
+      });
+
+      return {
+        success: true,
+        appliedAction: actionToApply,
+        failureCount: failureRecord.failureCount,
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error("❌ Failed to apply dunning policy:", errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  },
+});
+
+/**
+ * Sync an existing Stripe subscription by ID into the local subscriptions table.
+ * Useful for webhook-driven status updates.
+ */
+export const syncSubscriptionFromStripe = internalAction({
+  args: {
+    stripeSubscriptionId: v.string(),
+  },
+  handler: async (ctx, args): Promise<{
+    success: boolean;
+    subscriptionId?: Id<"subscriptions">;
+    skipped?: string;
+    error?: string;
+  }> => {
+    try {
+      const localSubscription = await ctx.runQuery(
+        internal.invoiceActions.getSubscriptionByStripeId,
+        {
+          stripeSubscriptionId: args.stripeSubscriptionId,
+        },
+      );
+
+      if (!localSubscription) {
+        return { success: false, skipped: "subscription_not_tracked" };
+      }
+
+      const stripe = getStripeClient();
+      const context = getStripeContext(localSubscription.primaryBrand as StripeBrand);
+
+      const stripeSubscription = await stripe.subscriptions.retrieve(
+        args.stripeSubscriptionId,
+        {
+          expand: ["items.data.price"],
+        },
+        context,
+      );
+
+      const parsedMetadataBrands = parseParticipatingBrandsMetadata(
+        stripeSubscription.metadata?.participatingBrands,
+      );
+      const participatingBrands =
+        parsedMetadataBrands.length > 0
+          ? parsedMetadataBrands
+          : localSubscription.participatingBrands;
+
+      const fallbackBrand = toInvoiceBrand(
+        localSubscription.primaryBrand,
+        localSubscription.participatingBrands[0] as InvoiceBrand,
+      );
+
+      const itemsFromStripe: SubscriptionLineItemInput[] = stripeSubscription.items.data.map(
+        (item) => {
+          const price =
+            item.price && typeof item.price === "object" && !("deleted" in item.price)
+              ? item.price
+              : undefined;
+          const brand = toInvoiceBrand(price?.metadata?.brand, fallbackBrand);
+
+          return {
+            serviceId: price?.metadata?.serviceId
+              ? (price.metadata.serviceId as Id<"services">)
+              : undefined,
+            brand,
+            category: price?.metadata?.category ?? "subscription",
+            name: price?.nickname ?? `Subscription item (${brand})`,
+            description: price?.nickname ?? undefined,
+            quantity: Math.max(1, item.quantity ?? 1),
+            stripePriceId: price?.id,
+            unitPriceCents: price?.unit_amount ?? 0,
+          };
+        },
+      );
+
+      const subscriptionId = await ctx.runMutation(
+        internal.invoiceActions.upsertSubscriptionRecord,
+        {
+          orgId: localSubscription.orgId,
+          clientId: localSubscription.clientId,
+          primaryBrand: fallbackBrand,
+          participatingBrands,
+          stripeSubscriptionId: stripeSubscription.id,
+          stripeCustomerId:
+            typeof stripeSubscription.customer === "string"
+              ? stripeSubscription.customer
+              : stripeSubscription.customer?.id ?? localSubscription.stripeCustomerId,
+          status: getSubscriptionStatusFromStripe(
+            stripeSubscription.status,
+            stripeSubscription.pause_collection,
+          ),
+          currentPeriodStart: toMillis(stripeSubscription.current_period_start),
+          currentPeriodEnd: toMillis(stripeSubscription.current_period_end),
+          cancelAt: toMillis(stripeSubscription.cancel_at),
+          canceledAt: toMillis(stripeSubscription.canceled_at),
+          endedAt: toMillis(stripeSubscription.ended_at),
+          notes: localSubscription.notes,
+          items: itemsFromStripe.length > 0 ? itemsFromStripe : localSubscription.items,
+        },
+      );
+
+      return {
+        success: true,
+        subscriptionId,
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error("❌ Failed to sync subscription from Stripe:", errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  },
+});
+
+/**
+ * Sync a Stripe subscription invoice into local invoices + invoiceLineItems.
+ * Called by webhook handlers for invoice lifecycle events.
+ */
+export const syncSubscriptionInvoiceFromStripe = internalAction({
+  args: {
+    stripeInvoiceId: v.string(),
+    stripeSubscriptionId: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<{
+    success: boolean;
+    invoiceId?: Id<"invoices">;
+    skipped?: string;
+    error?: string;
+  }> => {
+    try {
+      const subscriptionId = args.stripeSubscriptionId;
+      if (!subscriptionId) {
+        return { success: false, skipped: "missing_subscription_id" };
+      }
+
+      const localSubscription = await ctx.runQuery(
+        internal.invoiceActions.getSubscriptionByStripeId,
+        {
+          stripeSubscriptionId: subscriptionId,
+        },
+      );
+
+      if (!localSubscription) {
+        return { success: false, skipped: "subscription_not_tracked" };
+      }
+
+      const fallbackBrand = toInvoiceBrand(
+        localSubscription.primaryBrand,
+        localSubscription.participatingBrands[0] as InvoiceBrand,
+      );
+      const stripe = getStripeClient();
+      const context = getStripeContext(fallbackBrand as StripeBrand);
+
+      const stripeInvoice = await stripe.invoices.retrieve(
+        args.stripeInvoiceId,
+        { expand: ["lines.data.price"] },
+        context,
+      );
+
+      const allStripeLineItems: Stripe.InvoiceLineItem[] = [];
+      let startingAfter: string | undefined;
+      do {
+        const linePage = await stripe.invoices.listLineItems(
+          args.stripeInvoiceId,
+          {
+            limit: 100,
+            ...(startingAfter ? { starting_after: startingAfter } : {}),
+          },
+          context,
+        );
+
+        allStripeLineItems.push(...linePage.data);
+        startingAfter = linePage.has_more
+          ? linePage.data[linePage.data.length - 1]?.id
+          : undefined;
+      } while (startingAfter);
+
+      const invoiceForParsing = {
+        ...stripeInvoice,
+        lines: {
+          ...stripeInvoice.lines,
+          data: allStripeLineItems,
+        },
+      } as Stripe.Invoice;
+
+      const localLineItems = parseStripeInvoiceLineItems({
+        stripeInvoice: invoiceForParsing,
+        fallbackBrand,
+        fallbackCategory: localSubscription.items[0]?.category,
+      });
+
+      const lineItemsForStorage =
+        localLineItems.length > 0
+          ? localLineItems
+          : localSubscription.items.map((item) => ({
+              serviceId: item.serviceId,
+              brand: item.brand,
+              category: item.category,
+              name: item.name,
+              description: item.description,
+              quantity: item.quantity,
+              stripePriceId: item.stripePriceId,
+              unitPriceCents: item.unitPriceCents,
+              customPriceCents: undefined,
+              isCustomItem: !item.stripePriceId,
+            }));
+
+      const parsedMetadataBrands = parseParticipatingBrandsMetadata(
+        stripeInvoice.metadata?.participatingBrands,
+      );
+      const brandsFromLineItems = [
+        ...new Set(lineItemsForStorage.map((item) => item.brand)),
+      ];
+      const participatingBrands =
+        brandsFromLineItems.length > 0
+          ? brandsFromLineItems
+          : parsedMetadataBrands.length > 0
+            ? parsedMetadataBrands
+            : localSubscription.participatingBrands;
+      const primaryBrand =
+        participatingBrands.length === 1 ? participatingBrands[0] : PARENT_ORGANIZATION;
+
+      const status = mapStripeInvoiceStatus(stripeInvoice.status);
+      const totalCents =
+        typeof stripeInvoice.total === "number"
+          ? stripeInvoice.total
+          : stripeInvoice.amount_due ?? 0;
+      const invoiceNumber =
+        stripeInvoice.number ??
+        `INV-SUB-${stripeInvoice.id.slice(-8).toUpperCase()}`;
+
+      const invoiceId = await ctx.runMutation(
+        internal.invoiceActions.upsertSubscriptionInvoiceRecord,
+        {
+          orgId: localSubscription.orgId,
+          clientId: localSubscription.clientId,
+          subscriptionId: localSubscription._id,
+          stripeSubscriptionId: localSubscription.stripeSubscriptionId,
+          stripeInvoiceId: stripeInvoice.id,
+          invoiceNumber,
+          primaryBrand,
+          participatingBrands,
+          status,
+          totalCents,
+          notes: localSubscription.notes,
+          billingPeriodStart: toMillis(stripeInvoice.period_start),
+          billingPeriodEnd: toMillis(stripeInvoice.period_end),
+          sentAt: toMillis(stripeInvoice.status_transitions?.finalized_at),
+          paidAt: toMillis(stripeInvoice.status_transitions?.paid_at),
+          createdAt: toMillis(stripeInvoice.created) ?? Date.now(),
+        },
+      );
+
+      if (lineItemsForStorage.length > 0) {
+        await ctx.runMutation(internal.invoiceActions.replaceLineItemRecords, {
+          orgId: localSubscription.orgId,
+          invoiceId,
+          lineItems: lineItemsForStorage,
+        });
+      }
+
+      return {
+        success: true,
+        invoiceId,
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error("❌ Failed to sync subscription invoice from Stripe:", errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  },
 });
 
 /**
@@ -2485,6 +4362,86 @@ export const processManualPayout = mutation({
       updatedCount,
       skippedCount: skipped.length,
       skipped,
+    };
+  }),
+});
+
+/**
+ * Public query to list subscriptions.
+ */
+export const listSubscriptions = query({
+  args: {
+    status: v.optional(subscriptionStatusValidator),
+    clientId: v.optional(v.id("clients")),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => withOrg(ctx, async (orgId) => {
+    const limit = args.limit ?? 100;
+
+    if (args.clientId) {
+      ensureOrgAccess(await ctx.db.get(args.clientId), orgId, "Client not found");
+      const byClient = await ctx.db
+        .query("subscriptions")
+        .withIndex("by_org_client", (q) =>
+          q.eq("orgId", orgId).eq("clientId", args.clientId!)
+        )
+        .order("desc")
+        .take(limit);
+
+      return args.status
+        ? byClient.filter((subscription) => subscription.status === args.status)
+        : byClient;
+    }
+
+    const subscriptions = args.status
+      ? await ctx.db
+          .query("subscriptions")
+          .withIndex("by_org_status", (q) =>
+            q.eq("orgId", orgId).eq("status", args.status!)
+          )
+          .order("desc")
+          .take(limit)
+      : await ctx.db
+          .query("subscriptions")
+          .withIndex("by_org", (q) => q.eq("orgId", orgId))
+          .order("desc")
+          .take(limit);
+
+    return subscriptions;
+  }),
+});
+
+/**
+ * Public query to fetch one subscription with its invoices and client.
+ */
+export const getSubscriptionWithInvoices = query({
+  args: {
+    subscriptionId: v.id("subscriptions"),
+    invoiceLimit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => withOrg(ctx, async (orgId) => {
+    const subscription = ensureOrgAccess(
+      await ctx.db.get(args.subscriptionId),
+      orgId,
+      "Subscription not found",
+    );
+
+    const invoiceLimit = args.invoiceLimit ?? 100;
+    const invoices = await ctx.db
+      .query("invoices")
+      .withIndex("by_org_subscription", (q) =>
+        q.eq("orgId", orgId).eq("subscriptionId", args.subscriptionId)
+      )
+      .order("desc")
+      .take(invoiceLimit);
+
+    const client = await ctx.db.get(subscription.clientId);
+    const scopedClient = client?.orgId === orgId ? client : null;
+
+    return {
+      ...subscription,
+      client: scopedClient,
+      invoices,
     };
   }),
 });

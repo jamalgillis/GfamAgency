@@ -152,6 +152,11 @@
     box-shadow: var(--shadow-card-hover);
   }
 
+  .card-no-hover:hover {
+    transform: none;
+    box-shadow: var(--shadow-card);
+  }
+
   /* Sidebar link styles */
   .sidebar-link {
     @apply flex items-center gap-3 py-3 px-5 text-sidebar-text border-l-[3px] border-transparent;

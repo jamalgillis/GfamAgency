@@ -10,21 +10,40 @@ import {
 } from "lucide-react";
 import { ThemeSwitch } from "@/components/ThemeSwitch";
 import { BrandBadge, type BrandType } from "@/components/BrandBadge";
+import { api } from "@/convex/_generated/api";
+import { useAuthQuery } from "@/hooks/useAuthQuery";
 import {
   allServices,
-  serviceStats,
   serviceBrandFilters,
-  getBrandKey,
   type ServiceData,
 } from "@/data/services-sample";
 
 export default function ServicesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBrand, setSelectedBrand] = useState("all");
+  const servicesFromDb = useAuthQuery(api.services.list, { limit: 5000 });
+
+  const services = useMemo<ServiceData[]>(() => {
+    if (!servicesFromDb) return allServices;
+
+    return servicesFromDb.map((service) => ({
+      id: service._id,
+      brand: service.brand as BrandType,
+      name: service.name,
+      description: service.description,
+      price: service.price,
+      priceValue: service.priceValue,
+      priceSuffix: service.priceSuffix,
+      tags: service.tags,
+      status: service.status,
+      stripeSynced: service.stripeSynced,
+      category: service.category,
+    }));
+  }, [servicesFromDb]);
 
   // Filter services
   const filteredServices = useMemo(() => {
-    return allServices.filter((service) => {
+    return services.filter((service) => {
       // Search filter
       const matchesSearch =
         searchQuery === "" ||
@@ -40,7 +59,7 @@ export default function ServicesPage() {
 
       return matchesSearch && matchesBrand;
     });
-  }, [searchQuery, selectedBrand]);
+  }, [searchQuery, selectedBrand, services]);
 
   // Calculate filtered stats
   const filteredStats = useMemo(() => {
@@ -162,8 +181,6 @@ function ServiceCard({
   service: ServiceData;
   delay: number;
 }) {
-  const brandKey = getBrandKey(service.brand);
-
   return (
     <div
       className="service-card card p-6 opacity-0 animate-card-enter"

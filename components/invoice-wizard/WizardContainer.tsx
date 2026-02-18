@@ -1,26 +1,34 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAction, useQuery } from "convex/react";
 import { ArrowLeft, ArrowRight, Send, Save, AlertCircle, Loader2 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { useAuthQuery } from "@/hooks/useAuthQuery";
 import { WizardProgress } from "./WizardProgress";
 import { ClientSelector } from "./ClientSelector";
 import { ServicePicker } from "./ServicePicker";
 import { InvoicePreview } from "./InvoicePreview";
 import { LivePreviewSidebar } from "./LivePreviewSidebar";
 import { InvoiceDocument } from "./InvoiceDocument";
-import { sampleServices } from "@/data/wizard-sample";
 import type { WizardClient, WizardService, SelectedServiceItem } from "@/data/wizard-sample";
 import type { BrandType, InvoiceLineItem } from "@/types/invoice";
 import { dollarsToCents } from "@/types/invoice";
 
 type Step = 1 | 2 | 3;
 type InvoiceStatus = "draft" | "sent" | "paid" | "overdue";
+type BillingMode = "one_time" | "subscription";
 
-export function WizardContainer() {
+interface WizardContainerProps {
+  initialBillingMode?: BillingMode;
+}
+
+export function WizardContainer({ initialBillingMode = "one_time" }: WizardContainerProps) {
+  const router = useRouter();
   const [currentStep, setCurrentStep] = useState<Step>(1);
+  const [billingMode, setBillingMode] = useState<BillingMode>(initialBillingMode);
   const [selectedClient, setSelectedClient] = useState<WizardClient | null>(null);
   const [selectedServices, setSelectedServices] = useState<Map<string, SelectedServiceItem>>(
     new Map()
@@ -37,6 +45,7 @@ export function WizardContainer() {
 
   // Convex queries
   const convexClients = useQuery(api.clients.list, { limit: 100 });
+  const convexServices = useAuthQuery(api.services.list, { limit: 5000 });
 
   // Convex action for creating invoices
   const createLedgerDraftInvoice = useAction(api.invoiceActions.createLedgerDraftInvoice);
@@ -45,6 +54,7 @@ export function WizardContainer() {
   const createCheckoutSessionForInvoice = useAction(
     api.invoiceActions.createCheckoutSessionForInvoice
   );
+  const createSubscription = useAction(api.invoiceActions.createSubscription);
 
   // Transform Convex clients to WizardClient format
   const clients: WizardClient[] = useMemo(() => {
@@ -63,8 +73,85 @@ export function WizardContainer() {
     }));
   }, [convexClients]);
 
+  const wizardServices: WizardService[] = useMemo(() => {
+    if (!convexServices) return [];
+
+    return convexServices.map((service) => ({
+      id: service._id,
+      brand: service.brand,
+      name: service.name,
+      description: service.description,
+      baseRate: service.priceValue,
+      category: service.category,
+      billingType: service.billingType ?? "one_time",
+    }));
+  }, [convexServices]);
+
+  const selectedItems = useMemo(() => Array.from(selectedServices.values()), [selectedServices]);
+  const selectedBrands = useMemo(
+    () => [...new Set(selectedItems.map((item) => item.service.brand))],
+    [selectedItems]
+  );
+  const hasCustomItems = useMemo(
+    () => selectedItems.some((item) => item.service.isCustom),
+    [selectedItems]
+  );
+  const hasCustomRates = useMemo(
+    () =>
+      selectedItems.some(
+        (item) => item.customRate !== undefined && item.customRate !== item.service.baseRate
+      ),
+    [selectedItems]
+  );
+
+  const subscriptionValidationError = useMemo(() => {
+    if (billingMode !== "subscription") {
+      return null;
+    }
+    if (selectedBrands.length > 1) {
+      return "Phase 1 supports single-brand subscriptions. Keep items under one brand.";
+    }
+    if (hasCustomItems) {
+      return "Custom line items are not supported for subscriptions yet.";
+    }
+    if (hasCustomRates) {
+      return "Custom rate overrides are not supported for subscriptions yet.";
+    }
+    return null;
+  }, [billingMode, selectedBrands.length, hasCustomItems, hasCustomRates]);
+
   const canProceedToStep2 = selectedClient !== null;
-  const canProceedToStep3 = selectedServices.size > 0;
+  const canProceedToStep3 =
+    selectedServices.size > 0 &&
+    (billingMode === "one_time" || subscriptionValidationError === null);
+
+  useEffect(() => {
+    if (billingMode !== "subscription") {
+      return;
+    }
+
+    setSelectedServices((prev) => {
+      let changed = false;
+      const next = new Map<string, SelectedServiceItem>();
+
+      prev.forEach((item, key) => {
+        if (item.service.isCustom) {
+          changed = true;
+          return;
+        }
+
+        if (item.customRate !== undefined) {
+          changed = true;
+          next.set(key, { ...item, customRate: undefined });
+          return;
+        }
+
+        next.set(key, item);
+      });
+
+      return changed ? next : prev;
+    });
+  }, [billingMode]);
 
   const handleToggleService = (service: WizardService) => {
     setSelectedServices((prev) => {
@@ -90,6 +177,10 @@ export function WizardContainer() {
   };
 
   const handleCustomRateChange = (serviceId: string, customRate: number) => {
+    if (billingMode === "subscription") {
+      return;
+    }
+
     setSelectedServices((prev) => {
       const next = new Map(prev);
       const existing = next.get(serviceId);
@@ -101,6 +192,10 @@ export function WizardContainer() {
   };
 
   const handleAddCustomService = (service: WizardService) => {
+    if (billingMode === "subscription") {
+      return;
+    }
+
     setSelectedServices((prev) => {
       const next = new Map(prev);
       next.set(service.id, { service, quantity: 1 });
@@ -131,25 +226,25 @@ export function WizardContainer() {
     }
   };
 
-  // Check if an ID looks like a valid Convex ID (not a sample ID like "s1", "s2")
+  // Catalog services come from Convex; ad-hoc items use the custom-* prefix.
   const isValidConvexId = (id: string): boolean => {
-    // Sample IDs are short like "s1", "s2", "custom-xxx"
-    // Convex IDs are longer strings (typically 20+ chars)
-    return id.length > 10 && !id.startsWith("s") && !id.startsWith("custom-");
+    return !id.startsWith("custom-");
   };
 
   // Convert selected services to InvoiceLineItem format for Convex
-  const buildLineItems = (): InvoiceLineItem[] => {
+  const buildLineItems = (options?: { allowCustomPricing?: boolean }): InvoiceLineItem[] => {
+    const allowCustomPricing = options?.allowCustomPricing ?? true;
+
     return Array.from(selectedServices.values()).map((item) => {
       const { service, quantity, customRate } = item;
-      // Treat as custom item if explicitly marked OR if using sample data
-      const isSampleService = !isValidConvexId(service.id);
-      const isCustomItem = service.isCustom ?? isSampleService;
+      const isAdHocService = !isValidConvexId(service.id);
+      const isCustomItem = service.isCustom ?? isAdHocService;
       const unitPriceCents = dollarsToCents(service.baseRate);
-      const customPriceCents = customRate ? dollarsToCents(customRate) : undefined;
+      const customPriceCents =
+        allowCustomPricing && customRate ? dollarsToCents(customRate) : undefined;
 
       return {
-        // Only include serviceId if it's a valid Convex ID (not sample data)
+        // Only include serviceId for catalog services from Convex.
         serviceId: isValidConvexId(service.id) ? (service.id as Id<"services">) : undefined,
         brand: service.brand as BrandType,
         category: service.category,
@@ -228,8 +323,46 @@ export function WizardContainer() {
     }
   };
 
+  const handleCreateSubscription = async () => {
+    if (!selectedClient) return;
+
+    setIsSubmitting(true);
+    setError(null);
+    setEmailStatusMessage(null);
+
+    try {
+      if (subscriptionValidationError) {
+        setError(subscriptionValidationError);
+        return;
+      }
+
+      const lineItems = buildLineItems({ allowCustomPricing: false });
+      const result = await createSubscription({
+        clientId: selectedClient.id as Id<"clients">,
+        lineItems,
+        notes: notes || undefined,
+      });
+
+      if (!result.success || !result.subscriptionId) {
+        setError(result.error || "Failed to create subscription");
+        return;
+      }
+
+      router.push(`/dashboard/subscriptions/${result.subscriptionId}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An unexpected error occurred");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleSendInvoice = async () => {
     if (!selectedClient) return;
+
+    if (billingMode === "subscription") {
+      await handleCreateSubscription();
+      return;
+    }
 
     setIsSubmitting(true);
     setError(null);
@@ -403,26 +536,53 @@ export function WizardContainer() {
       case 2:
         return (
           <div className="animate-fade-in-up">
-            <h2 className="text-xl font-semibold text-content mb-2">Select Services</h2>
+            <h2 className="text-xl font-semibold text-content mb-2">
+              {billingMode === "subscription" ? "Select Subscription Services" : "Select Services"}
+            </h2>
             <p className="text-content-muted mb-6">
-              Add services from any brand to the invoice
+              {billingMode === "subscription"
+                ? "Choose recurring services for one brand. Custom items and custom rates are disabled in Phase 1."
+                : "Add services from any brand to the invoice"}
             </p>
-            <ServicePicker
-              services={sampleServices}
-              selectedServices={selectedServices}
-              onToggleService={handleToggleService}
-              onQuantityChange={handleQuantityChange}
-              onAddCustomService={handleAddCustomService}
-              onCustomRateChange={handleCustomRateChange}
-            />
+            {billingMode === "subscription" && subscriptionValidationError && (
+              <div className="mb-4 flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{subscriptionValidationError}</span>
+              </div>
+            )}
+            {convexServices === undefined ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 animate-spin text-content-muted" />
+                <span className="ml-2 text-content-muted">Loading services...</span>
+              </div>
+            ) : wizardServices.length === 0 ? (
+              <div className="text-center py-12 text-content-muted">
+                <p>No services found. Add services in the Services tab first.</p>
+              </div>
+            ) : (
+              <ServicePicker
+                services={wizardServices}
+                selectedServices={selectedServices}
+                onToggleService={handleToggleService}
+                onQuantityChange={handleQuantityChange}
+                onAddCustomService={handleAddCustomService}
+                onCustomRateChange={handleCustomRateChange}
+                allowCustomItems={billingMode === "one_time"}
+                allowCustomRateOverrides={billingMode === "one_time"}
+              />
+            )}
           </div>
         );
       case 3:
         return (
           <div className="animate-fade-in-up">
-            <h2 className="text-xl font-semibold text-content mb-2">Review Invoice</h2>
+            <h2 className="text-xl font-semibold text-content mb-2">
+              {billingMode === "subscription" ? "Review Subscription" : "Review Invoice"}
+            </h2>
             <p className="text-content-muted mb-6">
-              Confirm the details before creating the invoice
+              {billingMode === "subscription"
+                ? "Confirm details before creating the subscription."
+                : "Confirm the details before creating the invoice"}
             </p>
             {selectedClient && (
               <InvoicePreview
@@ -469,30 +629,47 @@ export function WizardContainer() {
           <div className="flex items-center gap-3">
             {currentStep === 3 ? (
               <>
-                <button
-                  onClick={handleCreateDraft}
-                  disabled={isSubmitting}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border hover:bg-surface-hover transition-colors disabled:opacity-50"
-                >
-                  {isSubmitting ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Save className="w-4 h-4" />
-                  )}
-                  Save Draft
-                </button>
-                <button
-                  onClick={handleSendInvoice}
-                  disabled={isSubmitting}
-                  className="btn-primary disabled:opacity-50"
-                >
-                  {isSubmitting ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Send className="w-4 h-4" />
-                  )}
-                  {isSubmitting ? "Processing..." : "Send Invoice"}
-                </button>
+                {billingMode === "one_time" ? (
+                  <>
+                    <button
+                      onClick={handleCreateDraft}
+                      disabled={isSubmitting}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border hover:bg-surface-hover transition-colors disabled:opacity-50"
+                    >
+                      {isSubmitting ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Save className="w-4 h-4" />
+                      )}
+                      Save Draft
+                    </button>
+                    <button
+                      onClick={handleSendInvoice}
+                      disabled={isSubmitting}
+                      className="btn-primary disabled:opacity-50"
+                    >
+                      {isSubmitting ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Send className="w-4 h-4" />
+                      )}
+                      {isSubmitting ? "Processing..." : "Send Invoice"}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={handleCreateSubscription}
+                    disabled={isSubmitting || !!subscriptionValidationError}
+                    className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSubmitting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
+                    {isSubmitting ? "Creating..." : "Create Subscription"}
+                  </button>
+                )}
               </>
             ) : (
               <button
@@ -537,13 +714,44 @@ export function WizardContainer() {
     <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
       {/* Main wizard area */}
       <div className="flex-1 min-w-0">
+        <div className="card card-no-hover p-2 mb-4">
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => {
+                setBillingMode("one_time");
+                setError(null);
+              }}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                billingMode === "one_time"
+                  ? "bg-surface-tertiary text-content"
+                  : "text-content-secondary hover:bg-surface-hover"
+              }`}
+            >
+              One-Time Invoice
+            </button>
+            <button
+              onClick={() => {
+                setBillingMode("subscription");
+                setError(null);
+              }}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                billingMode === "subscription"
+                  ? "bg-surface-tertiary text-content"
+                  : "text-content-secondary hover:bg-surface-hover"
+              }`}
+            >
+              Subscription
+            </button>
+          </div>
+        </div>
+
         <WizardProgress
           currentStep={currentStep}
           clientSelected={canProceedToStep2}
           servicesSelected={canProceedToStep3}
         />
 
-        <div className="card p-4 sm:p-6">
+        <div className="card card-no-hover p-4 sm:p-6">
           {renderStepContent()}
           {renderActions()}
         </div>

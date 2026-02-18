@@ -55,13 +55,42 @@ export const updateServiceStripeIds = internalMutation({
     serviceId: v.id("services"),
     stripeProductId: v.string(),
     stripePriceId: v.string(),
+    stripeRecurringPriceId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    ensureOrgAccess(await ctx.db.get(args.serviceId), args.orgId, "Service not found");
+    const updates: {
+      stripeProductId: string;
+      stripePriceId: string;
+      stripeSynced: boolean;
+      stripeRecurringPriceId?: string;
+    } = {
+      stripeProductId: args.stripeProductId,
+      stripePriceId: args.stripePriceId,
+      stripeSynced: true,
+    };
+
+    if (args.stripeRecurringPriceId) {
+      updates.stripeRecurringPriceId = args.stripeRecurringPriceId;
+    }
+
+    await ctx.db.patch(args.serviceId, updates);
+  },
+});
+
+/**
+ * Internal mutation to update only a service recurring Stripe Price ID.
+ */
+export const updateServiceRecurringStripePriceId = internalMutation({
+  args: {
+    orgId: v.string(),
+    serviceId: v.id("services"),
+    stripeRecurringPriceId: v.string(),
   },
   handler: async (ctx, args) => {
     ensureOrgAccess(await ctx.db.get(args.serviceId), args.orgId, "Service not found");
     await ctx.db.patch(args.serviceId, {
-      stripeProductId: args.stripeProductId,
-      stripePriceId: args.stripePriceId,
-      stripeSynced: true,
+      stripeRecurringPriceId: args.stripeRecurringPriceId,
     });
   },
 });
@@ -140,12 +169,38 @@ export const syncSingleService = action({
         metadata,
       }, context);
 
+      let recurringPriceId: string | undefined;
+      if ((service.billingType ?? "one_time") === "recurring") {
+        const recurringInterval = service.recurringInterval ?? "month";
+        const recurringIntervalCount = Math.max(1, service.recurringIntervalCount ?? 1);
+
+        const recurringPrice = await stripe.prices.create(
+          {
+            product: product.id,
+            unit_amount: unitAmountCents,
+            currency: "usd",
+            recurring: {
+              interval: recurringInterval,
+              interval_count: recurringIntervalCount,
+            },
+            metadata: {
+              ...metadata,
+              billingType: "recurring",
+            },
+          },
+          context,
+        );
+
+        recurringPriceId = recurringPrice.id;
+      }
+
       // Update Convex record with Stripe IDs
       await ctx.runMutation(internal.stripeSync.updateServiceStripeIds, {
         orgId,
         serviceId: args.serviceId,
         stripeProductId: product.id,
         stripePriceId: price.id,
+        stripeRecurringPriceId: recurringPriceId,
       });
 
       console.log(
