@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { useAction, useQuery } from "convex/react";
 import {
   ArrowLeft,
+  ChevronDown,
   ExternalLink,
   Loader2,
   Pause,
@@ -429,7 +430,7 @@ export default function SubscriptionDetailPage() {
 
   if (!isValidId) {
     return (
-      <div className="card p-8 text-center">
+      <div className="card card-no-hover p-8 text-center">
         <h2 className="text-lg font-semibold text-content mb-2">Subscription not found</h2>
         <Link href="/dashboard/subscriptions" className="btn-primary inline-flex">
           <ArrowLeft className="w-4 h-4" />
@@ -441,13 +442,13 @@ export default function SubscriptionDetailPage() {
 
   if (subscription === undefined) {
     return (
-      <div className="card p-8 text-center text-content-muted">Loading subscription...</div>
+      <div className="card card-no-hover p-8 text-center text-content-muted">Loading subscription...</div>
     );
   }
 
   if (!subscription) {
     return (
-      <div className="card p-8 text-center">
+      <div className="card card-no-hover p-8 text-center">
         <h2 className="text-lg font-semibold text-content mb-2">Subscription not found</h2>
         <Link href="/dashboard/subscriptions" className="btn-primary inline-flex">
           <ArrowLeft className="w-4 h-4" />
@@ -540,7 +541,7 @@ export default function SubscriptionDetailPage() {
       )}
 
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        <div className="card p-5">
+        <div className="card card-no-hover p-5">
           <p className="text-content-muted text-sm">Client</p>
           <p className="text-content font-semibold mt-2">
             {subscription.client?.name || "Unknown Client"}
@@ -551,7 +552,7 @@ export default function SubscriptionDetailPage() {
           <p className="text-content-muted text-sm">{subscription.client?.email || "No email"}</p>
         </div>
 
-        <div className="card p-5">
+        <div className="card card-no-hover p-5">
           <p className="text-content-muted text-sm">Status</p>
           <div className="mt-2">
             <span
@@ -609,7 +610,7 @@ export default function SubscriptionDetailPage() {
           )}
         </div>
 
-        <div className="card p-5">
+        <div className="card card-no-hover p-5">
           <p className="text-content-muted text-sm">Plan Value</p>
           <p className="text-content font-semibold text-2xl mt-2">
             {formatCurrency(planTotalCents)}
@@ -620,7 +621,7 @@ export default function SubscriptionDetailPage() {
         </div>
       </section>
 
-      <section className="card p-5 mb-6">
+      <section className="card card-no-hover p-5 mb-6">
         <h2 className="text-lg font-semibold text-content mb-3">Brands</h2>
         <div className="flex flex-wrap gap-2">
           {subscription.participatingBrands.map((brand) => (
@@ -638,7 +639,7 @@ export default function SubscriptionDetailPage() {
         </div>
       </section>
 
-      <section className="card overflow-hidden mb-6">
+      <section className="card card-no-hover overflow-hidden mb-6">
         <div className="px-5 py-4 border-b border-border">
           <h2 className="text-lg font-semibold text-content">Subscription Items</h2>
         </div>
@@ -672,7 +673,7 @@ export default function SubscriptionDetailPage() {
       </section>
 
       <section className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
-        <div className="card p-5">
+        <div className="card card-no-hover p-5">
           <h2 className="text-lg font-semibold text-content mb-4">Plan Updates</h2>
           <p className="text-sm text-content-muted mb-4">
             Update quantities, adjust item prices, and choose how Stripe handles proration.
@@ -751,17 +752,20 @@ export default function SubscriptionDetailPage() {
             <label className="block text-sm font-medium text-content">
               Proration Behavior
             </label>
-            <select
-              value={prorationBehavior}
-              onChange={(event) =>
-                setProrationBehavior(event.target.value as ProrationBehavior)
-              }
-              className="input-field w-full"
-            >
-              <option value="create_prorations">Create prorations (default)</option>
-              <option value="always_invoice">Invoice prorations immediately</option>
-              <option value="none">No proration adjustments</option>
-            </select>
+            <div className="relative">
+              <select
+                value={prorationBehavior}
+                onChange={(event) =>
+                  setProrationBehavior(event.target.value as ProrationBehavior)
+                }
+                className="input-field w-full appearance-none pr-14"
+              >
+                <option value="create_prorations">Create prorations (default)</option>
+                <option value="always_invoice">Invoice prorations immediately</option>
+                <option value="none">No proration adjustments</option>
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-content-muted" />
+            </div>
           </div>
 
           <button
@@ -774,7 +778,7 @@ export default function SubscriptionDetailPage() {
           </button>
         </div>
 
-        <div className="card p-5">
+        <div className="card card-no-hover p-5">
           <h2 className="text-lg font-semibold text-content mb-4">Dunning Policy</h2>
           <p className="text-sm text-content-muted mb-4">
             Configure automatic handling for repeated payment failures.
@@ -833,15 +837,18 @@ export default function SubscriptionDetailPage() {
               <label className="block text-sm font-medium text-content mb-1">
                 Action After Max Attempts
               </label>
-              <select
-                value={dunningAction}
-                onChange={(event) => setDunningAction(event.target.value as DunningAction)}
-                className="input-field w-full"
-              >
-                <option value="pause">Pause billing</option>
-                <option value="cancel">Cancel subscription</option>
-                <option value="none">Do nothing</option>
-              </select>
+              <div className="relative">
+                <select
+                  value={dunningAction}
+                  onChange={(event) => setDunningAction(event.target.value as DunningAction)}
+                  className="input-field w-full appearance-none pr-14"
+                >
+                  <option value="pause">Pause billing</option>
+                  <option value="cancel">Cancel subscription</option>
+                  <option value="none">Do nothing</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-content-muted" />
+              </div>
             </div>
 
             <div className="rounded-lg border border-border bg-surface-tertiary px-3 py-2 text-sm text-content-muted">
@@ -862,7 +869,7 @@ export default function SubscriptionDetailPage() {
         </div>
       </section>
 
-      <section className="card overflow-hidden">
+      <section className="card card-no-hover overflow-hidden">
         <div className="px-5 py-4 border-b border-border">
           <h2 className="text-lg font-semibold text-content">Invoices</h2>
         </div>

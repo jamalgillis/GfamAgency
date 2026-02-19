@@ -392,8 +392,8 @@ export function WizardContainer({ initialBillingMode = "one_time" }: WizardConta
       const buildCheckoutUrls = (invoiceId: Id<"invoices">) => {
         const origin = window.location.origin;
         return {
-          successUrl: `${origin}/dashboard/invoices/${invoiceId}?payment=success`,
-          cancelUrl: `${origin}/dashboard/invoices/${invoiceId}?payment=cancelled`,
+          successUrl: `${origin}/payment/success?invoiceId=${invoiceId}&session_id={CHECKOUT_SESSION_ID}`,
+          cancelUrl: `${origin}/payment/cancelled?invoiceId=${invoiceId}`,
         };
       };
 

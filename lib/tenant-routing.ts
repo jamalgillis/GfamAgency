@@ -1,6 +1,7 @@
 const RESERVED_ROOT_SEGMENTS = new Set([
   "",
   "dashboard",
+  "payment",
   "sign-in",
   "sign-up",
   "organization-select",

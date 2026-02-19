@@ -181,8 +181,8 @@ export default function InvoiceDetailPage() {
       const origin = window.location.origin;
       const result = await createCheckoutSessionForInvoice({
         invoiceId: invoiceId as Id<"invoices">,
-        successUrl: `${origin}/dashboard/invoices/${invoiceId}?payment=success`,
-        cancelUrl: `${origin}/dashboard/invoices/${invoiceId}?payment=cancelled`,
+        successUrl: `${origin}/payment/success?invoiceId=${invoiceId}&session_id={CHECKOUT_SESSION_ID}`,
+        cancelUrl: `${origin}/payment/cancelled?invoiceId=${invoiceId}`,
       });
 
       if (!result.success) {
@@ -299,18 +299,18 @@ export default function InvoiceDetailPage() {
           <div className="flex items-center gap-3">
             <ThemeSwitch />
 
-            <button className="btn-secondary">
+            <button className="btn-secondary h-12">
               <Printer className="w-4 h-4" />
               <span className="hidden sm:inline">Print</span>
             </button>
 
-            <button className="btn-secondary">
+            <button className="btn-secondary h-12">
               <Download className="w-4 h-4" />
               <span className="hidden sm:inline">Download</span>
             </button>
 
             {canSendInvoice && (
-              <button className="btn-primary" onClick={handleSendInvoice} disabled={isSending}>
+              <button className="btn-primary h-12" onClick={handleSendInvoice} disabled={isSending}>
                 <Send className="w-4 h-4" />
                 <span className="hidden sm:inline">
                   {isSending ? "Sending..." : "Send Invoice"}

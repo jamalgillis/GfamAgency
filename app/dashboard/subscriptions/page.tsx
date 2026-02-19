@@ -471,97 +471,85 @@ export default function SubscriptionsPage() {
       </section>
 
       <section className="card card-no-hover p-4 sm:p-5 mb-4 space-y-3">
-        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2 rounded-xl bg-surface-tertiary p-2">
-            <button
-              onClick={() => setBrandFilter("all")}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                brandFilter === "all"
-                  ? "bg-surface-secondary text-content shadow-sm"
-                  : "text-content-muted hover:text-content hover:bg-surface-hover"
-              }`}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[220px]">
+            <select
+              value={brandFilter}
+              onChange={(event) => setBrandFilter(event.target.value)}
+              className="input-field appearance-none pr-10 w-full"
             >
-              All
-            </button>
-            {brandOptions.map((brand) => (
-              <button
-                key={brand}
-                onClick={() => setBrandFilter(brand)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  brandFilter === brand
-                    ? "bg-surface-secondary text-content shadow-sm"
-                    : "text-content-muted hover:text-content hover:bg-surface-hover"
-                }`}
-              >
-                {formatBrandFilterLabel(brand)}
-              </button>
-            ))}
+              <option value="all">Brand: All</option>
+              {brandOptions.map((brand) => (
+                <option key={brand} value={brand}>
+                  Brand: {formatBrandFilterLabel(brand)}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-content-muted" />
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative min-w-[220px]">
-              <Filter className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-content-muted" />
-              <select
-                value={statusFilter}
-                onChange={(event) =>
-                  setStatusFilter(event.target.value as "all" | SubscriptionStatus)
-                }
-                className="input-field appearance-none pl-10 pr-10 w-full"
-              >
-                {statusOptions.map((option) => (
-                  <option key={option.key} value={option.key}>
-                    Status: {option.label}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-content-muted" />
-            </div>
-
-            <div className="relative min-w-[220px]">
-              <CalendarDays className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-content-muted" />
-              <select
-                value={nextBillingFilter}
-                onChange={(event) =>
-                  setNextBillingFilter(event.target.value as NextBillingFilter)
-                }
-                className="input-field appearance-none pl-10 pr-10 w-full"
-              >
-                {nextBillingOptions.map((option) => (
-                  <option key={option.key} value={option.key}>
-                    Billing: {option.label}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-content-muted" />
-            </div>
-
-            <div className="relative min-w-[220px]">
-              <CreditCard className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-content-muted" />
-              <select
-                value={collectionFilter}
-                onChange={(event) =>
-                  setCollectionFilter(event.target.value as CollectionFilter)
-                }
-                className="input-field appearance-none pl-10 pr-10 w-full"
-              >
-                {collectionOptions.map((option) => (
-                  <option key={option.key} value={option.key}>
-                    Collection: {option.label}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-content-muted" />
-            </div>
-
-            <button
-              onClick={handleExport}
-              disabled={filteredRows.length === 0}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-content disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-hover transition-colors"
+          <div className="relative min-w-[220px]">
+            <Filter className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-content-muted" />
+            <select
+              value={statusFilter}
+              onChange={(event) =>
+                setStatusFilter(event.target.value as "all" | SubscriptionStatus)
+              }
+              className="input-field appearance-none pl-10 pr-10 w-full"
             >
-              <Download className="w-4 h-4" />
-              Export
-            </button>
+              {statusOptions.map((option) => (
+                <option key={option.key} value={option.key}>
+                  Status: {option.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-content-muted" />
           </div>
+
+          <div className="relative min-w-[220px]">
+            <CalendarDays className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-content-muted" />
+            <select
+              value={nextBillingFilter}
+              onChange={(event) =>
+                setNextBillingFilter(event.target.value as NextBillingFilter)
+              }
+              className="input-field appearance-none pl-10 pr-10 w-full"
+            >
+              {nextBillingOptions.map((option) => (
+                <option key={option.key} value={option.key}>
+                  Billing: {option.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-content-muted" />
+          </div>
+
+          <div className="relative min-w-[220px]">
+            <CreditCard className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-content-muted" />
+            <select
+              value={collectionFilter}
+              onChange={(event) =>
+                setCollectionFilter(event.target.value as CollectionFilter)
+              }
+              className="input-field appearance-none pl-10 pr-10 w-full"
+            >
+              {collectionOptions.map((option) => (
+                <option key={option.key} value={option.key}>
+                  Collection: {option.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-content-muted" />
+          </div>
+
+          <button
+            onClick={handleExport}
+            disabled={filteredRows.length === 0}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-content disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-hover transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            Export
+          </button>
         </div>
 
         <div className="relative">
