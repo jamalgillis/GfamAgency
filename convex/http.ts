@@ -2,7 +2,13 @@ import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import Stripe from "stripe";
-import { getWebhookSecret, PARENT_ORGANIZATION } from "./lib/stripe";
+import {
+  getWebhookSecret,
+  getStripeClient,
+  getStripeContext,
+  PARENT_ORGANIZATION,
+  type StripeBrand,
+} from "./lib/stripe";
 import { buildInvoicePdfDocument } from "./lib/invoicePdf";
 
 const http = httpRouter();
@@ -330,20 +336,136 @@ async function handleInvoicePaid(ctx: any, invoice: Stripe.Invoice) {
     console.warn(
       `[${brand}] Invoice ${invoice.id} paid but missing payment_intent; skipping brandLedger attribution`
     );
-    return;
+  } else {
+    await ctx.runMutation(internal.webhooks.processPaidInvoiceLedgerAttribution, {
+      invoiceId: convexInvoiceId as any,
+      settlementSource: "invoice.paid",
+      settlementId: invoice.id,
+      stripePaymentIntentId,
+    });
   }
-
-  await ctx.runMutation(internal.webhooks.processPaidInvoiceLedgerAttribution, {
-    invoiceId: convexInvoiceId as any,
-    settlementSource: "invoice.paid",
-    settlementId: invoice.id,
-    stripePaymentIntentId,
-  });
 
   if (stripeSubscriptionId) {
     await ctx.runMutation(internal.invoiceActions.resetSubscriptionDunningFailureState, {
       stripeSubscriptionId,
     });
+
+    await transitionSubscriptionToAutomaticCollection(ctx, {
+      stripeSubscriptionId,
+      stripeInvoiceId: invoice.id,
+      stripePaymentIntentId,
+      brand,
+    });
+  }
+}
+
+async function transitionSubscriptionToAutomaticCollection(
+  ctx: any,
+  params: {
+    stripeSubscriptionId: string;
+    stripeInvoiceId: string;
+    stripePaymentIntentId?: string;
+    brand: string;
+  },
+) {
+  try {
+    const localSubscription = await ctx.runQuery(
+      internal.invoiceActions.getSubscriptionByStripeId,
+      {
+        stripeSubscriptionId: params.stripeSubscriptionId,
+      },
+    );
+
+    if (!localSubscription) {
+      return;
+    }
+
+    const stripe = getStripeClient();
+    const context = getStripeContext(localSubscription.primaryBrand as StripeBrand);
+    const stripeSubscription = await stripe.subscriptions.retrieve(
+      params.stripeSubscriptionId,
+      {},
+      context,
+    );
+
+    if (stripeSubscription.collection_method !== "send_invoice") {
+      return;
+    }
+
+    let paymentMethodId =
+      typeof stripeSubscription.default_payment_method === "string"
+        ? stripeSubscription.default_payment_method
+        : stripeSubscription.default_payment_method &&
+            typeof stripeSubscription.default_payment_method === "object" &&
+            "id" in stripeSubscription.default_payment_method
+          ? stripeSubscription.default_payment_method.id
+          : undefined;
+
+    if (!paymentMethodId && params.stripePaymentIntentId) {
+      const paymentIntent = await stripe.paymentIntents.retrieve(
+        params.stripePaymentIntentId,
+        { expand: ["payment_method"] },
+        context,
+      );
+      paymentMethodId =
+        typeof paymentIntent.payment_method === "string"
+          ? paymentIntent.payment_method
+          : paymentIntent.payment_method?.id;
+    }
+
+    if (!paymentMethodId) {
+      console.log(
+        `[${params.brand}] Subscription ${params.stripeSubscriptionId} remains send_invoice after ${params.stripeInvoiceId}: no reusable payment method found`
+      );
+      return;
+    }
+
+    const stripeCustomerId =
+      typeof stripeSubscription.customer === "string"
+        ? stripeSubscription.customer
+        : stripeSubscription.customer?.id ?? localSubscription.stripeCustomerId;
+
+    await stripe.customers.update(
+      stripeCustomerId,
+      {
+        invoice_settings: {
+          default_payment_method: paymentMethodId,
+        },
+      },
+      context,
+    );
+
+    await stripe.subscriptions.update(
+      params.stripeSubscriptionId,
+      {
+        collection_method: "charge_automatically",
+        default_payment_method: paymentMethodId,
+        payment_settings: {
+          save_default_payment_method: "on_subscription",
+        },
+      },
+      context,
+    );
+
+    const syncResult = await ctx.runAction(internal.invoiceActions.syncSubscriptionFromStripe, {
+      stripeSubscriptionId: params.stripeSubscriptionId,
+    });
+
+    if (!syncResult.success && syncResult.skipped !== "subscription_not_tracked") {
+      console.warn(
+        `[${params.brand}] Subscription ${params.stripeSubscriptionId} switched to charge_automatically, but local sync failed: ${syncResult.error ?? "unknown error"}`
+      );
+      return;
+    }
+
+    console.log(
+      `[${params.brand}] Subscription ${params.stripeSubscriptionId} switched to charge_automatically after paid invoice ${params.stripeInvoiceId}`
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    console.warn(
+      `[${params.brand}] Failed to transition subscription ${params.stripeSubscriptionId} to charge_automatically: ${message}`
+    );
   }
 }
 

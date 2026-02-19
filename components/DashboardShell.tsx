@@ -45,7 +45,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
   } as CSSProperties), [branding.primaryColor, branding.secondaryColor]);
 
   return (
-    <div className="min-h-screen bg-surface" style={tenantCssVars}>
+    <div className="min-h-dvh bg-surface" style={tenantCssVars}>
       <Sidebar
         isOpen={sidebarOpen}
         onToggle={toggleSidebar}
@@ -75,7 +75,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
 
       {/* Main Content */}
       <main
-        className={`min-h-screen p-4 pt-20 md:pt-6 md:p-6 lg:p-8 ml-0 transition-all duration-300 ${
+        className={`min-h-dvh bg-surface p-4 pt-20 md:pt-6 md:p-6 lg:p-8 ml-0 transition-all duration-300 ${
           sidebarCollapsed ? "md:ml-sidebar-collapsed" : "md:ml-sidebar"
         }`}
       >

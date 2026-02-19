@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useAction, useQuery } from "convex/react";
@@ -87,6 +87,7 @@ export default function InvoiceDetailPage() {
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [sendStatusMessage, setSendStatusMessage] = useState<string | null>(null);
+  const actionsDropdownRef = useRef<HTMLDivElement | null>(null);
 
   const notes =
     invoiceWithDetails?.notes ||
@@ -199,6 +200,33 @@ export default function InvoiceDetailPage() {
     }
   };
 
+  useEffect(() => {
+    if (!actionsOpen) return;
+
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (actionsDropdownRef.current?.contains(target)) return;
+      setActionsOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setActionsOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [actionsOpen]);
+
   if (!hasValidInvoiceId) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
@@ -247,7 +275,7 @@ export default function InvoiceDetailPage() {
   return (
     <>
       {/* Header */}
-      <header className="mb-6 md:mb-8 animate-fade-in-up">
+      <header className="relative z-40 mb-6 md:mb-8 animate-fade-in-up">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           {/* Back & Title */}
           <div className="flex items-center gap-4">
@@ -291,10 +319,11 @@ export default function InvoiceDetailPage() {
             )}
 
             {/* More Actions Dropdown */}
-            <div className="dropdown relative">
+            <div ref={actionsDropdownRef} className="dropdown relative z-50">
               <button
                 className="btn-secondary !px-2.5"
-                onClick={() => setActionsOpen(!actionsOpen)}
+                onClick={() => setActionsOpen((prev) => !prev)}
+                aria-expanded={actionsOpen}
               >
                 <MoreHorizontal className="w-4 h-4" />
               </button>

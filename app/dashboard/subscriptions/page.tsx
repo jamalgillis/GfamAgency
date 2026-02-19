@@ -2,14 +2,19 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useQuery } from "convex/react";
+import { useAction, useQuery } from "convex/react";
 import {
   Search,
   Plus,
   Repeat,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Eye,
+  Filter,
+  CalendarDays,
+  Download,
+  CreditCard,
 } from "lucide-react";
 import { ThemeSwitch } from "@/components/ThemeSwitch";
 import { BrandBadge, type BrandType } from "@/components/BrandBadge";
@@ -25,6 +30,18 @@ type SubscriptionStatus =
   | "incomplete"
   | "incomplete_expired"
   | "unpaid";
+
+type CollectionMethod = "send_invoice" | "charge_automatically";
+type CollectionMethodWithUnknown = CollectionMethod | "unknown";
+type CollectionFilter = "all" | CollectionMethod | "unknown";
+type BrandFilter = "all" | string;
+type NextBillingFilter =
+  | "all"
+  | "overdue"
+  | "next_7_days"
+  | "this_month"
+  | "next_month"
+  | "no_billing_date";
 
 interface SubscriptionRow {
   id: Id<"subscriptions">;
@@ -60,6 +77,22 @@ const statusOptions: Array<{ key: "all" | SubscriptionStatus; label: string }> =
   { key: "unpaid", label: "Unpaid" },
 ];
 
+const nextBillingOptions: Array<{ key: NextBillingFilter; label: string }> = [
+  { key: "all", label: "All billing windows" },
+  { key: "overdue", label: "Overdue" },
+  { key: "next_7_days", label: "Next 7 days" },
+  { key: "this_month", label: "This month" },
+  { key: "next_month", label: "Next month" },
+  { key: "no_billing_date", label: "No billing date" },
+];
+
+const collectionOptions: Array<{ key: CollectionFilter; label: string }> = [
+  { key: "all", label: "All collections" },
+  { key: "charge_automatically", label: "Autopay" },
+  { key: "send_invoice", label: "Manual invoice" },
+  { key: "unknown", label: "Unknown" },
+];
+
 const statusClassMap: Record<SubscriptionStatus, string> = {
   active: "bg-emerald-500/15 text-emerald-300",
   trialing: "bg-sky-500/15 text-sky-300",
@@ -90,14 +123,97 @@ const formatStatusLabel = (status: SubscriptionStatus) =>
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
 
+const formatBrandFilterLabel = (brand: string) =>
+  brand === "GFAM Media Studios" ? "GFAM Media" : brand;
+
+const formatCollectionLabel = (value: CollectionMethodWithUnknown) => {
+  switch (value) {
+    case "charge_automatically":
+      return "Autopay";
+    case "send_invoice":
+      return "Manual Invoice";
+    default:
+      return "Unknown";
+  }
+};
+
+const collectionBadgeClassMap: Record<CollectionMethodWithUnknown, string> = {
+  charge_automatically: "bg-emerald-500/15 text-emerald-300",
+  send_invoice: "bg-amber-500/15 text-amber-300",
+  unknown: "bg-surface-tertiary text-content-muted",
+};
+
+function getMonthWindow(offset: number): { start: number; end: number } {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth() + offset, 1).getTime();
+  const end = new Date(now.getFullYear(), now.getMonth() + offset + 1, 1).getTime();
+  return { start, end };
+}
+
+function matchesNextBillingFilter(
+  nextBillingAt: number | undefined,
+  filter: NextBillingFilter,
+): boolean {
+  if (filter === "all") {
+    return true;
+  }
+
+  if (!nextBillingAt) {
+    return filter === "no_billing_date";
+  }
+
+  if (filter === "no_billing_date") {
+    return false;
+  }
+
+  const now = Date.now();
+  const today = new Date();
+  const startOfToday = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate(),
+  ).getTime();
+  const endOfNext7Days = startOfToday + 7 * 24 * 60 * 60 * 1000;
+  const thisMonth = getMonthWindow(0);
+  const nextMonth = getMonthWindow(1);
+
+  switch (filter) {
+    case "overdue":
+      return nextBillingAt < startOfToday;
+    case "next_7_days":
+      return nextBillingAt >= now && nextBillingAt <= endOfNext7Days;
+    case "this_month":
+      return nextBillingAt >= thisMonth.start && nextBillingAt < thisMonth.end;
+    case "next_month":
+      return nextBillingAt >= nextMonth.start && nextBillingAt < nextMonth.end;
+    default:
+      return true;
+  }
+}
+
+function escapeCsvValue(value: string | number): string {
+  return `"${String(value).replaceAll('"', '""')}"`;
+}
+
 export default function SubscriptionsPage() {
   const subscriptionsFromDb = useQuery(api.invoiceActions.listSubscriptions, {
     limit: 500,
   });
   const clientsFromDb = useQuery(api.clients.list, { limit: 500 });
+  const getSubscriptionCollectionModes = useAction(
+    api.invoiceActions.getSubscriptionCollectionModes,
+  );
 
   const [search, setSearch] = useState("");
+  const [brandFilter, setBrandFilter] = useState<BrandFilter>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | SubscriptionStatus>("all");
+  const [nextBillingFilter, setNextBillingFilter] =
+    useState<NextBillingFilter>("all");
+  const [collectionFilter, setCollectionFilter] = useState<CollectionFilter>("all");
+  const [collectionMethodById, setCollectionMethodById] = useState<
+    Record<string, CollectionMethodWithUnknown>
+  >({});
+  const [isCollectionModesLoading, setIsCollectionModesLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -131,25 +247,128 @@ export default function SubscriptionsPage() {
     });
   }, [subscriptionsFromDb, clientsFromDb]);
 
+  const brandOptions = useMemo(() => {
+    const dynamic = new Set<string>();
+    for (const row of rows) {
+      dynamic.add(row.primaryBrand);
+      for (const brand of row.participatingBrands) {
+        dynamic.add(brand);
+      }
+    }
+
+    const ordered: string[] = [...knownBrands.filter((brand) => dynamic.has(brand))];
+    for (const brand of dynamic) {
+      if (!ordered.includes(brand)) {
+        ordered.push(brand);
+      }
+    }
+
+    return ordered;
+  }, [rows]);
+
+  useEffect(() => {
+    if (rows.length === 0) {
+      setCollectionMethodById({});
+      setIsCollectionModesLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setCollectionMethodById({});
+    setIsCollectionModesLoading(true);
+
+    const subscriptionIds = rows.map((row) => row.id);
+    const chunkSize = 20;
+
+    const loadCollectionModes = async () => {
+      for (let index = 0; index < subscriptionIds.length; index += chunkSize) {
+        if (cancelled) {
+          return;
+        }
+
+        const chunk = subscriptionIds.slice(index, index + chunkSize);
+        const result = await getSubscriptionCollectionModes({
+          subscriptionIds: chunk,
+        });
+
+        if (cancelled) {
+          return;
+        }
+
+        if (!result.success) {
+          continue;
+        }
+
+        setCollectionMethodById((previous) => {
+          const next = { ...previous };
+          for (const mode of result.modes) {
+            next[mode.subscriptionId] = mode.collectionMethod;
+          }
+          return next;
+        });
+      }
+
+      if (!cancelled) {
+        setIsCollectionModesLoading(false);
+      }
+    };
+
+    void loadCollectionModes().catch(() => {
+      if (!cancelled) {
+        setIsCollectionModesLoading(false);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [getSubscriptionCollectionModes, rows]);
+
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
 
     return rows.filter((row) => {
+      const rowCollectionMethod = collectionMethodById[row.id] ?? "unknown";
+      const matchesBrand =
+        brandFilter === "all" ||
+        row.primaryBrand === brandFilter ||
+        row.participatingBrands.includes(brandFilter);
       const matchesStatus = statusFilter === "all" || row.status === statusFilter;
+      const matchesNextBilling = matchesNextBillingFilter(
+        row.nextBillingAt,
+        nextBillingFilter,
+      );
+      const matchesCollection =
+        collectionFilter === "all" || rowCollectionMethod === collectionFilter;
       const matchesSearch =
         query === "" ||
         row.clientName.toLowerCase().includes(query) ||
         row.clientEmail.toLowerCase().includes(query) ||
         row.primaryBrand.toLowerCase().includes(query) ||
+        row.participatingBrands.join(" ").toLowerCase().includes(query) ||
         row.stripeSubscriptionId.toLowerCase().includes(query);
 
-      return matchesStatus && matchesSearch;
+      return (
+        matchesBrand &&
+        matchesStatus &&
+        matchesNextBilling &&
+        matchesCollection &&
+        matchesSearch
+      );
     });
-  }, [rows, search, statusFilter]);
+  }, [
+    rows,
+    search,
+    brandFilter,
+    statusFilter,
+    nextBillingFilter,
+    collectionFilter,
+    collectionMethodById,
+  ]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, statusFilter]);
+  }, [search, brandFilter, statusFilter, nextBillingFilter, collectionFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / itemsPerPage));
   const paginatedRows = useMemo(() => {
@@ -164,6 +383,52 @@ export default function SubscriptionsPage() {
   }, [currentPage, totalPages]);
 
   const totalValueCents = filteredRows.reduce((sum, row) => sum + row.amountCents, 0);
+
+  const handleExport = () => {
+    if (filteredRows.length === 0) {
+      return;
+    }
+
+    const header = [
+      "Client Name",
+      "Client Email",
+      "Subscription ID",
+      "Primary Brand",
+      "Participating Brands",
+      "Collection Method",
+      "Status",
+      "Plan Value (USD)",
+      "Next Billing Date",
+    ];
+
+    const lines = filteredRows.map((row) => {
+      const collectionMethod = collectionMethodById[row.id] ?? "unknown";
+      return [
+        escapeCsvValue(row.clientName),
+        escapeCsvValue(row.clientEmail),
+        escapeCsvValue(row.stripeSubscriptionId),
+        escapeCsvValue(row.primaryBrand),
+        escapeCsvValue(row.participatingBrands.join(" | ")),
+        escapeCsvValue(formatCollectionLabel(collectionMethod)),
+        escapeCsvValue(formatStatusLabel(row.status)),
+        escapeCsvValue((row.amountCents / 100).toFixed(2)),
+        escapeCsvValue(row.nextBillingAt ? formatDate(row.nextBillingAt) : "N/A"),
+      ].join(",");
+    });
+
+    const csv = [header.join(","), ...lines].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const objectUrl = URL.createObjectURL(blob);
+    const timestamp = new Date().toISOString().slice(0, 10);
+
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = `subscriptions-export-${timestamp}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(objectUrl);
+  };
 
   return (
     <>
@@ -205,36 +470,120 @@ export default function SubscriptionsPage() {
         </div>
       </section>
 
-      <section className="card p-4 sm:p-5 mb-4">
-        <div className="grid grid-cols-1 md:grid-cols-[1fr_220px] gap-3">
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-content-muted" />
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by client, brand, or Stripe subscription ID..."
-              className="input-field pl-10 w-full"
-            />
-          </div>
-          <select
-            value={statusFilter}
-            onChange={(event) =>
-              setStatusFilter(event.target.value as "all" | SubscriptionStatus)
-            }
-            className="input-field"
-          >
-            {statusOptions.map((option) => (
-              <option key={option.key} value={option.key}>
-                {option.label}
-              </option>
+      <section className="card card-no-hover p-4 sm:p-5 mb-4 space-y-3">
+        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2 rounded-xl bg-surface-tertiary p-2">
+            <button
+              onClick={() => setBrandFilter("all")}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                brandFilter === "all"
+                  ? "bg-surface-secondary text-content shadow-sm"
+                  : "text-content-muted hover:text-content hover:bg-surface-hover"
+              }`}
+            >
+              All
+            </button>
+            {brandOptions.map((brand) => (
+              <button
+                key={brand}
+                onClick={() => setBrandFilter(brand)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  brandFilter === brand
+                    ? "bg-surface-secondary text-content shadow-sm"
+                    : "text-content-muted hover:text-content hover:bg-surface-hover"
+                }`}
+              >
+                {formatBrandFilterLabel(brand)}
+              </button>
             ))}
-          </select>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative min-w-[220px]">
+              <Filter className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-content-muted" />
+              <select
+                value={statusFilter}
+                onChange={(event) =>
+                  setStatusFilter(event.target.value as "all" | SubscriptionStatus)
+                }
+                className="input-field appearance-none pl-10 pr-10 w-full"
+              >
+                {statusOptions.map((option) => (
+                  <option key={option.key} value={option.key}>
+                    Status: {option.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-content-muted" />
+            </div>
+
+            <div className="relative min-w-[220px]">
+              <CalendarDays className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-content-muted" />
+              <select
+                value={nextBillingFilter}
+                onChange={(event) =>
+                  setNextBillingFilter(event.target.value as NextBillingFilter)
+                }
+                className="input-field appearance-none pl-10 pr-10 w-full"
+              >
+                {nextBillingOptions.map((option) => (
+                  <option key={option.key} value={option.key}>
+                    Billing: {option.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-content-muted" />
+            </div>
+
+            <div className="relative min-w-[220px]">
+              <CreditCard className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-content-muted" />
+              <select
+                value={collectionFilter}
+                onChange={(event) =>
+                  setCollectionFilter(event.target.value as CollectionFilter)
+                }
+                className="input-field appearance-none pl-10 pr-10 w-full"
+              >
+                {collectionOptions.map((option) => (
+                  <option key={option.key} value={option.key}>
+                    Collection: {option.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-content-muted" />
+            </div>
+
+            <button
+              onClick={handleExport}
+              disabled={filteredRows.length === 0}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-content disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-hover transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              Export
+            </button>
+          </div>
         </div>
+
+        <div className="relative">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-content-muted" />
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search by client, brand, or Stripe subscription ID..."
+            className="input-field pl-10 w-full"
+          />
+        </div>
+
+        {isCollectionModesLoading && (
+          <p className="text-xs text-content-muted">
+            Loading collection methods for filtering and export...
+          </p>
+        )}
       </section>
 
-      <section className="card overflow-hidden">
+      <section className="card card-no-hover overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[800px]">
+          <table className="w-full min-w-[940px]">
             <thead>
               <tr className="border-b border-border">
                 <th className="text-left px-4 py-3 text-xs text-content-muted uppercase tracking-wide">
@@ -250,6 +599,9 @@ export default function SubscriptionsPage() {
                   Next Billing
                 </th>
                 <th className="text-left px-4 py-3 text-xs text-content-muted uppercase tracking-wide">
+                  Collection
+                </th>
+                <th className="text-left px-4 py-3 text-xs text-content-muted uppercase tracking-wide">
                   Status
                 </th>
                 <th className="text-right px-4 py-3 text-xs text-content-muted uppercase tracking-wide">
@@ -260,56 +612,69 @@ export default function SubscriptionsPage() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-content-muted">
+                  <td colSpan={7} className="px-4 py-10 text-center text-content-muted">
                     Loading subscriptions...
                   </td>
                 </tr>
               ) : paginatedRows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-content-muted">
+                  <td colSpan={7} className="px-4 py-10 text-center text-content-muted">
                     No subscriptions found.
                   </td>
                 </tr>
               ) : (
-                paginatedRows.map((row) => (
-                  <tr key={row.id} className="border-b border-border/60 last:border-b-0">
-                    <td className="px-4 py-4">
-                      <p className="font-medium text-content">{row.clientName}</p>
-                      <p className="text-sm text-content-muted">{row.clientEmail}</p>
-                    </td>
-                    <td className="px-4 py-4">
-                      {row.participatingBrands.length === 1 &&
-                      isBrandType(row.participatingBrands[0]) ? (
-                        <BrandBadge
-                          brand={row.participatingBrands[0]}
-                          variant="pill"
-                        />
-                      ) : (
-                        <span className="text-sm text-content-muted">
-                          Multi-brand ({row.participatingBrands.length})
+                paginatedRows.map((row) => {
+                  const rowCollectionMethod = collectionMethodById[row.id] ?? "unknown";
+
+                  return (
+                    <tr key={row.id} className="border-b border-border/60 last:border-b-0">
+                      <td className="px-4 py-4">
+                        <p className="font-medium text-content">{row.clientName}</p>
+                        <p className="text-sm text-content-muted">{row.clientEmail}</p>
+                      </td>
+                      <td className="px-4 py-4">
+                        {row.participatingBrands.length === 1 &&
+                        isBrandType(row.participatingBrands[0]) ? (
+                          <BrandBadge
+                            brand={row.participatingBrands[0]}
+                            variant="pill"
+                          />
+                        ) : (
+                          <span className="text-sm text-content-muted">
+                            Multi-brand ({row.participatingBrands.length})
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-4 text-content">{formatCurrency(row.amountCents)}</td>
+                      <td className="px-4 py-4 text-content-muted text-sm">
+                        {row.nextBillingAt ? formatDate(row.nextBillingAt) : "N/A"}
+                      </td>
+                      <td className="px-4 py-4">
+                        <span
+                          className={`status-badge ${
+                            collectionBadgeClassMap[rowCollectionMethod]
+                          }`}
+                        >
+                          {formatCollectionLabel(rowCollectionMethod)}
                         </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-4 text-content">{formatCurrency(row.amountCents)}</td>
-                    <td className="px-4 py-4 text-content-muted text-sm">
-                      {row.nextBillingAt ? formatDate(row.nextBillingAt) : "N/A"}
-                    </td>
-                    <td className="px-4 py-4">
-                      <span className={`status-badge ${statusClassMap[row.status]}`}>
-                        {formatStatusLabel(row.status)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4 text-right">
-                      <Link
-                        href={`/dashboard/subscriptions/${row.id}`}
-                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border hover:bg-surface-hover text-sm"
-                      >
-                        <Eye className="w-4 h-4" />
-                        View
-                      </Link>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className={`status-badge ${statusClassMap[row.status]}`}>
+                          {formatStatusLabel(row.status)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-right">
+                        <Link
+                          href={`/dashboard/subscriptions/${row.id}`}
+                          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border hover:bg-surface-hover text-sm"
+                        >
+                          <Eye className="w-4 h-4" />
+                          View
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -343,7 +708,7 @@ export default function SubscriptionsPage() {
       </section>
 
       {!isLoading && rows.length === 0 && (
-        <section className="card p-8 mt-4 text-center">
+        <section className="card card-no-hover p-8 mt-4 text-center">
           <div className="w-14 h-14 rounded-xl bg-brand-primary/10 text-brand-primary mx-auto mb-4 flex items-center justify-center">
             <Repeat className="w-7 h-7" />
           </div>

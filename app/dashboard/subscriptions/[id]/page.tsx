@@ -30,6 +30,7 @@ type SubscriptionStatus =
 
 type DunningAction = "none" | "pause" | "cancel";
 type ProrationBehavior = "always_invoice" | "create_prorations" | "none";
+type CollectionMethod = "send_invoice" | "charge_automatically";
 
 const knownBrands: BrandType[] = [
   "Sankofa",
@@ -100,16 +101,23 @@ export default function SubscriptionDetailPage() {
   const updateSubscriptionDunningPolicy = useAction(
     api.invoiceActions.updateSubscriptionDunningPolicy,
   );
+  const getSubscriptionCollectionMode = useAction(
+    api.invoiceActions.getSubscriptionCollectionMode,
+  );
   const [isMutating, setIsMutating] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [planQuantities, setPlanQuantities] = useState<Record<string, number>>({});
+  const [planUnitPrices, setPlanUnitPrices] = useState<Record<string, number>>({});
   const [prorationBehavior, setProrationBehavior] =
     useState<ProrationBehavior>("create_prorations");
   const [dunningEnabled, setDunningEnabled] = useState(true);
   const [dunningMaxAttempts, setDunningMaxAttempts] = useState(3);
   const [dunningRetryIntervalDays, setDunningRetryIntervalDays] = useState(3);
   const [dunningAction, setDunningAction] = useState<DunningAction>("pause");
+  const [collectionMethod, setCollectionMethod] = useState<CollectionMethod | null>(null);
+  const [isCollectionModeLoading, setIsCollectionModeLoading] = useState(false);
+  const [collectionModeError, setCollectionModeError] = useState<string | null>(null);
 
   const planTotalCents = useMemo(() => {
     if (!subscription) return 0;
@@ -123,12 +131,15 @@ export default function SubscriptionDetailPage() {
     if (!subscription) return;
 
     const nextPlanQuantities: Record<string, number> = {};
+    const nextPlanUnitPrices: Record<string, number> = {};
     for (const item of subscription.items) {
       if (!item.stripePriceId) continue;
       nextPlanQuantities[item.stripePriceId] = item.quantity;
+      nextPlanUnitPrices[item.stripePriceId] = item.unitPriceCents;
     }
 
     setPlanQuantities(nextPlanQuantities);
+    setPlanUnitPrices(nextPlanUnitPrices);
     setProrationBehavior("create_prorations");
     setDunningEnabled(subscription.dunningEnabled ?? true);
     setDunningMaxAttempts(subscription.dunningMaxAttempts ?? 3);
@@ -143,6 +154,54 @@ export default function SubscriptionDetailPage() {
     subscription?.dunningAction,
   ]);
 
+  useEffect(() => {
+    if (!isValidId || !subscription) {
+      setCollectionMethod(null);
+      setCollectionModeError(null);
+      return;
+    }
+
+    let cancelled = false;
+    setIsCollectionModeLoading(true);
+    setCollectionModeError(null);
+
+    void getSubscriptionCollectionMode({
+      subscriptionId: subscriptionId as Id<"subscriptions">,
+    })
+      .then((result) => {
+        if (cancelled) return;
+        if (!result.success) {
+          setCollectionMethod(null);
+          setCollectionModeError(result.error || "Unable to load collection mode");
+          return;
+        }
+
+        setCollectionMethod((result.collectionMethod as CollectionMethod | undefined) ?? null);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setCollectionMethod(null);
+        setCollectionModeError(
+          error instanceof Error ? error.message : "Unable to load collection mode",
+        );
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsCollectionModeLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    getSubscriptionCollectionMode,
+    isValidId,
+    subscription?._id,
+    subscription?.updatedAt,
+    subscriptionId,
+  ]);
+
   const planUpdateItems = useMemo(() => {
     if (!subscription) return [];
     return subscription.items
@@ -153,8 +212,12 @@ export default function SubscriptionDetailPage() {
           1,
           Math.round(planQuantities[item.stripePriceId as string] ?? item.quantity),
         ),
+        unitPriceCents: Math.max(
+          1,
+          Math.round(planUnitPrices[item.stripePriceId as string] ?? item.unitPriceCents),
+        ),
       }));
-  }, [planQuantities, subscription]);
+  }, [planQuantities, planUnitPrices, subscription]);
 
   const hasPlanChanges = useMemo(() => {
     if (!subscription) return false;
@@ -164,9 +227,13 @@ export default function SubscriptionDetailPage() {
         1,
         Math.round(planQuantities[item.stripePriceId] ?? item.quantity),
       );
-      return nextQuantity !== item.quantity;
+      const nextUnitPriceCents = Math.max(
+        1,
+        Math.round(planUnitPrices[item.stripePriceId] ?? item.unitPriceCents),
+      );
+      return nextQuantity !== item.quantity || nextUnitPriceCents !== item.unitPriceCents;
     });
-  }, [planQuantities, subscription]);
+  }, [planQuantities, planUnitPrices, subscription]);
 
   const hasDunningChanges = useMemo(() => {
     if (!subscription) return false;
@@ -493,6 +560,45 @@ export default function SubscriptionDetailPage() {
               {formatStatusLabel(subscription.status as SubscriptionStatus)}
             </span>
           </div>
+          <div className="mt-3">
+            <p className="text-content-muted text-sm">Collection</p>
+            <div className="mt-1">
+              <span
+                className={`status-badge ${
+                  isCollectionModeLoading
+                    ? "bg-surface-tertiary text-content-muted"
+                    : collectionMethod === "charge_automatically"
+                      ? "bg-emerald-500/15 text-emerald-300"
+                      : collectionMethod === "send_invoice"
+                        ? "bg-amber-500/15 text-amber-300"
+                        : "bg-surface-tertiary text-content-muted"
+                }`}
+              >
+                {isCollectionModeLoading
+                  ? "Checking..."
+                  : collectionMethod === "charge_automatically"
+                    ? "Autopay Active"
+                    : collectionMethod === "send_invoice"
+                      ? "Manual Invoice"
+                      : "Unknown"}
+              </span>
+            </div>
+            {!isCollectionModeLoading && collectionMethod === "charge_automatically" && (
+              <p className="text-xs text-content-muted mt-1">
+                Auto-transition complete.
+              </p>
+            )}
+            {!isCollectionModeLoading && collectionMethod === "send_invoice" && (
+              <p className="text-xs text-content-muted mt-1">
+                Waiting for first reusable payment method.
+              </p>
+            )}
+            {collectionModeError && (
+              <p className="text-xs text-content-muted mt-1">
+                Couldn&apos;t verify with Stripe.
+              </p>
+            )}
+          </div>
           <p className="text-content-muted text-sm mt-3">
             Next billing: {formatDate(subscription.currentPeriodEnd)}
           </p>
@@ -569,7 +675,7 @@ export default function SubscriptionDetailPage() {
         <div className="card p-5">
           <h2 className="text-lg font-semibold text-content mb-4">Plan Updates</h2>
           <p className="text-sm text-content-muted mb-4">
-            Update quantities and choose how Stripe handles proration.
+            Update quantities, adjust item prices, and choose how Stripe handles proration.
           </p>
 
           <div className="space-y-3 mb-4">
@@ -581,6 +687,9 @@ export default function SubscriptionDetailPage() {
                 const currentQuantity = priceId
                   ? planQuantities[priceId] ?? item.quantity
                   : item.quantity;
+                const currentUnitPriceCents = priceId
+                  ? planUnitPrices[priceId] ?? item.unitPriceCents
+                  : item.unitPriceCents;
 
                 return (
                   <div
@@ -590,24 +699,45 @@ export default function SubscriptionDetailPage() {
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-content truncate">{item.name}</p>
                       <p className="text-xs text-content-muted">
-                        {formatCurrency(item.unitPriceCents)} each
+                        {formatCurrency(currentUnitPriceCents)} each
                       </p>
                     </div>
                     {priceId ? (
-                      <input
-                        type="number"
-                        min={1}
-                        step={1}
-                        value={currentQuantity}
-                        onChange={(event) => {
-                          const value = Number.parseInt(event.target.value, 10);
-                          setPlanQuantities((prev) => ({
-                            ...prev,
-                            [priceId]: Number.isFinite(value) && value > 0 ? value : 1,
-                          }));
-                        }}
-                        className="input-field w-20 text-right"
-                      />
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min={1}
+                          step={1}
+                          title="Quantity"
+                          value={currentQuantity}
+                          onChange={(event) => {
+                            const value = Number.parseInt(event.target.value, 10);
+                            setPlanQuantities((prev) => ({
+                              ...prev,
+                              [priceId]: Number.isFinite(value) && value > 0 ? value : 1,
+                            }));
+                          }}
+                          className="input-field w-20 text-right"
+                        />
+                        <input
+                          type="number"
+                          min={0.01}
+                          step={0.01}
+                          title="Unit price (USD)"
+                          value={Number((currentUnitPriceCents / 100).toFixed(2))}
+                          onChange={(event) => {
+                            const value = Number.parseFloat(event.target.value);
+                            setPlanUnitPrices((prev) => ({
+                              ...prev,
+                              [priceId]:
+                                Number.isFinite(value) && value > 0
+                                  ? Math.max(1, Math.round(value * 100))
+                                  : 1,
+                            }));
+                          }}
+                          className="input-field w-24 text-right"
+                        />
+                      </div>
                     ) : (
                       <span className="text-xs text-content-muted">Fixed</span>
                     )}

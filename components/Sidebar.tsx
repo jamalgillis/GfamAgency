@@ -81,46 +81,49 @@ export function Sidebar({ isOpen = false, onToggle, collapsed = false, onCollaps
         `}
       >
         {/* Organization Switcher */}
-        <div className="p-6 border-b border-sidebar-border flex items-center justify-between">
-          {collapsed ? (
-            <OrganizationSwitcher
-              hidePersonal
-              afterSelectOrganizationUrl={switcherRedirect}
-              afterCreateOrganizationUrl={switcherRedirect}
-              appearance={{
-                elements: {
-                  rootBox: "w-full",
-                  organizationSwitcherTrigger:
-                    "w-full justify-center px-0 py-0 border-none shadow-none bg-transparent hover:bg-transparent focus:shadow-none",
-                  organizationPreviewAvatarBox: "w-10 h-10 rounded-lg flex-shrink-0",
-                  organizationPreviewMainIdentifier: "hidden",
-                  organizationPreviewSecondaryIdentifier: "hidden",
-                  organizationSwitcherTriggerIcon: "hidden",
-                },
-              }}
-            />
-          ) : (
-            <OrganizationSwitcher
-              hidePersonal
-              afterSelectOrganizationUrl={switcherRedirect}
-              afterCreateOrganizationUrl={switcherRedirect}
-              appearance={{
-                elements: {
-                  rootBox: "w-full",
-                  organizationSwitcherTrigger:
-                    "w-full justify-start gap-3 px-0 py-0 border-none shadow-none bg-transparent hover:bg-transparent focus:shadow-none",
-                  organizationPreviewAvatarBox: "w-10 h-10 rounded-lg flex-shrink-0",
-                  organizationPreviewMainIdentifier: "text-white font-semibold text-lg",
-                  organizationPreviewSecondaryIdentifier: "text-sidebar-text text-xs",
-                  organizationSwitcherTriggerIcon: "text-sidebar-text",
-                },
-              }}
-            />
-          )}
+        <div className="sidebar-org-switcher p-6 border-b border-sidebar-border flex items-center gap-3">
+          <div className={collapsed ? "w-full" : "flex-1 min-w-0"}>
+            {collapsed ? (
+              <OrganizationSwitcher
+                hidePersonal
+                afterSelectOrganizationUrl={switcherRedirect}
+                afterCreateOrganizationUrl={switcherRedirect}
+                appearance={{
+                  elements: {
+                    rootBox: "w-full min-w-0",
+                    organizationSwitcherTrigger:
+                      "w-full justify-center px-0 py-0 border-none shadow-none bg-transparent hover:bg-transparent focus:shadow-none",
+                    organizationPreviewAvatarBox: "w-10 h-10 rounded-lg flex-shrink-0",
+                    organizationPreviewMainIdentifier: "hidden",
+                    organizationPreviewSecondaryIdentifier: "hidden",
+                    organizationSwitcherTriggerIcon: "hidden",
+                  },
+                }}
+              />
+            ) : (
+              <OrganizationSwitcher
+                hidePersonal
+                afterSelectOrganizationUrl={switcherRedirect}
+                afterCreateOrganizationUrl={switcherRedirect}
+                appearance={{
+                  elements: {
+                    rootBox: "w-full min-w-0",
+                    organizationSwitcherTrigger:
+                      "w-full min-w-0 max-w-none justify-start gap-3 px-0 py-0 border-none shadow-none bg-transparent hover:bg-transparent focus:shadow-none",
+                    organizationPreviewAvatarBox: "w-10 h-10 rounded-lg flex-shrink-0",
+                    organizationPreviewTextContainer: "min-w-0 max-w-none",
+                    organizationPreviewMainIdentifier: "text-white font-semibold text-sm md:text-base",
+                    organizationPreviewSecondaryIdentifier: "text-sidebar-text text-xs max-w-none",
+                    organizationSwitcherTriggerIcon: "text-sidebar-text shrink-0 ml-2",
+                  },
+                }}
+              />
+            )}
+          </div>
           {/* Close button - mobile only */}
           <button
             onClick={onToggle}
-            className="p-2 rounded-lg text-sidebar-text hover:text-white hover:bg-sidebar-hover md:hidden transition-colors flex-shrink-0"
+            className="p-2.5 rounded-lg text-sidebar-text hover:text-white hover:bg-sidebar-hover md:hidden transition-colors flex-shrink-0"
           >
             <X className="w-5 h-5" />
           </button>

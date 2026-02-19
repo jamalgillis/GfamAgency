@@ -78,6 +78,7 @@ const prorationBehaviorValidator = v.union(
 const subscriptionPlanUpdateItemValidator = v.object({
   stripePriceId: v.string(),
   quantity: v.number(),
+  unitPriceCents: v.optional(v.number()),
 });
 
 type InvoiceBrand = Exclude<StripeBrand, typeof PARENT_ORGANIZATION>;
@@ -2463,7 +2464,169 @@ export const cancelSubscription = action({
 });
 
 /**
- * Update subscription quantities with a configurable proration behavior.
+ * Read live Stripe collection mode for a subscription.
+ * Used by UI to show whether auto-transition to autopay is active.
+ */
+export const getSubscriptionCollectionMode = action({
+  args: {
+    subscriptionId: v.id("subscriptions"),
+  },
+  handler: async (ctx, args): Promise<{
+    success: boolean;
+    collectionMethod?: "send_invoice" | "charge_automatically";
+    autoTransitioned?: boolean;
+    defaultPaymentMethodSet?: boolean;
+    error?: string;
+  }> => withOrg(ctx, async (orgId) => {
+    try {
+      const subscription = await ctx.runQuery(
+        internal.invoiceActions.getSubscriptionById,
+        {
+          orgId,
+          subscriptionId: args.subscriptionId,
+        },
+      );
+
+      if (!subscription) {
+        return { success: false, error: "Subscription not found" };
+      }
+
+      const stripe = getStripeClient();
+      const context = getStripeContext(subscription.primaryBrand as StripeBrand);
+      const stripeSubscription = await stripe.subscriptions.retrieve(
+        subscription.stripeSubscriptionId,
+        {},
+        context,
+      );
+
+      const collectionMethod = stripeSubscription.collection_method;
+      if (
+        collectionMethod !== "send_invoice" &&
+        collectionMethod !== "charge_automatically"
+      ) {
+        return { success: false, error: "Unknown Stripe collection method" };
+      }
+
+      const defaultPaymentMethodSet = !!stripeSubscription.default_payment_method;
+
+      return {
+        success: true,
+        collectionMethod,
+        autoTransitioned: collectionMethod === "charge_automatically",
+        defaultPaymentMethodSet,
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error("❌ Failed to fetch subscription collection mode:", errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  }),
+});
+
+/**
+ * Read live Stripe collection modes for multiple subscriptions.
+ * Used by the subscriptions list page for filtering/export.
+ */
+export const getSubscriptionCollectionModes = action({
+  args: {
+    subscriptionIds: v.array(v.id("subscriptions")),
+  },
+  handler: async (ctx, args): Promise<{
+    success: boolean;
+    modes: Array<{
+      subscriptionId: Id<"subscriptions">;
+      collectionMethod: "send_invoice" | "charge_automatically" | "unknown";
+      defaultPaymentMethodSet: boolean;
+      error?: string;
+    }>;
+    error?: string;
+  }> => withOrg(ctx, async (orgId) => {
+    try {
+      const uniqueIds: Id<"subscriptions">[] = [];
+      const seen = new Set<string>();
+      for (const id of args.subscriptionIds) {
+        if (seen.has(id)) {
+          continue;
+        }
+        seen.add(id);
+        uniqueIds.push(id);
+      }
+
+      const stripe = getStripeClient();
+      const modes: Array<{
+        subscriptionId: Id<"subscriptions">;
+        collectionMethod: "send_invoice" | "charge_automatically" | "unknown";
+        defaultPaymentMethodSet: boolean;
+        error?: string;
+      }> = [];
+
+      for (const subscriptionId of uniqueIds) {
+        const subscription = await ctx.runQuery(
+          internal.invoiceActions.getSubscriptionById,
+          {
+            orgId,
+            subscriptionId,
+          },
+        );
+
+        if (!subscription) {
+          modes.push({
+            subscriptionId,
+            collectionMethod: "unknown",
+            defaultPaymentMethodSet: false,
+            error: "Subscription not found",
+          });
+          continue;
+        }
+
+        try {
+          const context = getStripeContext(subscription.primaryBrand as StripeBrand);
+          const stripeSubscription = await stripe.subscriptions.retrieve(
+            subscription.stripeSubscriptionId,
+            {},
+            context,
+          );
+
+          const collectionMethod =
+            stripeSubscription.collection_method === "send_invoice" ||
+            stripeSubscription.collection_method === "charge_automatically"
+              ? stripeSubscription.collection_method
+              : "unknown";
+
+          modes.push({
+            subscriptionId,
+            collectionMethod,
+            defaultPaymentMethodSet: !!stripeSubscription.default_payment_method,
+          });
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : "Unknown error";
+          modes.push({
+            subscriptionId,
+            collectionMethod: "unknown",
+            defaultPaymentMethodSet: false,
+            error: errorMessage,
+          });
+        }
+      }
+
+      return {
+        success: true,
+        modes,
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error("❌ Failed to fetch subscription collection modes:", errorMessage);
+      return {
+        success: false,
+        modes: [],
+        error: errorMessage,
+      };
+    }
+  }),
+});
+
+/**
+ * Update subscription quantities/prices with a configurable proration behavior.
  */
 export const updateSubscriptionPlan = action({
   args: {
@@ -2521,6 +2684,17 @@ export const updateSubscriptionPlan = action({
         }
       }
 
+      const localItemsByPriceId = new Map<
+        string,
+        (typeof subscription.items)[number]
+      >();
+      for (const item of subscription.items) {
+        if (!item.stripePriceId) {
+          continue;
+        }
+        localItemsByPriceId.set(item.stripePriceId, item);
+      }
+
       const updates: Stripe.SubscriptionUpdateParams.Item[] = [];
       for (const item of args.items) {
         const quantity = Math.max(1, Math.round(item.quantity));
@@ -2530,6 +2704,82 @@ export const updateSubscriptionPlan = action({
             success: false,
             error: `Stripe price ${item.stripePriceId} is not on this subscription.`,
           };
+        }
+
+        const existingPrice =
+          existingStripeItem.price &&
+          typeof existingStripeItem.price === "object" &&
+          !("deleted" in existingStripeItem.price)
+            ? existingStripeItem.price
+            : null;
+
+        const currentUnitPriceCents =
+          typeof existingPrice?.unit_amount === "number"
+            ? existingPrice.unit_amount
+            : localItemsByPriceId.get(item.stripePriceId)?.unitPriceCents;
+
+        if (currentUnitPriceCents === undefined || currentUnitPriceCents <= 0) {
+          return {
+            success: false,
+            error: `Unable to resolve current unit price for ${item.stripePriceId}.`,
+          };
+        }
+
+        const requestedUnitPriceCents =
+          item.unitPriceCents === undefined
+            ? currentUnitPriceCents
+            : Math.max(1, Math.round(item.unitPriceCents));
+
+        if (requestedUnitPriceCents !== currentUnitPriceCents) {
+          if (!existingPrice?.recurring) {
+            return {
+              success: false,
+              error: `Stripe price ${item.stripePriceId} is not a recurring price.`,
+            };
+          }
+
+          const productId =
+            typeof existingPrice.product === "string"
+              ? existingPrice.product
+              : existingPrice.product &&
+                  typeof existingPrice.product === "object" &&
+                  "id" in existingPrice.product
+                ? existingPrice.product.id
+                : undefined;
+
+          if (!productId) {
+            return {
+              success: false,
+              error: `Unable to resolve Stripe product for ${item.stripePriceId}.`,
+            };
+          }
+
+          const replacementPrice = await stripe.prices.create(
+            {
+              product: productId,
+              unit_amount: requestedUnitPriceCents,
+              currency: existingPrice.currency || "usd",
+              recurring: {
+                interval: existingPrice.recurring.interval,
+                interval_count: Math.max(1, existingPrice.recurring.interval_count ?? 1),
+              },
+              metadata: {
+                ...existingPrice.metadata,
+                billingType: "recurring",
+                source: "subscription_plan_update",
+                previousPriceId: item.stripePriceId,
+                previousUnitAmountCents: String(currentUnitPriceCents),
+              },
+            },
+            context,
+          );
+
+          updates.push({
+            id: existingStripeItem.id,
+            quantity,
+            price: replacementPrice.id,
+          });
+          continue;
         }
 
         updates.push({

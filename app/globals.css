@@ -172,6 +172,56 @@
     border-left-color: var(--brand-sankofa);
   }
 
+  /* Sidebar org switcher text behavior */
+  .sidebar-org-switcher .cl-organizationPreviewTextContainer,
+  .sidebar-org-switcher .cl-organizationPreviewMainIdentifier,
+  .sidebar-org-switcher .cl-organizationPreviewSecondaryIdentifier {
+    min-width: 0 !important;
+  }
+
+  .sidebar-org-switcher .cl-organizationPreviewMainIdentifier {
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .sidebar-org-switcher .cl-organizationPreviewSecondaryIdentifier {
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  @media (min-width: 768px) {
+    .sidebar-org-switcher .cl-organizationPreviewTextContainer,
+    .sidebar-org-switcher .cl-organizationPreviewMainIdentifier,
+    .sidebar-org-switcher .cl-organizationPreviewSecondaryIdentifier {
+      max-width: none !important;
+    }
+
+    .sidebar-org-switcher .cl-organizationPreviewMainIdentifier,
+    .sidebar-org-switcher .cl-organizationPreviewSecondaryIdentifier {
+      overflow: visible !important;
+      text-overflow: clip !important;
+    }
+  }
+
+  /* Tone down Clerk org logo hover motion in the sidebar */
+  .sidebar-org-switcher .cl-organizationSwitcherTrigger {
+    transition: transform 0.16s ease, background-color 0.16s ease !important;
+  }
+
+  .sidebar-org-switcher .cl-organizationSwitcherTrigger:hover {
+    transform: scale(1.01) !important;
+  }
+
+  .sidebar-org-switcher .cl-organizationPreviewAvatarBox {
+    transition: transform 0.16s ease !important;
+  }
+
+  .sidebar-org-switcher .cl-organizationSwitcherTrigger:hover .cl-organizationPreviewAvatarBox {
+    transform: scale(1.01) !important;
+  }
+
   /* Button styles */
   .btn-primary {
     @apply inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium;
