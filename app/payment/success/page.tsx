@@ -1,12 +1,18 @@
-"use client";
-
 import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
-import { useSearchParams } from "next/navigation";
 
-export default function PaymentSuccessPage() {
-  const searchParams = useSearchParams();
-  const invoiceId = searchParams.get("invoiceId");
+type PaymentSuccessPageProps = {
+  searchParams?: Promise<{
+    invoiceId?: string | string[];
+  }>;
+};
+
+export default async function PaymentSuccessPage({
+  searchParams,
+}: PaymentSuccessPageProps) {
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const invoiceIdParam = resolvedSearchParams?.invoiceId;
+  const invoiceId = Array.isArray(invoiceIdParam) ? invoiceIdParam[0] : invoiceIdParam;
 
   return (
     <main className="min-h-screen px-4 py-12 sm:py-16 bg-surface text-content">
