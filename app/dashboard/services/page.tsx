@@ -20,7 +20,10 @@ import {
 export default function ServicesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBrand, setSelectedBrand] = useState("all");
-  const servicesFromDb = useAuthQuery(api.services.list, { limit: 5000 });
+  const servicesFromDb = useAuthQuery(api.services.list, {
+    limit: 5000,
+    includeInactive: true,
+  });
   const isLoadingServices = servicesFromDb === undefined;
 
   const services = useMemo<ServiceData[]>(() => {
@@ -34,9 +37,9 @@ export default function ServicesPage() {
       price: service.price,
       priceValue: service.priceValue,
       priceSuffix: service.priceSuffix,
-      tags: service.tags,
-      status: service.status,
-      stripeSynced: service.stripeSynced,
+      tags: Array.isArray(service.tags) ? service.tags : [],
+      status: service.status === "inactive" ? "inactive" : "active",
+      stripeSynced: Boolean(service.stripeSynced),
       category: service.category,
     }));
   }, [servicesFromDb]);

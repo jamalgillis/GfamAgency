@@ -107,6 +107,62 @@ export const clearServices = mutation({
 });
 
 /**
+ * Backfill orgId for all services.
+ * Run with:
+ *   CI=1 bunx convex run seed:backfillServicesOrgId '{"orgId":"org_...","overwriteExisting":true}'
+ */
+export const backfillServicesOrgId = mutation({
+  args: {
+    orgId: v.string(),
+    overwriteExisting: v.optional(v.boolean()),
+    dryRun: v.optional(v.boolean()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const overwriteExisting = args.overwriteExisting ?? true;
+    const dryRun = args.dryRun ?? false;
+    const limit = Math.min(Math.max(args.limit ?? 10000, 1), 50000);
+
+    const services = await ctx.db.query("services").take(limit);
+
+    let patched = 0;
+    let alreadyTargetOrg = 0;
+    let skippedDifferentOrg = 0;
+
+    for (const service of services) {
+      const currentOrgId = service.orgId;
+
+      if (currentOrgId === args.orgId) {
+        alreadyTargetOrg += 1;
+        continue;
+      }
+
+      if (!overwriteExisting && typeof currentOrgId === "string" && currentOrgId.length > 0) {
+        skippedDifferentOrg += 1;
+        continue;
+      }
+
+      if (!dryRun) {
+        await ctx.db.patch(service._id, { orgId: args.orgId });
+      }
+      patched += 1;
+    }
+
+    return {
+      success: true,
+      orgId: args.orgId,
+      dryRun,
+      overwriteExisting,
+      scanned: services.length,
+      patched,
+      alreadyTargetOrg,
+      skippedDifferentOrg,
+      limit,
+    };
+  },
+});
+
+/**
  * Seed test clients
  * Run with: npx convex run seed:seedClients
  */

@@ -4,50 +4,46 @@ import { brandUnion } from "./schema";
 import { withOrg } from "./lib/org";
 
 /**
- * List all active services
+ * List services for the active org.
+ * By default returns active services only; set includeInactive=true to return both.
  */
 export const list = query({
   args: {
     brand: v.optional(brandUnion),
     category: v.optional(v.string()),
     limit: v.optional(v.number()),
+    includeInactive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => withOrg(ctx, async (orgId) => {
     // Prevent expensive reads from unbounded client limits.
     const limit = Math.min(Math.max(args.limit ?? 100, 1), 500);
+    const includeInactive = args.includeInactive ?? false;
+    const scanLimit = Math.min(Math.max(limit * 10, limit), 5000);
 
     try {
-      // Filter by brand if specified
-      if (args.brand) {
-        const services = await ctx.db
-          .query("services")
-          .withIndex("by_org_brand", (q) => q.eq("orgId", orgId).eq("brand", args.brand!))
-          .filter((q) => q.eq(q.field("status"), "active"))
-          .take(limit);
-
-        // Further filter by category if specified
-        if (args.category) {
-          return services.filter((s) => s.category === args.category);
-        }
-        return services;
-      }
-
-      // Filter by category if specified
-      if (args.category) {
-        return await ctx.db
-          .query("services")
-          .withIndex("by_org_category", (q) =>
-            q.eq("orgId", orgId).eq("category", args.category!)
-          )
-          .filter((q) => q.eq(q.field("status"), "active"))
-          .take(limit);
-      }
-
-      // Return all active services
-      return await ctx.db
+      const services = await ctx.db
         .query("services")
-        .withIndex("by_org_status", (q) => q.eq("orgId", orgId).eq("status", "active"))
-        .take(limit);
+        .withIndex("by_org", (q) => q.eq("orgId", orgId))
+        .take(scanLimit);
+
+      const filtered = services.filter((service) => {
+        if (args.brand && service.brand !== args.brand) {
+          return false;
+        }
+
+        if (args.category && service.category !== args.category) {
+          return false;
+        }
+
+        // Be tolerant of legacy/malformed status values: only explicit "inactive" is excluded.
+        if (!includeInactive && service.status === "inactive") {
+          return false;
+        }
+
+        return true;
+      });
+
+      return filtered.slice(0, limit);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       console.error(`❌ services.list failed for org ${orgId}: ${message}`);
@@ -76,18 +72,20 @@ export const listByBrand = query({
     try {
       const services = await ctx.db
         .query("services")
-        .withIndex("by_org_status", (q) => q.eq("orgId", orgId).eq("status", "active"))
+        .withIndex("by_org", (q) => q.eq("orgId", orgId))
         .collect();
 
+      const activeServices = services.filter((service) => service.status !== "inactive");
+
       // Group by brand
-      const grouped: Record<string, typeof services> = {
+      const grouped: Record<string, typeof activeServices> = {
         Sankofa: [],
         Lighthouse: [],
         Centex: [],
         "GFAM Media Studios": [],
       };
 
-      for (const service of services) {
+      for (const service of activeServices) {
         if (grouped[service.brand]) {
           grouped[service.brand].push(service);
         }
@@ -116,10 +114,12 @@ export const getCategories = query({
     try {
       const services = await ctx.db
         .query("services")
-        .withIndex("by_org_status", (q) => q.eq("orgId", orgId).eq("status", "active"))
+        .withIndex("by_org", (q) => q.eq("orgId", orgId))
         .collect();
 
-      const categories = new Set(services.map((s) => s.category));
+      const activeServices = services.filter((service) => service.status !== "inactive");
+
+      const categories = new Set(activeServices.map((s) => s.category));
       return [...categories].sort();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
