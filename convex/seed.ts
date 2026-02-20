@@ -163,6 +163,167 @@ export const backfillServicesOrgId = mutation({
 });
 
 /**
+ * Audit and optionally normalize services for a given org.
+ * Useful when records were inserted manually and UI expects complete fields.
+ */
+export const auditServicesForOrg = mutation({
+  args: {
+    orgId: v.string(),
+    normalize: v.optional(v.boolean()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const normalize = args.normalize ?? false;
+    const limit = Math.min(Math.max(args.limit ?? 10000, 1), 50000);
+
+    const services = await ctx.db
+      .query("services")
+      .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+      .take(limit);
+
+    let activeCount = 0;
+    let inactiveCount = 0;
+    let unknownStatusCount = 0;
+    let missingTagsCount = 0;
+    let missingDescriptionCount = 0;
+    let missingPriceCount = 0;
+    let missingPriceValueCount = 0;
+    let missingCategoryCount = 0;
+    let missingStripeSyncedCount = 0;
+    let normalizedCount = 0;
+
+    const samples = services.slice(0, 8).map((service) => ({
+      id: service._id,
+      name: service.name,
+      status: (service as { status?: unknown }).status,
+      hasTags: Array.isArray((service as { tags?: unknown }).tags),
+      hasDescription:
+        typeof (service as { description?: unknown }).description === "string" &&
+        ((service as { description?: string }).description ?? "").length > 0,
+      hasPrice:
+        typeof (service as { price?: unknown }).price === "string" &&
+        ((service as { price?: string }).price ?? "").length > 0,
+      hasPriceValue: typeof (service as { priceValue?: unknown }).priceValue === "number",
+      hasCategory:
+        typeof (service as { category?: unknown }).category === "string" &&
+        ((service as { category?: string }).category ?? "").length > 0,
+      hasStripeSynced:
+        typeof (service as { stripeSynced?: unknown }).stripeSynced === "boolean",
+    }));
+
+    for (const service of services) {
+      const statusValue = (service as { status?: unknown }).status;
+      if (statusValue === "active") {
+        activeCount += 1;
+      } else if (statusValue === "inactive") {
+        inactiveCount += 1;
+      } else {
+        unknownStatusCount += 1;
+      }
+
+      const tagsValue = (service as { tags?: unknown }).tags;
+      const hasTags = Array.isArray(tagsValue);
+      if (!hasTags) {
+        missingTagsCount += 1;
+      }
+
+      const descriptionValue = (service as { description?: unknown }).description;
+      const hasDescription = typeof descriptionValue === "string" && descriptionValue.length > 0;
+      if (!hasDescription) {
+        missingDescriptionCount += 1;
+      }
+
+      const priceValueRaw = (service as { price?: unknown }).price;
+      const hasPrice = typeof priceValueRaw === "string" && priceValueRaw.length > 0;
+      if (!hasPrice) {
+        missingPriceCount += 1;
+      }
+
+      const hasPriceValue =
+        typeof (service as { priceValue?: unknown }).priceValue === "number";
+      if (!hasPriceValue) {
+        missingPriceValueCount += 1;
+      }
+
+      const categoryValue = (service as { category?: unknown }).category;
+      const hasCategory = typeof categoryValue === "string" && categoryValue.length > 0;
+      if (!hasCategory) {
+        missingCategoryCount += 1;
+      }
+
+      const hasStripeSynced =
+        typeof (service as { stripeSynced?: unknown }).stripeSynced === "boolean";
+      if (!hasStripeSynced) {
+        missingStripeSyncedCount += 1;
+      }
+
+      if (!normalize) {
+        continue;
+      }
+
+      const patch: {
+        status?: "active" | "inactive";
+        tags?: string[];
+        description?: string;
+        price?: string;
+        category?: string;
+        stripeSynced?: boolean;
+      } = {};
+
+      if (statusValue !== "active" && statusValue !== "inactive") {
+        patch.status = "active";
+      }
+
+      if (!hasTags) {
+        patch.tags = [];
+      }
+
+      if (!hasDescription) {
+        patch.description = service.name;
+      }
+
+      if (!hasPrice) {
+        const value = (service as { priceValue?: number }).priceValue;
+        patch.price =
+          typeof value === "number" && Number.isFinite(value) ? `$${value.toFixed(2)}` : "$0.00";
+      }
+
+      if (!hasCategory) {
+        patch.category = "General";
+      }
+
+      if (!hasStripeSynced) {
+        patch.stripeSynced = false;
+      }
+
+      if (Object.keys(patch).length > 0) {
+        await ctx.db.patch(service._id, patch);
+        normalizedCount += 1;
+      }
+    }
+
+    return {
+      success: true,
+      orgId: args.orgId,
+      scanned: services.length,
+      activeCount,
+      inactiveCount,
+      unknownStatusCount,
+      missingTagsCount,
+      missingDescriptionCount,
+      missingPriceCount,
+      missingPriceValueCount,
+      missingCategoryCount,
+      missingStripeSyncedCount,
+      normalized: normalize,
+      normalizedCount,
+      sample: samples,
+      limit,
+    };
+  },
+});
+
+/**
  * Seed test clients
  * Run with: npx convex run seed:seedClients
  */
