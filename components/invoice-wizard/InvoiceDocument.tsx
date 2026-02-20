@@ -12,6 +12,14 @@ interface SelectedService {
 
 type BrandType = "Sankofa" | "Lighthouse" | "Centex" | "GFAM Media Studios";
 
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
+const endOfDayTimestamp = (timestampMs: number) => {
+  const date = new Date(timestampMs);
+  date.setHours(23, 59, 59, 999);
+  return date.getTime();
+};
+
 interface InvoiceDocumentProps {
   client: WizardClient;
   selectedServices: Map<string, SelectedService>;
@@ -19,6 +27,8 @@ interface InvoiceDocumentProps {
   notes: string;
   invoiceNumber?: string;
   status?: "draft" | "sent" | "paid" | "overdue";
+  issueAt?: number;
+  dueAt?: number;
   checkoutUrl?: string | null;
   emailStatusMessage?: string | null;
   onBack?: () => void;
@@ -38,6 +48,8 @@ export function InvoiceDocument({
   notes,
   invoiceNumber = "INV-" + Math.random().toString(36).substring(2, 8).toUpperCase(),
   status = "draft",
+  issueAt,
+  dueAt,
   checkoutUrl = null,
   emailStatusMessage = null,
   onBack,
@@ -83,9 +95,20 @@ export function InvoiceDocument({
   const brands = [...new Set(items.map((item) => item.service.brand))];
   const primaryBrand = brands.length === 1 ? brands[0] : "Sankofa";
 
-  const today = new Date();
-  const dueDate = new Date(today);
-  dueDate.setDate(dueDate.getDate() + 30);
+  const issueAtMs =
+    typeof issueAt === "number" && Number.isFinite(issueAt) ? issueAt : Date.now();
+  const dueAtMs =
+    typeof dueAt === "number" && Number.isFinite(dueAt)
+      ? Math.max(dueAt, issueAtMs)
+      : endOfDayTimestamp(issueAtMs);
+  const issueDate = new Date(issueAtMs);
+  const dueDate = new Date(dueAtMs);
+  const paymentTermsDays = Math.max(
+    0,
+    Math.round((endOfDayTimestamp(dueAtMs) - endOfDayTimestamp(issueAtMs)) / DAY_IN_MS),
+  );
+  const paymentTermsLabel =
+    paymentTermsDays === 0 ? "Due on issue date" : `Net ${paymentTermsDays}`;
 
   const getBrandClass = (brand: BrandType) => {
     const brandClasses: Record<BrandType, string> = {
@@ -272,7 +295,7 @@ export function InvoiceDocument({
             <div className="space-y-1">
               <div className="invoice-date-row">
                 <span className="invoice-date-label">Issue Date</span>
-                <span className="invoice-date-value">{formatDate(today)}</span>
+                <span className="invoice-date-value">{formatDate(issueDate)}</span>
               </div>
               <div className="invoice-date-row">
                 <span className="invoice-date-label">Due Date</span>
@@ -280,7 +303,7 @@ export function InvoiceDocument({
               </div>
               <div className="invoice-date-row">
                 <span className="invoice-date-label">Payment Terms</span>
-                <span className="invoice-date-value">Net 30</span>
+                <span className="invoice-date-value">{paymentTermsLabel}</span>
               </div>
             </div>
           </div>

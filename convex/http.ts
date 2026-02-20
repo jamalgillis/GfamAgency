@@ -17,6 +17,14 @@ function safePdfFileName(invoiceNumber: string): string {
   return `Invoice-${invoiceNumber.replace(/[^a-zA-Z0-9_-]/g, "-")}.pdf`;
 }
 
+function endOfDayTimestamp(timestampMs: number): number {
+  const date = new Date(timestampMs);
+  date.setHours(23, 59, 59, 999);
+  return date.getTime();
+}
+
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
 http.route({
   path: "/invoice-pdf",
   method: "GET",
@@ -37,6 +45,10 @@ http.route({
             status: string;
             participatingBrands: string[];
             createdAt: number;
+            sourceType?: "one_time" | "subscription";
+            subscriptionId?: string;
+            stripeSubscriptionId?: string;
+            billingPeriodEnd?: number;
             notes?: string;
           };
           client: {
@@ -70,14 +82,24 @@ http.route({
       return new Response("Invoice not found", { status: 404 });
     }
 
-    const dueDate = new Date(data.invoice.createdAt);
-    dueDate.setDate(dueDate.getDate() + 30);
+    const isSubscriptionInvoice =
+      data.invoice.sourceType === "subscription" ||
+      !!data.invoice.subscriptionId ||
+      !!data.invoice.stripeSubscriptionId;
+    const dueAt =
+      !isSubscriptionInvoice &&
+      typeof data.invoice.billingPeriodEnd === "number" &&
+      Number.isFinite(data.invoice.billingPeriodEnd)
+        ? Math.max(data.invoice.billingPeriodEnd, data.invoice.createdAt)
+        : isSubscriptionInvoice
+          ? endOfDayTimestamp(data.invoice.createdAt + 30 * DAY_IN_MS)
+          : endOfDayTimestamp(data.invoice.createdAt);
 
     const pdf = buildInvoicePdfDocument({
       invoiceNumber: data.invoice.invoiceNumber,
       status: data.invoice.status,
       issueDate: data.invoice.createdAt,
-      dueDate: dueDate.getTime(),
+      dueDate: dueAt,
       participatingBrands: data.invoice.participatingBrands,
       client: {
         name: data.client.name,

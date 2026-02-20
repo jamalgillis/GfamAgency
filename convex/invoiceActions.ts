@@ -126,6 +126,66 @@ function toMillis(timestampSeconds?: number | null): number | undefined {
   return timestampSeconds * 1000;
 }
 
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_SUBSCRIPTION_DUE_DAYS = 30;
+
+function endOfDayTimestamp(timestampMs: number): number {
+  const date = new Date(timestampMs);
+  date.setHours(23, 59, 59, 999);
+  return date.getTime();
+}
+
+function normalizeDueAt(
+  dueAtMs: number | undefined,
+  issueAtMs: number,
+): number {
+  if (typeof dueAtMs === "number" && Number.isFinite(dueAtMs)) {
+    return Math.max(dueAtMs, issueAtMs);
+  }
+
+  return endOfDayTimestamp(issueAtMs);
+}
+
+function resolveStoredInvoiceDueAt(invoice: {
+  createdAt: number;
+  sourceType?: "one_time" | "subscription";
+  subscriptionId?: Id<"subscriptions">;
+  stripeSubscriptionId?: string;
+  billingPeriodEnd?: number;
+}): number {
+  const isSubscriptionInvoice =
+    invoice.sourceType === "subscription" ||
+    !!invoice.subscriptionId ||
+    !!invoice.stripeSubscriptionId;
+
+  if (
+    !isSubscriptionInvoice &&
+    typeof invoice.billingPeriodEnd === "number" &&
+    Number.isFinite(invoice.billingPeriodEnd)
+  ) {
+    return normalizeDueAt(invoice.billingPeriodEnd, invoice.createdAt);
+  }
+
+  if (isSubscriptionInvoice) {
+    return endOfDayTimestamp(
+      invoice.createdAt + DEFAULT_SUBSCRIPTION_DUE_DAYS * DAY_IN_MS,
+    );
+  }
+
+  return endOfDayTimestamp(invoice.createdAt);
+}
+
+function getPaymentTermsLabel(issueAtMs: number, dueAtMs: number): string {
+  const normalizedIssue = endOfDayTimestamp(issueAtMs);
+  const normalizedDue = endOfDayTimestamp(dueAtMs);
+  const extraDays = Math.max(
+    0,
+    Math.round((normalizedDue - normalizedIssue) / DAY_IN_MS),
+  );
+
+  return extraDays === 0 ? "Due on issue date" : `Net ${extraDays}`;
+}
+
 function mapStripeInvoiceStatus(
   status: string | null | undefined
 ): "draft" | "open" | "paid" | "void" | "uncollectible" {
@@ -865,6 +925,7 @@ function renderInvoiceEmailHtml(params: {
   notes?: string;
   issueDate: string;
   dueDate: string;
+  paymentTerms: string;
   lineItems: Array<{
     brand: string;
     name: string;
@@ -994,7 +1055,9 @@ function renderInvoiceEmailHtml(params: {
                       <div style="color:#4b5563;line-height:1.5;">Due Date: ${escapeHtml(
                         params.dueDate
                       )}</div>
-                      <div style="color:#4b5563;line-height:1.5;">Payment Terms: Net 30</div>
+                      <div style="color:#4b5563;line-height:1.5;">Payment Terms: ${escapeHtml(
+                        params.paymentTerms
+                      )}</div>
                     </td>
                   </tr>
                 </table>
@@ -1088,6 +1151,8 @@ async function sendInvoiceEmailWithResend(params: {
     unitPriceCents: number;
     customPriceCents?: number;
   }>;
+  issueAt?: number;
+  dueAt?: number;
   checkoutUrl?: string;
   pdfDownloadUrl?: string;
 }) {
@@ -1105,9 +1170,12 @@ async function sendInvoiceEmailWithResend(params: {
     };
   }
 
-  const issueDateRaw = new Date();
-  const dueDateRaw = new Date(issueDateRaw);
-  dueDateRaw.setDate(dueDateRaw.getDate() + 30);
+  const issueAtMs =
+    typeof params.issueAt === "number" && Number.isFinite(params.issueAt)
+      ? params.issueAt
+      : Date.now();
+  const dueAtMs = normalizeDueAt(params.dueAt, issueAtMs);
+  const paymentTerms = getPaymentTermsLabel(issueAtMs, dueAtMs);
 
   const subtotalCents = params.lineItems.reduce((sum, item) => {
     const rateCents = item.customPriceCents ?? item.unitPriceCents;
@@ -1122,8 +1190,9 @@ async function sendInvoiceEmailWithResend(params: {
     clientCompany: params.client.company,
     clientEmail: params.client.email,
     notes: params.notes,
-    issueDate: formatDateValue(issueDateRaw),
-    dueDate: formatDateValue(dueDateRaw),
+    issueDate: formatDateValue(new Date(issueAtMs)),
+    dueDate: formatDateValue(new Date(dueAtMs)),
+    paymentTerms,
     lineItems: params.lineItems,
     subtotalCents,
     totalCents: subtotalCents,
@@ -1830,15 +1899,28 @@ export const updateInvoiceRecord = internalMutation({
     participatingBrands: v.array(v.string()),
     totalCents: v.number(),
     notes: v.optional(v.string()),
+    dueAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     ensureOrgAccess(await ctx.db.get(args.invoiceId), args.orgId, "Invoice not found");
-    await ctx.db.patch(args.invoiceId, {
+    const updates: {
+      primaryBrand: string;
+      participatingBrands: string[];
+      totalCents: number;
+      notes?: string;
+      billingPeriodEnd?: number;
+    } = {
       primaryBrand: args.primaryBrand,
       participatingBrands: args.participatingBrands,
       totalCents: args.totalCents,
       notes: args.notes,
-    });
+    };
+
+    if (typeof args.dueAt === "number") {
+      updates.billingPeriodEnd = args.dueAt;
+    }
+
+    await ctx.db.patch(args.invoiceId, updates);
   },
 });
 
@@ -1850,6 +1932,7 @@ export const createLedgerDraftInvoice = action({
     clientId: v.id("clients"),
     lineItems: v.array(lineItemValidator),
     notes: v.optional(v.string()),
+    dueAt: v.optional(v.number()),
   },
   handler: async (ctx, args): Promise<{
     success: boolean;
@@ -1887,6 +1970,7 @@ export const createLedgerDraftInvoice = action({
         status: "draft",
         totalCents,
         notes: args.notes,
+        billingPeriodEnd: args.dueAt,
       });
 
       await ctx.runMutation(internal.invoiceActions.createLineItemRecords, {
@@ -1918,6 +2002,7 @@ export const updateLedgerDraftInvoice = action({
     invoiceId: v.id("invoices"),
     lineItems: v.array(lineItemValidator),
     notes: v.optional(v.string()),
+    dueAt: v.optional(v.number()),
   },
   handler: async (ctx, args): Promise<{
     success: boolean;
@@ -1955,6 +2040,7 @@ export const updateLedgerDraftInvoice = action({
         participatingBrands,
         totalCents,
         notes: args.notes,
+        dueAt: args.dueAt,
       });
 
       await ctx.runMutation(internal.invoiceActions.replaceLineItemRecords, {
@@ -1986,6 +2072,7 @@ export const reviseLedgerInvoice = action({
     invoiceId: v.id("invoices"),
     lineItems: v.array(lineItemValidator),
     notes: v.optional(v.string()),
+    dueAt: v.optional(v.number()),
   },
   handler: async (ctx, args): Promise<{
     success: boolean;
@@ -2032,6 +2119,7 @@ export const reviseLedgerInvoice = action({
           status: "draft",
           totalCents,
           notes: args.notes,
+          billingPeriodEnd: args.dueAt,
           revisesInvoiceId: invoice._id,
           revisesStripeInvoiceId: invoice.stripeInvoiceId,
         },
@@ -3412,6 +3500,7 @@ export const createCheckoutSessionForInvoice = action({
 
       let emailSent = false;
       let emailSkipped: string | undefined;
+      const dueAt = resolveStoredInvoiceDueAt(invoice);
       try {
         const emailResult = await sendInvoiceEmailWithResend({
           invoiceNumber: invoice.invoiceNumber,
@@ -3423,6 +3512,8 @@ export const createCheckoutSessionForInvoice = action({
           },
           notes: invoice.notes,
           lineItems,
+          issueAt: invoice.createdAt,
+          dueAt,
           checkoutUrl: checkoutSession.url ?? undefined,
           pdfDownloadUrl: buildInvoicePdfDownloadUrl(invoice._id, checkoutSession.id),
         });
@@ -3470,6 +3561,7 @@ export const createInvoice = action({
     lineItems: v.array(lineItemValidator),
     notes: v.optional(v.string()),
     sendImmediately: v.optional(v.boolean()),
+    dueAt: v.optional(v.number()),
   },
   handler: async (ctx, args): Promise<{
     success: boolean;
@@ -3524,6 +3616,8 @@ export const createInvoice = action({
 
       // 6. Generate invoice number
       const invoiceNumber = generateInvoiceNumber();
+      const issueAtMs = Date.now();
+      const dueAtMs = normalizeDueAt(args.dueAt, issueAtMs);
 
       // 7. Create Convex invoice record first (as draft)
       const invoiceId = await ctx.runMutation(
@@ -3537,6 +3631,8 @@ export const createInvoice = action({
           status: "draft",
           totalCents,
           notes: args.notes,
+          createdAt: issueAtMs,
+          billingPeriodEnd: dueAtMs,
         }
       );
 
@@ -3544,7 +3640,7 @@ export const createInvoice = action({
       const stripeInvoice = await stripe.invoices.create({
         customer: stripeCustomerId,
         collection_method: "send_invoice",
-        days_until_due: 30,
+        due_date: Math.floor(dueAtMs / 1000),
         metadata: {
           agency: PARENT_ORGANIZATION,
           primaryBrand,
@@ -3668,6 +3764,7 @@ export const updateDraftInvoice = action({
     invoiceId: v.id("invoices"),
     lineItems: v.array(lineItemValidator),
     notes: v.optional(v.string()),
+    dueAt: v.optional(v.number()),
   },
   handler: async (ctx, args): Promise<{
     success: boolean;
@@ -3736,6 +3833,11 @@ export const updateDraftInvoice = action({
         orgId
       );
 
+      const normalizedDueAt =
+        typeof args.dueAt === "number"
+          ? normalizeDueAt(args.dueAt, invoice.createdAt)
+          : undefined;
+
       await stripe.invoices.update(
         invoice.stripeInvoiceId,
         {
@@ -3747,6 +3849,9 @@ export const updateDraftInvoice = action({
             invoiceNumber: invoice.invoiceNumber,
           },
           description: `Services by ${participatingBrands.join(" & ")}`,
+          ...(typeof normalizedDueAt === "number"
+            ? { due_date: Math.floor(normalizedDueAt / 1000) }
+            : {}),
         },
         context,
       );
@@ -3768,6 +3873,7 @@ export const updateDraftInvoice = action({
         participatingBrands,
         totalCents,
         notes: args.notes,
+        dueAt: normalizedDueAt,
       });
 
       await ctx.runMutation(internal.invoiceActions.replaceLineItemRecords, {
@@ -3802,6 +3908,7 @@ export const reviseInvoice = action({
     invoiceId: v.id("invoices"),
     lineItems: v.array(lineItemValidator),
     notes: v.optional(v.string()),
+    dueAt: v.optional(v.number()),
   },
   handler: async (ctx, args): Promise<{
     success: boolean;
@@ -3940,6 +4047,8 @@ export const reviseInvoice = action({
       );
 
       const invoiceNumber = generateInvoiceNumber();
+      const revisionIssueAtMs = Date.now();
+      const revisionDueAtMs = normalizeDueAt(args.dueAt, revisionIssueAtMs);
 
       const revisionInvoiceId = await ctx.runMutation(
         internal.invoiceActions.createInvoiceRecord,
@@ -3955,6 +4064,8 @@ export const reviseInvoice = action({
           status: "draft",
           totalCents,
           notes: args.notes,
+          createdAt: revisionIssueAtMs,
+          billingPeriodEnd: revisionDueAtMs,
         },
       );
 
@@ -3970,6 +4081,7 @@ export const reviseInvoice = action({
             revisesStripeInvoiceId: stripeInvoice.id,
           },
           description: `Services by ${participatingBrands.join(" & ")}`,
+          due_date: Math.floor(revisionDueAtMs / 1000),
         },
         context,
       );
@@ -4110,6 +4222,7 @@ export const sendDraftInvoice = action({
 
         let emailSent = false;
         let emailSkipped: string | undefined;
+        const dueAt = resolveStoredInvoiceDueAt(invoice);
         try {
           const emailResult = await sendInvoiceEmailWithResend({
             invoiceNumber: invoice.invoiceNumber,
@@ -4121,6 +4234,8 @@ export const sendDraftInvoice = action({
             },
             notes: invoice.notes,
             lineItems,
+            issueAt: invoice.createdAt,
+            dueAt,
             checkoutUrl: checkoutSession.url ?? undefined,
             pdfDownloadUrl: buildInvoicePdfDownloadUrl(invoice._id, checkoutSession.id),
           });

@@ -83,6 +83,41 @@ const startOfDay = (date: Date) =>
 const endOfDay = (date: Date) =>
   new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
 
+const endOfDayTimestamp = (timestampMs: number) => {
+  const date = new Date(timestampMs);
+  date.setHours(23, 59, 59, 999);
+  return date.getTime();
+};
+
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
+const resolveInvoiceDueAt = (invoice: {
+  createdAt: number;
+  billingPeriodEnd?: number;
+  sourceType?: "one_time" | "subscription";
+  subscriptionId?: string;
+  stripeSubscriptionId?: string;
+}) => {
+  const isSubscriptionInvoice =
+    invoice.sourceType === "subscription" ||
+    !!invoice.subscriptionId ||
+    !!invoice.stripeSubscriptionId;
+
+  if (
+    !isSubscriptionInvoice &&
+    typeof invoice.billingPeriodEnd === "number" &&
+    Number.isFinite(invoice.billingPeriodEnd)
+  ) {
+    return Math.max(invoice.billingPeriodEnd, invoice.createdAt);
+  }
+
+  if (isSubscriptionInvoice) {
+    return endOfDayTimestamp(invoice.createdAt + 30 * DAY_IN_MS);
+  }
+
+  return endOfDayTimestamp(invoice.createdAt);
+};
+
 const formatShortDate = (date: Date) =>
   new Intl.DateTimeFormat("en-US", {
     month: "short",
@@ -193,7 +228,13 @@ export default function InvoicesPage() {
       const client = clientsById.get(invoice.clientId);
       const clientName = client?.name || "Unknown Client";
       const issuedAt = invoice.createdAt;
-      const dueAt = issuedAt + 14 * 24 * 60 * 60 * 1000;
+      const dueAt = resolveInvoiceDueAt({
+        createdAt: issuedAt,
+        billingPeriodEnd: invoice.billingPeriodEnd,
+        sourceType: invoice.sourceType,
+        subscriptionId: invoice.subscriptionId,
+        stripeSubscriptionId: invoice.stripeSubscriptionId,
+      });
       const displayStatus = getDisplayStatus(invoice.status as InvoiceLifecycleStatus, dueAt, now);
 
       return {

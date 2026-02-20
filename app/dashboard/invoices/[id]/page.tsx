@@ -60,6 +60,41 @@ const formatFullDate = (date: Date) =>
     year: "numeric",
   }).format(date);
 
+const endOfDayTimestamp = (timestampMs: number) => {
+  const date = new Date(timestampMs);
+  date.setHours(23, 59, 59, 999);
+  return date.getTime();
+};
+
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
+const resolveInvoiceDueAt = (invoice: {
+  createdAt: number;
+  billingPeriodEnd?: number;
+  sourceType?: "one_time" | "subscription";
+  subscriptionId?: string;
+  stripeSubscriptionId?: string;
+}) => {
+  const isSubscriptionInvoice =
+    invoice.sourceType === "subscription" ||
+    !!invoice.subscriptionId ||
+    !!invoice.stripeSubscriptionId;
+
+  if (
+    !isSubscriptionInvoice &&
+    typeof invoice.billingPeriodEnd === "number" &&
+    Number.isFinite(invoice.billingPeriodEnd)
+  ) {
+    return Math.max(invoice.billingPeriodEnd, invoice.createdAt);
+  }
+
+  if (isSubscriptionInvoice) {
+    return endOfDayTimestamp(invoice.createdAt + 30 * DAY_IN_MS);
+  }
+
+  return endOfDayTimestamp(invoice.createdAt);
+};
+
 const getInvoiceStatus = (status: string, dueAt: number, now: number): InvoiceStatus => {
   if (status === "paid") return "paid";
   if (status === "draft") return "draft";
@@ -103,7 +138,7 @@ export default function InvoiceDetailPage() {
 
   const notes =
     invoiceWithDetails?.notes ||
-    "Payment is due within 14 days. Please include the invoice number in your payment reference.";
+    "Please include the invoice number in your payment reference.";
 
   const lineItems = useMemo<LineItem[]>(() => {
     if (!invoiceWithDetails) return [];
@@ -125,7 +160,13 @@ export default function InvoiceDetailPage() {
     if (!invoiceWithDetails) return null;
 
     const createdAt = invoiceWithDetails.createdAt;
-    const dueAt = createdAt + 14 * 24 * 60 * 60 * 1000;
+    const dueAt = resolveInvoiceDueAt({
+      createdAt,
+      billingPeriodEnd: invoiceWithDetails.billingPeriodEnd,
+      sourceType: invoiceWithDetails.sourceType,
+      subscriptionId: invoiceWithDetails.subscriptionId,
+      stripeSubscriptionId: invoiceWithDetails.stripeSubscriptionId,
+    });
     const status = getInvoiceStatus(invoiceWithDetails.status, dueAt, Date.now());
 
     return {

@@ -30,6 +30,30 @@ const getInitials = (name: string) =>
     .toUpperCase()
     .slice(0, 2);
 
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
+const endOfDayTimestamp = (timestampMs: number) => {
+  const date = new Date(timestampMs);
+  date.setHours(23, 59, 59, 999);
+  return date.getTime();
+};
+
+const calculateDueAt = (issueAtMs: number, extraDays: number) =>
+  endOfDayTimestamp(issueAtMs) + Math.max(0, Math.floor(extraDays)) * DAY_IN_MS;
+
+const inferExtraDueDays = (issueAtMs: number, dueAtMs?: number) => {
+  if (typeof dueAtMs !== "number" || !Number.isFinite(dueAtMs)) {
+    return 0;
+  }
+
+  const baseline = endOfDayTimestamp(issueAtMs);
+  if (dueAtMs <= baseline) {
+    return 0;
+  }
+
+  return Math.max(0, Math.round((dueAtMs - baseline) / DAY_IN_MS));
+};
+
 interface WizardContainerProps {
   initialBillingMode?: BillingMode;
   editingInvoiceId?: string;
@@ -53,6 +77,8 @@ export function WizardContainer({
     new Map()
   );
   const [notes, setNotes] = useState("");
+  const [extraDueDays, setExtraDueDays] = useState(0);
+  const [issueAtMs, setIssueAtMs] = useState(() => Date.now());
   const [discountPercent, setDiscountPercent] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showInvoiceDocument, setShowInvoiceDocument] = useState(false);
@@ -119,6 +145,19 @@ export function WizardContainer({
   }, [convexServices]);
 
   const selectedItems = useMemo(() => Array.from(selectedServices.values()), [selectedServices]);
+  const computedDueAt = useMemo(
+    () => calculateDueAt(issueAtMs, extraDueDays),
+    [issueAtMs, extraDueDays],
+  );
+  const dueDateLabel = useMemo(
+    () =>
+      new Intl.DateTimeFormat("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }).format(new Date(computedDueAt)),
+    [computedDueAt],
+  );
   const isEditingSubscriptionLinkedInvoice =
     !!editingInvoice &&
     (
@@ -354,8 +393,18 @@ export function WizardContainer({
             Number(((discountCentsTotal / subtotalBeforeDiscountCents) * 100).toFixed(2)),
           )
         : 0;
+    const inferredExtraDueDays = isSubscriptionLinkedInvoice
+      ? 0
+      : inferExtraDueDays(
+          editingInvoice.createdAt,
+          typeof editingInvoice.billingPeriodEnd === "number"
+            ? editingInvoice.billingPeriodEnd
+            : undefined,
+        );
     setDiscountPercent(inferredDiscountPercent);
     setNotes(editingInvoice.notes ?? "");
+    setIssueAtMs(editingInvoice.createdAt);
+    setExtraDueDays(inferredExtraDueDays);
     setDraftInvoiceId(editingInvoice._id);
     setInvoiceNumber(editingInvoice.invoiceNumber ?? "");
     setInvoiceStatus(
@@ -569,6 +618,10 @@ export function WizardContainer({
 
     try {
       const lineItems = buildLineItems();
+      const isCreatingRevision = !!draftInvoiceId && invoiceStatus !== "draft";
+      const issueAtForSave =
+        isCreatingRevision || !draftInvoiceId ? Date.now() : issueAtMs;
+      const dueAtForSave = calculateDueAt(issueAtForSave, extraDueDays);
       if (draftInvoiceId && invoiceStatus !== "draft") {
         const result =
           draftSaveMode === "stripe"
@@ -576,17 +629,20 @@ export function WizardContainer({
                 invoiceId: draftInvoiceId,
                 lineItems,
                 notes: notes || undefined,
+                dueAt: dueAtForSave,
               })
             : await reviseLedgerInvoice({
                 invoiceId: draftInvoiceId,
                 lineItems,
                 notes: notes || undefined,
+                dueAt: dueAtForSave,
               });
 
         if (result.success && result.invoiceNumber && result.invoiceId) {
           setInvoiceNumber(result.invoiceNumber);
           setInvoiceStatus("draft");
           setDraftInvoiceId(result.invoiceId);
+          setIssueAtMs(issueAtForSave);
           setCheckoutUrl(null);
           setShowInvoiceDocument(true);
         } else {
@@ -599,11 +655,13 @@ export function WizardContainer({
                 invoiceId: draftInvoiceId,
                 lineItems,
                 notes: notes || undefined,
+                dueAt: dueAtForSave,
               })
             : await updateLedgerDraftInvoice({
                 invoiceId: draftInvoiceId,
                 lineItems,
                 notes: notes || undefined,
+                dueAt: dueAtForSave,
               });
 
         if (result.success && result.invoiceNumber) {
@@ -619,12 +677,14 @@ export function WizardContainer({
           clientId: selectedClient.id as Id<"clients">,
           lineItems,
           notes: notes || undefined,
+          dueAt: dueAtForSave,
         });
 
         if (result.success && result.invoiceNumber && result.invoiceId) {
           setInvoiceNumber(result.invoiceNumber);
           setInvoiceStatus("draft");
           setDraftInvoiceId(result.invoiceId);
+          setIssueAtMs(issueAtForSave);
           setDraftSaveMode("ledger");
           setCheckoutUrl(null);
           setShowInvoiceDocument(true);
@@ -714,17 +774,20 @@ export function WizardContainer({
       };
 
       if (draftInvoiceId) {
+        const dueAtForSave = calculateDueAt(issueAtMs, extraDueDays);
         const updateResult =
           draftSaveMode === "stripe"
             ? await updateDraftInvoice({
                 invoiceId: draftInvoiceId,
                 lineItems,
                 notes: notes || undefined,
+                dueAt: dueAtForSave,
               })
             : await updateLedgerDraftInvoice({
                 invoiceId: draftInvoiceId,
                 lineItems,
                 notes: notes || undefined,
+                dueAt: dueAtForSave,
               });
 
         if (!updateResult.success) {
@@ -752,10 +815,13 @@ export function WizardContainer({
           setError(sendResult.error || "Failed to send invoice");
         }
       } else {
+        const issueAtForSave = Date.now();
+        const dueAtForSave = calculateDueAt(issueAtForSave, extraDueDays);
         const draftResult = await createLedgerDraftInvoice({
           clientId: selectedClient.id as Id<"clients">,
           lineItems,
           notes: notes || undefined,
+          dueAt: dueAtForSave,
         });
 
         if (!draftResult.success || !draftResult.invoiceId) {
@@ -778,6 +844,7 @@ export function WizardContainer({
         setInvoiceNumber(sendResult.invoiceNumber || draftResult.invoiceNumber || "");
         setInvoiceStatus("sent");
         setDraftInvoiceId(draftResult.invoiceId);
+        setIssueAtMs(issueAtForSave);
         setDraftSaveMode("ledger");
         setCheckoutUrl(sendResult.checkoutUrl || null);
         setEmailStatusMessage(
@@ -807,23 +874,28 @@ export function WizardContainer({
 
     try {
       const lineItems = buildLineItems();
+      const revisionIssueAt = Date.now();
+      const dueAtForSave = calculateDueAt(revisionIssueAt, extraDueDays);
       const result =
         draftSaveMode === "stripe"
           ? await reviseInvoice({
               invoiceId: draftInvoiceId,
               lineItems,
               notes: notes || undefined,
+              dueAt: dueAtForSave,
             })
           : await reviseLedgerInvoice({
               invoiceId: draftInvoiceId,
               lineItems,
               notes: notes || undefined,
+              dueAt: dueAtForSave,
             });
 
       if (result.success && result.invoiceNumber && result.invoiceId) {
         setInvoiceNumber(result.invoiceNumber);
         setInvoiceStatus("draft");
         setDraftInvoiceId(result.invoiceId);
+        setIssueAtMs(revisionIssueAt);
         setCheckoutUrl(null);
         setEmailStatusMessage(null);
         setShowInvoiceDocument(true);
@@ -931,31 +1003,61 @@ export function WizardContainer({
                 </div>
               )}
             {billingMode === "one_time" && (
-              <div className="mb-4 rounded-lg border border-border bg-surface-tertiary px-3 py-2">
-                <label className="block text-sm font-medium text-content mb-2">
-                  Discount Percentage
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    step={0.01}
-                    value={Number(discountPercent.toFixed(2))}
-                    onChange={(event) => {
-                      const parsed = Number.parseFloat(event.target.value);
-                      if (!Number.isFinite(parsed)) {
-                        setDiscountPercent(0);
-                        return;
-                      }
-                      setDiscountPercent(Math.min(100, Math.max(0, parsed)));
-                    }}
-                    className="input-field w-28 text-right"
-                  />
-                  <span className="text-content-muted text-sm">%</span>
+              <div className="mb-4 rounded-lg border border-border bg-surface-tertiary px-3 py-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-content mb-2">
+                      Discount Percentage
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={0.01}
+                        value={Number(discountPercent.toFixed(2))}
+                        onChange={(event) => {
+                          const parsed = Number.parseFloat(event.target.value);
+                          if (!Number.isFinite(parsed)) {
+                            setDiscountPercent(0);
+                            return;
+                          }
+                          setDiscountPercent(Math.min(100, Math.max(0, parsed)));
+                        }}
+                        className="input-field w-28 text-right"
+                      />
+                      <span className="text-content-muted text-sm">%</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-content mb-2">
+                      Additional Days Until Due
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={0}
+                        max={365}
+                        step={1}
+                        value={extraDueDays}
+                        onChange={(event) => {
+                          const parsed = Number.parseInt(event.target.value, 10);
+                          if (!Number.isFinite(parsed)) {
+                            setExtraDueDays(0);
+                            return;
+                          }
+
+                          setExtraDueDays(Math.min(365, Math.max(0, parsed)));
+                        }}
+                        className="input-field w-28 text-right"
+                      />
+                      <span className="text-content-muted text-sm">days</span>
+                    </div>
+                  </div>
                 </div>
                 <p className="text-xs text-content-muted mt-2">
-                  Applies to this invoice only. Subscription plan pricing is unchanged.
+                  Due date defaults to the issue date. Current due date: {dueDateLabel}.
                 </p>
               </div>
             )}
@@ -1073,6 +1175,8 @@ export function WizardContainer({
         notes={notes}
         invoiceNumber={invoiceNumber}
         status={invoiceStatus}
+        issueAt={issueAtMs}
+        dueAt={computedDueAt}
         checkoutUrl={checkoutUrl}
         emailStatusMessage={emailStatusMessage}
         onBack={handleBackToWizard}
