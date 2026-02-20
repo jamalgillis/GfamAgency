@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAction, useQuery } from "convex/react";
 import {
@@ -13,6 +13,7 @@ import {
   Edit2,
   Trash2,
   CheckCircle,
+  XCircle,
   Circle,
 } from "lucide-react";
 import { ThemeSwitch } from "@/components/ThemeSwitch";
@@ -71,6 +72,7 @@ const formatStatusLabel = (status: InvoiceStatus) =>
   status.charAt(0).toUpperCase() + status.slice(1);
 
 export default function InvoiceDetailPage() {
+  const router = useRouter();
   const params = useParams();
   const invoiceIdParam = params.id;
   const invoiceId = Array.isArray(invoiceIdParam) ? invoiceIdParam[0] : invoiceIdParam;
@@ -82,9 +84,19 @@ export default function InvoiceDetailPage() {
   const createCheckoutSessionForInvoice = useAction(
     api.invoiceActions.createCheckoutSessionForInvoice
   );
+  const markInvoiceAsPaid = useAction(api.invoiceActions.markInvoiceAsPaid);
+  const deleteInvoice = useAction(api.invoiceActions.deleteInvoice);
+  const cancelSubscriptionInvoiceCycle = useAction(
+    api.invoiceActions.cancelSubscriptionInvoiceCycle
+  );
+  const voidInvoiceAction = useAction(api.invoiceActions.voidInvoice);
 
   const [actionsOpen, setActionsOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isMarkingPaid, setIsMarkingPaid] = useState(false);
+  const [isDeletingInvoice, setIsDeletingInvoice] = useState(false);
+  const [isCancelingCycle, setIsCancelingCycle] = useState(false);
+  const [isVoidingInvoice, setIsVoidingInvoice] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [sendStatusMessage, setSendStatusMessage] = useState<string | null>(null);
   const actionsDropdownRef = useRef<HTMLDivElement | null>(null);
@@ -133,6 +145,30 @@ export default function InvoiceDetailPage() {
     invoiceWithDetails?.status === "draft" ||
     invoiceWithDetails?.status === "open" ||
     invoiceWithDetails?.status === "uncollectible";
+  const isSubscriptionInvoice =
+    !!invoiceWithDetails &&
+    (
+      invoiceWithDetails.sourceType === "subscription" ||
+      !!invoiceWithDetails.subscriptionId ||
+      !!invoiceWithDetails.stripeSubscriptionId ||
+      invoiceWithDetails.invoiceNumber.startsWith("INV-SUB-")
+    );
+  const canAdjustSubscriptionDraft =
+    isSubscriptionInvoice && invoiceWithDetails?.status === "draft";
+  const canMarkAsPaid =
+    !!invoiceWithDetails &&
+    invoiceWithDetails.status !== "paid" &&
+    invoiceWithDetails.status !== "void";
+  const canDeleteInvoice =
+    !!invoiceWithDetails &&
+    invoiceWithDetails.status === "draft" &&
+    !isSubscriptionInvoice;
+  const canCancelSubscriptionCycle =
+    isSubscriptionInvoice && invoiceWithDetails?.status === "draft";
+  const canVoidInvoice =
+    !!invoiceWithDetails &&
+    (invoiceWithDetails.status === "open" ||
+      invoiceWithDetails.status === "uncollectible");
 
   // Calculate totals
   const subtotal = useMemo(
@@ -197,6 +233,153 @@ export default function InvoiceDetailPage() {
       setSendError(err instanceof Error ? err.message : "Failed to send invoice");
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handleChangeSubscriptionPrice = () => {
+    if (!invoiceWithDetails || !hasValidInvoiceId) return;
+    setActionsOpen(false);
+
+    if (invoiceWithDetails.subscriptionId) {
+      void router.push(`/dashboard/subscriptions/${invoiceWithDetails.subscriptionId}`);
+      return;
+    }
+
+    setSendError("Subscription not found for this invoice.");
+  };
+
+  const handleOneTimeDraftAdjustment = () => {
+    if (!invoiceWithDetails || !hasValidInvoiceId) return;
+    setActionsOpen(false);
+    void router.push(`/dashboard/invoices/${invoiceId}/adjust`);
+  };
+
+  const handleEditInvoice = () => {
+    if (!invoiceWithDetails || !hasValidInvoiceId) return;
+    setActionsOpen(false);
+    void router.push(`/dashboard/invoices/${invoiceId}/edit`);
+  };
+
+  const handleMarkAsPaid = async () => {
+    if (!invoiceWithDetails || !hasValidInvoiceId || !canMarkAsPaid) return;
+
+    setActionsOpen(false);
+    setIsMarkingPaid(true);
+    setSendError(null);
+    setSendStatusMessage(null);
+
+    try {
+      const result = await markInvoiceAsPaid({
+        invoiceId: invoiceId as Id<"invoices">,
+      });
+
+      if (!result.success) {
+        setSendError(result.error || "Failed to mark invoice as paid");
+        return;
+      }
+
+      setSendStatusMessage("Invoice marked as paid.");
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : "Failed to mark invoice as paid");
+    } finally {
+      setIsMarkingPaid(false);
+    }
+  };
+
+  const handleDeleteInvoice = async () => {
+    if (!invoiceWithDetails || !hasValidInvoiceId || !canDeleteInvoice) return;
+
+    setActionsOpen(false);
+    const confirmed = window.confirm(
+      "Delete this draft invoice? This permanently removes the invoice and its line items.",
+    );
+    if (!confirmed) return;
+
+    setIsDeletingInvoice(true);
+    setSendError(null);
+    setSendStatusMessage(null);
+
+    try {
+      const result = await deleteInvoice({
+        invoiceId: invoiceId as Id<"invoices">,
+      });
+
+      if (!result.success) {
+        setSendError(result.error || "Failed to delete invoice");
+        return;
+      }
+
+      void router.push("/dashboard/invoices");
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : "Failed to delete invoice");
+    } finally {
+      setIsDeletingInvoice(false);
+    }
+  };
+
+  const handleCancelSubscriptionCycle = async () => {
+    if (!invoiceWithDetails || !hasValidInvoiceId || !canCancelSubscriptionCycle) return;
+
+    setActionsOpen(false);
+    const confirmed = window.confirm(
+      "Cancel this cycle's draft invoice? Future subscription cycles are not changed.",
+    );
+    if (!confirmed) return;
+
+    setIsCancelingCycle(true);
+    setSendError(null);
+    setSendStatusMessage(null);
+
+    try {
+      const result = await cancelSubscriptionInvoiceCycle({
+        invoiceId: invoiceId as Id<"invoices">,
+      });
+
+      if (!result.success) {
+        setSendError(result.error || "Failed to cancel subscription invoice cycle");
+        return;
+      }
+
+      setSendStatusMessage("Subscription cycle invoice cancelled.");
+    } catch (err) {
+      setSendError(
+        err instanceof Error
+          ? err.message
+          : "Failed to cancel subscription invoice cycle",
+      );
+    } finally {
+      setIsCancelingCycle(false);
+    }
+  };
+
+  const handleVoidInvoice = async () => {
+    if (!invoiceWithDetails || !hasValidInvoiceId || !canVoidInvoice) return;
+
+    setActionsOpen(false);
+    const confirmed = window.confirm(
+      "Void this invoice? The client will no longer be able to pay it.",
+    );
+    if (!confirmed) return;
+
+    setIsVoidingInvoice(true);
+    setSendError(null);
+    setSendStatusMessage(null);
+
+    try {
+      const result = await voidInvoiceAction({
+        invoiceId: invoiceId as Id<"invoices">,
+      });
+
+      if (!result.success) {
+        setSendError(result.error || "Failed to void invoice");
+        return;
+      }
+
+      setSendStatusMessage("Invoice voided.");
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : "Failed to void invoice");
+    } finally {
+      setIsVoidingInvoice(false);
     }
   };
 
@@ -329,18 +512,86 @@ export default function InvoiceDetailPage() {
               </button>
               {actionsOpen && (
                 <div className="dropdown-menu right-0 left-auto">
-                  <button className="dropdown-item">
-                    <Edit2 className="w-4 h-4" />
-                    Edit Invoice
-                  </button>
-                  <button className="dropdown-item">
+                  {canAdjustSubscriptionDraft ? (
+                    <>
+                      <button className="dropdown-item" onClick={handleChangeSubscriptionPrice}>
+                        <Edit2 className="w-4 h-4" />
+                        Change Subscription Price
+                      </button>
+                      <button className="dropdown-item" onClick={handleOneTimeDraftAdjustment}>
+                        <Edit2 className="w-4 h-4" />
+                        One-Time Draft Adjustment
+                      </button>
+                      <button
+                        className="dropdown-item text-error disabled:opacity-50 disabled:cursor-not-allowed"
+                        onClick={handleCancelSubscriptionCycle}
+                        disabled={
+                          !canCancelSubscriptionCycle ||
+                          isCancelingCycle ||
+                          isMarkingPaid ||
+                          isDeletingInvoice ||
+                          isVoidingInvoice
+                        }
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        {isCancelingCycle ? "Cancelling..." : "Cancel This Cycle Invoice"}
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      className="dropdown-item"
+                      onClick={isSubscriptionInvoice ? handleChangeSubscriptionPrice : handleEditInvoice}
+                    >
+                      <Edit2 className="w-4 h-4" />
+                      {isSubscriptionInvoice ? "Edit Subscription" : "Edit Invoice"}
+                    </button>
+                  )}
+                  <button
+                    className="dropdown-item disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={handleMarkAsPaid}
+                    disabled={
+                      !canMarkAsPaid ||
+                      isMarkingPaid ||
+                      isDeletingInvoice ||
+                      isCancelingCycle ||
+                      isVoidingInvoice
+                    }
+                  >
                     <CheckCircle className="w-4 h-4" />
-                    Mark as Paid
+                    {isMarkingPaid ? "Marking..." : "Mark as Paid"}
                   </button>
-                  <button className="dropdown-item text-error">
+                  {canVoidInvoice && (
+                    <button
+                      className="dropdown-item text-amber-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={handleVoidInvoice}
+                      disabled={
+                        !canVoidInvoice ||
+                        isVoidingInvoice ||
+                        isMarkingPaid ||
+                        isDeletingInvoice ||
+                        isCancelingCycle
+                      }
+                    >
+                      <XCircle className="w-4 h-4" />
+                      {isVoidingInvoice ? "Voiding..." : "Void Invoice"}
+                    </button>
+                  )}
+                  {canDeleteInvoice && (
+                  <button
+                    className="dropdown-item text-error disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={handleDeleteInvoice}
+                    disabled={
+                      !canDeleteInvoice ||
+                      isMarkingPaid ||
+                      isDeletingInvoice ||
+                      isCancelingCycle ||
+                      isVoidingInvoice
+                    }
+                  >
                     <Trash2 className="w-4 h-4" />
-                    Delete Invoice
+                    {isDeletingInvoice ? "Deleting..." : "Delete Invoice"}
                   </button>
+                  )}
                 </div>
               )}
             </div>

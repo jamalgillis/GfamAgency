@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useQuery, useMutation } from "convex/react";
+import { useMutation } from "convex/react";
 import {
   Search,
   Plus,
@@ -24,6 +24,7 @@ import {
 import { ThemeSwitch } from "@/components/ThemeSwitch";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { useAuthQuery } from "@/hooks/useAuthQuery";
 
 type InvoiceStatus = "draft" | "open" | "paid" | "void" | "uncollectible";
 
@@ -90,8 +91,8 @@ const invoiceStatusStyle: Record<InvoiceStatus, { text: string; bg: string }> = 
 type ModalMode = "add" | "edit" | null;
 
 export default function ClientsPage() {
-  const clientsFromDb = useQuery(api.clients.list, { limit: 500 });
-  const invoicesFromDb = useQuery(api.invoiceActions.listInvoices, { limit: 500 });
+  const clientsFromDb = useAuthQuery(api.clients.list, { limit: 500 });
+  const invoicesFromDb = useAuthQuery(api.invoiceActions.listInvoices, { limit: 500 });
 
   const createClient = useMutation(api.clients.create);
   const updateClient = useMutation(api.clients.update);
@@ -125,7 +126,7 @@ export default function ClientsPage() {
   // Action menu
   const [openActionMenu, setOpenActionMenu] = useState<Id<"clients"> | null>(null);
 
-  const clientInvoicesWithItems = useQuery(
+  const clientInvoicesWithItems = useAuthQuery(
     api.invoiceActions.listInvoicesForClientWithItems,
     viewingClient ? { clientId: viewingClient.id, limit: 200 } : "skip"
   );

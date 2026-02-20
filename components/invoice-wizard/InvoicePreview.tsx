@@ -7,6 +7,7 @@ import type { WizardClient, SelectedServiceItem } from "@/data/wizard-sample";
 interface InvoicePreviewProps {
   client: WizardClient;
   selectedServices: Map<string, SelectedServiceItem>;
+  discountPercent?: number;
   notes: string;
   onNotesChange: (notes: string) => void;
 }
@@ -14,6 +15,7 @@ interface InvoicePreviewProps {
 export function InvoicePreview({
   client,
   selectedServices,
+  discountPercent = 0,
   notes,
   onNotesChange,
 }: InvoicePreviewProps) {
@@ -43,15 +45,18 @@ export function InvoicePreview({
   const getEffectiveRate = (item: SelectedServiceItem) =>
     item.customRate ?? item.service.baseRate;
 
-  const total = items.reduce(
+  const subtotal = items.reduce(
     (sum, item) => sum + getEffectiveRate(item) * item.quantity,
     0
   );
+  const normalizedDiscountPercent = Math.max(0, Math.min(100, discountPercent));
+  const discountAmount = subtotal * (normalizedDiscountPercent / 100);
+  const total = Math.max(0, subtotal - discountAmount);
 
   // Check if any items have custom pricing
   const hasCustomPricing = items.some(
     (item) => item.customRate !== undefined || item.service.isCustom
-  );
+  ) || discountAmount > 0;
 
   // Determine participating brands
   const brands = [...new Set(items.map((item) => item.service.brand))];
@@ -76,6 +81,11 @@ export function InvoicePreview({
           <div className="text-right">
             <p className="text-2xl font-semibold text-content">{formatCurrency(total)}</p>
             <p className="text-sm text-content-muted">{items.length} item(s)</p>
+            {discountAmount > 0 && (
+              <p className="text-xs text-brand-sankofa mt-1">
+                Includes {normalizedDiscountPercent.toFixed(2).replace(/\.00$/, "")}% discount
+              </p>
+            )}
           </div>
         </div>
 
@@ -153,9 +163,23 @@ export function InvoicePreview({
             );
           })}
         </div>
-        <div className="p-4 border-t border-border flex justify-between items-center bg-surface-tertiary">
-          <span className="font-medium text-content">Total</span>
-          <span className="text-xl font-semibold text-content">{formatCurrency(total)}</span>
+        <div className="p-4 border-t border-border bg-surface-tertiary space-y-1">
+          <div className="flex justify-between items-center text-sm text-content-secondary">
+            <span>Subtotal</span>
+            <span>{formatCurrency(subtotal)}</span>
+          </div>
+          {discountAmount > 0 && (
+            <div className="flex justify-between items-center text-sm text-brand-sankofa">
+              <span>
+                Discount ({normalizedDiscountPercent.toFixed(2).replace(/\.00$/, "")}%)
+              </span>
+              <span>-{formatCurrency(discountAmount)}</span>
+            </div>
+          )}
+          <div className="flex justify-between items-center">
+            <span className="font-medium text-content">Total</span>
+            <span className="text-xl font-semibold text-content">{formatCurrency(total)}</span>
+          </div>
         </div>
       </div>
 

@@ -15,6 +15,7 @@ type BrandType = "Sankofa" | "Lighthouse" | "Centex" | "GFAM Media Studios";
 interface InvoiceDocumentProps {
   client: WizardClient;
   selectedServices: Map<string, SelectedService>;
+  discountPercent?: number;
   notes: string;
   invoiceNumber?: string;
   status?: "draft" | "sent" | "paid" | "overdue";
@@ -33,6 +34,7 @@ interface InvoiceDocumentProps {
 export function InvoiceDocument({
   client,
   selectedServices,
+  discountPercent = 0,
   notes,
   invoiceNumber = "INV-" + Math.random().toString(36).substring(2, 8).toUpperCase(),
   status = "draft",
@@ -74,7 +76,8 @@ export function InvoiceDocument({
     return sum + rate * item.quantity;
   }, 0);
   const tax = 0;
-  const discount = 0;
+  const normalizedDiscountPercent = Math.max(0, Math.min(100, discountPercent));
+  const discount = subtotal * (normalizedDiscountPercent / 100);
   const total = subtotal + tax - discount;
 
   const brands = [...new Set(items.map((item) => item.service.brand))];
@@ -430,7 +433,9 @@ export function InvoiceDocument({
               </div>
               {discount > 0 && (
                 <div className="invoice-total-row">
-                  <span className="invoice-total-label">Discount</span>
+                  <span className="invoice-total-label">
+                    Discount ({normalizedDiscountPercent.toFixed(2).replace(/\.00$/, "")}%)
+                  </span>
                   <span className="invoice-total-value text-green-400">
                     -{formatCurrency(discount)}
                   </span>

@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useQuery } from "convex/react";
 import {
   Search,
   Plus,
@@ -25,6 +24,7 @@ import {
 import { ThemeSwitch } from "@/components/ThemeSwitch";
 import { BrandBadge, StatusBadge, type BrandType, type StatusType } from "@/components/BrandBadge";
 import { api } from "@/convex/_generated/api";
+import { useAuthQuery } from "@/hooks/useAuthQuery";
 
 type InvoiceLifecycleStatus = "draft" | "open" | "paid" | "void" | "uncollectible";
 type InvoiceDisplayStatus = "paid" | "pending" | "overdue" | "draft" | "void";
@@ -159,8 +159,8 @@ const getPresetDateRange = (range: Exclude<DateRangeKey, "custom">, now: Date) =
 
 export default function InvoicesPage() {
   const router = useRouter();
-  const invoicesFromDb = useQuery(api.invoiceActions.listInvoices, { limit: 500 });
-  const clientsFromDb = useQuery(api.clients.list, { limit: 500 });
+  const invoicesFromDb = useAuthQuery(api.invoiceActions.listInvoices, { limit: 500 });
+  const clientsFromDb = useAuthQuery(api.clients.list, { limit: 500 });
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState("");

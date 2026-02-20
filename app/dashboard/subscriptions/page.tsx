@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useAction, useQuery } from "convex/react";
+import { useAction } from "convex/react";
 import {
   Search,
   Plus,
@@ -20,6 +20,7 @@ import { ThemeSwitch } from "@/components/ThemeSwitch";
 import { BrandBadge, type BrandType } from "@/components/BrandBadge";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { useAuthQuery } from "@/hooks/useAuthQuery";
 
 type SubscriptionStatus =
   | "active"
@@ -196,10 +197,10 @@ function escapeCsvValue(value: string | number): string {
 }
 
 export default function SubscriptionsPage() {
-  const subscriptionsFromDb = useQuery(api.invoiceActions.listSubscriptions, {
+  const subscriptionsFromDb = useAuthQuery(api.invoiceActions.listSubscriptions, {
     limit: 500,
   });
-  const clientsFromDb = useQuery(api.clients.list, { limit: 500 });
+  const clientsFromDb = useAuthQuery(api.clients.list, { limit: 500 });
   const getSubscriptionCollectionModes = useAction(
     api.invoiceActions.getSubscriptionCollectionModes,
   );

@@ -464,8 +464,13 @@ function parseStripeInvoiceLineItems(params: {
         ? priceUnitAmount
         : Math.round((line.amount ?? 0) / quantity);
 
-    const serviceId = metadata.serviceId
-      ? (metadata.serviceId as Id<"services">)
+    const serviceIdValue =
+      metadata.serviceId ??
+      metadata.convexServiceId ??
+      priceMetadata?.serviceId ??
+      priceMetadata?.convexServiceId;
+    const serviceId = serviceIdValue
+      ? (serviceIdValue as Id<"services">)
       : undefined;
 
     lineItems.push({
@@ -586,6 +591,7 @@ async function resolveRecurringStripePriceForSubscriptionItem(
         interval_count: recurringIntervalCount,
       },
       metadata: buildStripeMetadata(item.brand as StripeBrand, item.category, {
+        serviceId: item.serviceId ?? "",
         convexServiceId: item.serviceId ?? "",
         billingType: "recurring",
       }),
@@ -636,6 +642,7 @@ async function ensureStripeServiceSync(
   const serviceContext = getStripeContext(service.brand as StripeBrand);
   const unitAmountCents = Math.max(1, Math.round(service.priceValue * 100));
   const metadata = buildStripeMetadata(service.brand as StripeBrand, service.category, {
+    serviceId: service._id,
     convexServiceId: service._id,
     tags: service.tags.join(","),
   });
@@ -2811,7 +2818,7 @@ export const updateSubscriptionPlan = action({
         };
       }
 
-      const latestStripeInvoiceId =
+      const latestStripeInvoiceIdFromSubscription =
         typeof updatedSubscription.latest_invoice === "string"
           ? updatedSubscription.latest_invoice
           : updatedSubscription.latest_invoice &&
@@ -2820,19 +2827,59 @@ export const updateSubscriptionPlan = action({
             ? updatedSubscription.latest_invoice.id
             : undefined;
 
+      const invoiceIdsToSync: string[] = [];
+      const seenInvoiceIds = new Set<string>();
+      const addInvoiceId = (value?: string) => {
+        if (!value || seenInvoiceIds.has(value)) {
+          return;
+        }
+        seenInvoiceIds.add(value);
+        invoiceIdsToSync.push(value);
+      };
+
+      try {
+        const recentSubscriptionInvoices = await stripe.invoices.list(
+          {
+            subscription: subscription.stripeSubscriptionId,
+            limit: 5,
+          },
+          context,
+        );
+
+        for (const invoice of recentSubscriptionInvoices.data) {
+          // Keep local records in sync for the most recent invoices that users
+          // actually see on the subscription detail page.
+          addInvoiceId(invoice.id);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown error";
+        console.warn(
+          `⚠️ Failed listing recent invoices for subscription ${subscription.stripeSubscriptionId}: ${message}`,
+        );
+      }
+
+      addInvoiceId(latestStripeInvoiceIdFromSubscription);
+
       let latestInvoiceId: Id<"invoices"> | undefined;
-      if (latestStripeInvoiceId) {
+      let latestStripeInvoiceId: string | undefined;
+
+      for (const stripeInvoiceId of invoiceIdsToSync) {
         const invoiceSync = await ctx.runAction(
           internal.invoiceActions.syncSubscriptionInvoiceFromStripe,
           {
-            stripeInvoiceId: latestStripeInvoiceId,
+            stripeInvoiceId,
             stripeSubscriptionId: updatedSubscription.id,
           },
         );
 
-        if (invoiceSync.success && invoiceSync.invoiceId) {
+        if (!latestInvoiceId && invoiceSync.success && invoiceSync.invoiceId) {
           latestInvoiceId = invoiceSync.invoiceId;
+          latestStripeInvoiceId = stripeInvoiceId;
         }
+      }
+
+      if (!latestStripeInvoiceId) {
+        latestStripeInvoiceId = latestStripeInvoiceIdFromSubscription;
       }
 
       return {
@@ -3053,6 +3100,8 @@ export const syncSubscriptionFromStripe = internalAction({
           return {
             serviceId: price?.metadata?.serviceId
               ? (price.metadata.serviceId as Id<"services">)
+              : price?.metadata?.convexServiceId
+                ? (price.metadata.convexServiceId as Id<"services">)
               : undefined,
             brand,
             category: price?.metadata?.category ?? "subscription",
@@ -4136,6 +4185,419 @@ export const sendDraftInvoice = action({
 });
 
 /**
+ * Mark an invoice as paid manually.
+ * For Stripe invoices, this records out-of-band payment in Stripe first.
+ */
+export const markInvoiceAsPaid = action({
+  args: {
+    invoiceId: v.id("invoices"),
+  },
+  handler: async (ctx, args): Promise<{
+    success: boolean;
+    status?: "paid";
+    error?: string;
+  }> => withOrg(ctx, async (orgId) => {
+    try {
+      const invoice = await ctx.runQuery(internal.invoiceActions.getInvoiceById, {
+        orgId,
+        invoiceId: args.invoiceId,
+      });
+
+      if (!invoice) {
+        return { success: false, error: "Invoice not found" };
+      }
+
+      if (invoice.status === "paid") {
+        return { success: true, status: "paid" };
+      }
+
+      if (invoice.status === "void") {
+        return { success: false, error: "Void invoices can’t be marked as paid." };
+      }
+
+      const lineItems = await ctx.runQuery(
+        internal.invoiceActions.getInvoiceLineItemsByInvoiceId,
+        {
+          orgId,
+          invoiceId: args.invoiceId,
+        },
+      );
+
+      if (lineItems.length === 0) {
+        return { success: false, error: "Invoice has no line items" };
+      }
+
+      let stripePaymentIntentId = `manual:${args.invoiceId}:${Date.now()}`;
+
+      if (invoice.stripeInvoiceId) {
+        const stripe = getStripeClient();
+        const context = getStripeContext(invoice.primaryBrand as StripeBrand);
+
+        let stripeInvoice = await stripe.invoices.retrieve(
+          invoice.stripeInvoiceId,
+          {
+            expand: ["payment_intent"],
+          },
+          context,
+        );
+
+        if (stripeInvoice.status === "void") {
+          return { success: false, error: "Void invoices can’t be marked as paid." };
+        }
+
+        if (stripeInvoice.status === "draft") {
+          stripeInvoice = await stripe.invoices.finalizeInvoice(
+            invoice.stripeInvoiceId,
+            {
+              expand: ["payment_intent"],
+            },
+            context,
+          );
+        }
+
+        if (stripeInvoice.status !== "paid") {
+          stripeInvoice = await stripe.invoices.pay(
+            invoice.stripeInvoiceId,
+            {
+              paid_out_of_band: true,
+              expand: ["payment_intent"],
+            },
+            context,
+          );
+        }
+
+        const paymentIntent = stripeInvoice.payment_intent;
+        const resolvedPaymentIntentId =
+          typeof paymentIntent === "string"
+            ? paymentIntent
+            : paymentIntent &&
+                typeof paymentIntent === "object" &&
+                "id" in paymentIntent
+              ? paymentIntent.id
+              : undefined;
+
+        if (resolvedPaymentIntentId) {
+          stripePaymentIntentId = resolvedPaymentIntentId;
+        }
+      }
+
+      await ctx.runMutation(internal.invoiceActions.updateInvoiceStatus, {
+        orgId,
+        invoiceId: args.invoiceId,
+        status: "paid",
+        paidAt: Date.now(),
+      });
+
+      await ctx.runMutation(internal.webhooks.processPaidInvoiceLedgerAttribution, {
+        invoiceId: args.invoiceId,
+        settlementSource: "manual",
+        settlementId: invoice.stripeInvoiceId ?? args.invoiceId,
+        stripePaymentIntentId,
+      });
+
+      return {
+        success: true,
+        status: "paid",
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error("❌ Failed to mark invoice as paid:", errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  }),
+});
+
+/**
+ * Delete a draft one-time invoice.
+ */
+export const deleteInvoice = action({
+  args: {
+    invoiceId: v.id("invoices"),
+  },
+  handler: async (ctx, args): Promise<{
+    success: boolean;
+    error?: string;
+  }> => withOrg(ctx, async (orgId) => {
+    try {
+      const invoice = await ctx.runQuery(internal.invoiceActions.getInvoiceById, {
+        orgId,
+        invoiceId: args.invoiceId,
+      });
+
+      if (!invoice) {
+        return { success: false, error: "Invoice not found" };
+      }
+
+      if (invoice.status !== "draft") {
+        return {
+          success: false,
+          error: "Only draft invoices can be deleted. Sent invoices should be voided instead.",
+        };
+      }
+
+      if (
+        invoice.sourceType === "subscription" ||
+        !!invoice.subscriptionId ||
+        !!invoice.stripeSubscriptionId
+      ) {
+        return {
+          success: false,
+          error: "Subscription invoices can’t be deleted from here.",
+        };
+      }
+
+      if (invoice.stripeInvoiceId) {
+        const stripe = getStripeClient();
+        const context = getStripeContext(invoice.primaryBrand as StripeBrand);
+
+        const stripeInvoice = await stripe.invoices.retrieve(
+          invoice.stripeInvoiceId,
+          {},
+          context,
+        );
+
+        if (stripeInvoice.status && stripeInvoice.status !== "draft") {
+          return {
+            success: false,
+            error: "Only draft Stripe invoices can be deleted.",
+          };
+        }
+
+        await stripe.invoices.del(invoice.stripeInvoiceId, context);
+      }
+
+      await ctx.runMutation(internal.invoiceActions.deleteInvoiceCascade, {
+        orgId,
+        invoiceId: args.invoiceId,
+      });
+
+      return { success: true };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error("❌ Failed to delete invoice:", errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  }),
+});
+
+/**
+ * Cancel the current subscription billing cycle by deleting a draft subscription invoice in Stripe
+ * and marking the local invoice record as void for audit history.
+ */
+export const cancelSubscriptionInvoiceCycle = action({
+  args: {
+    invoiceId: v.id("invoices"),
+  },
+  handler: async (ctx, args): Promise<{
+    success: boolean;
+    status?: "void";
+    error?: string;
+  }> => withOrg(ctx, async (orgId) => {
+    try {
+      const invoice = await ctx.runQuery(internal.invoiceActions.getInvoiceById, {
+        orgId,
+        invoiceId: args.invoiceId,
+      });
+
+      if (!invoice) {
+        return { success: false, error: "Invoice not found" };
+      }
+
+      const isSubscriptionInvoice =
+        invoice.sourceType === "subscription" ||
+        !!invoice.subscriptionId ||
+        !!invoice.stripeSubscriptionId ||
+        invoice.invoiceNumber.startsWith("INV-SUB-");
+
+      if (!isSubscriptionInvoice) {
+        return {
+          success: false,
+          error: "Only subscription invoices support cycle cancellation.",
+        };
+      }
+
+      if (invoice.status === "paid") {
+        return { success: false, error: "Paid invoices can’t be cancelled." };
+      }
+
+      if (invoice.status === "void") {
+        return { success: true, status: "void" };
+      }
+
+      if (invoice.status !== "draft") {
+        return {
+          success: false,
+          error: "Only draft subscription invoices can be cancelled.",
+        };
+      }
+
+      if (!invoice.stripeInvoiceId) {
+        return {
+          success: false,
+          error: "Draft subscription invoice is missing Stripe invoice ID.",
+        };
+      }
+
+      const stripe = getStripeClient();
+      const context = getStripeContext(invoice.primaryBrand as StripeBrand);
+      const stripeInvoice = await stripe.invoices.retrieve(
+        invoice.stripeInvoiceId,
+        {},
+        context,
+      );
+      const mappedStripeStatus = mapStripeInvoiceStatus(stripeInvoice.status);
+      const paidAt =
+        mappedStripeStatus === "paid"
+          ? toMillis(stripeInvoice.status_transitions?.paid_at) ?? Date.now()
+          : undefined;
+
+      if (mappedStripeStatus !== invoice.status) {
+        await ctx.runMutation(internal.invoiceActions.updateInvoiceStatus, {
+          orgId,
+          invoiceId: args.invoiceId,
+          status: mappedStripeStatus,
+          paidAt,
+        });
+      }
+
+      if (stripeInvoice.status === "paid") {
+        return {
+          success: false,
+          error:
+            "Stripe shows this invoice as paid, so it can’t be cancelled. Local status has been synced.",
+        };
+      }
+
+      if (stripeInvoice.status === "void") {
+        await ctx.runMutation(internal.invoiceActions.updateInvoiceStatus, {
+          orgId,
+          invoiceId: args.invoiceId,
+          status: "void",
+        });
+        return { success: true, status: "void" };
+      }
+
+      if (stripeInvoice.status !== "draft") {
+        return {
+          success: false,
+          error: "Only draft Stripe invoices can be cancelled for this cycle. Use Void Invoice instead.",
+        };
+      }
+
+      await stripe.invoices.del(invoice.stripeInvoiceId, context);
+
+      await ctx.runMutation(internal.invoiceActions.updateInvoiceStatus, {
+        orgId,
+        invoiceId: args.invoiceId,
+        status: "void",
+      });
+
+      return { success: true, status: "void" };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error("❌ Failed to cancel subscription invoice cycle:", errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  }),
+});
+
+/**
+ * Void an open/uncollectible invoice.
+ * For Checkout Session invoices, this expires the session before voiding locally.
+ */
+export const voidInvoice = action({
+  args: {
+    invoiceId: v.id("invoices"),
+  },
+  handler: async (ctx, args): Promise<{
+    success: boolean;
+    status?: "void";
+    error?: string;
+  }> => withOrg(ctx, async (orgId) => {
+    try {
+      const invoice = await ctx.runQuery(internal.invoiceActions.getInvoiceById, {
+        orgId,
+        invoiceId: args.invoiceId,
+      });
+
+      if (!invoice) {
+        return { success: false, error: "Invoice not found" };
+      }
+
+      if (invoice.status === "paid") {
+        return { success: false, error: "Paid invoices can’t be voided." };
+      }
+
+      if (invoice.status === "void") {
+        return { success: true, status: "void" };
+      }
+
+      if (invoice.status !== "open" && invoice.status !== "uncollectible") {
+        return {
+          success: false,
+          error: "Only open or uncollectible invoices can be voided.",
+        };
+      }
+
+      const stripe = getStripeClient();
+
+      if (invoice.stripeInvoiceId) {
+        const context = getStripeContext(invoice.primaryBrand as StripeBrand);
+        const stripeInvoice = await stripe.invoices.retrieve(
+          invoice.stripeInvoiceId,
+          {},
+          context,
+        );
+
+        if (stripeInvoice.status === "paid") {
+          return { success: false, error: "Paid invoices can’t be voided." };
+        }
+
+        if (stripeInvoice.status !== "void") {
+          await stripe.invoices.voidInvoice(invoice.stripeInvoiceId, context);
+        }
+      } else if (invoice.stripeCheckoutSessionId) {
+        const context = getStripeContext(PARENT_ORGANIZATION as StripeBrand);
+
+        try {
+          const checkoutSession = await stripe.checkout.sessions.retrieve(
+            invoice.stripeCheckoutSessionId,
+            {},
+            context,
+          );
+
+          if (checkoutSession.status === "open") {
+            await stripe.checkout.sessions.expire(
+              invoice.stripeCheckoutSessionId,
+              {},
+              context,
+            );
+          }
+        } catch (checkoutError) {
+          const message =
+            checkoutError instanceof Error ? checkoutError.message : "Unknown error";
+          console.warn(
+            `⚠️ Unable to expire checkout session ${invoice.stripeCheckoutSessionId}: ${message}`,
+          );
+        }
+      }
+
+      await ctx.runMutation(internal.invoiceActions.updateInvoiceStatus, {
+        orgId,
+        invoiceId: args.invoiceId,
+        status: "void",
+      });
+
+      return { success: true, status: "void" };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error("❌ Failed to void invoice:", errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  }),
+});
+
+/**
  * Create a direct PaymentIntent for an existing invoice.
  * Ledger-only phase: collect funds to platform and attribute earnings internally later.
  */
@@ -4310,10 +4772,61 @@ export const updateInvoiceStatus = internalMutation({
       v.literal("void"),
       v.literal("uncollectible")
     ),
+    paidAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     ensureOrgAccess(await ctx.db.get(args.invoiceId), args.orgId, "Invoice not found");
-    await ctx.db.patch(args.invoiceId, { status: args.status });
+    const updates: {
+      status: "draft" | "open" | "paid" | "void" | "uncollectible";
+      paidAt?: number;
+    } = { status: args.status };
+
+    if (typeof args.paidAt === "number") {
+      updates.paidAt = args.paidAt;
+    }
+
+    await ctx.db.patch(args.invoiceId, updates);
+  },
+});
+
+/**
+ * Internal mutation to delete an invoice and all its line items.
+ */
+export const deleteInvoiceCascade = internalMutation({
+  args: {
+    orgId: v.string(),
+    invoiceId: v.id("invoices"),
+  },
+  handler: async (ctx, args) => {
+    const invoice = ensureOrgAccess(
+      await ctx.db.get(args.invoiceId),
+      args.orgId,
+      "Invoice not found",
+    );
+
+    const ledgerEntries = await ctx.db
+      .query("brandLedger")
+      .withIndex("by_org_invoice", (q) =>
+        q.eq("orgId", args.orgId).eq("invoiceId", args.invoiceId),
+      )
+      .collect();
+
+    if (ledgerEntries.length > 0) {
+      throw new Error("Invoice has settled ledger entries and can't be deleted.");
+    }
+
+    const lineItems = await ctx.db
+      .query("invoiceLineItems")
+      .withIndex("by_org_invoice", (q) =>
+        q.eq("orgId", args.orgId).eq("invoiceId", args.invoiceId),
+      )
+      .collect();
+
+    for (const lineItem of lineItems) {
+      await ctx.db.delete(lineItem._id);
+    }
+
+    await ctx.db.delete(invoice._id);
   },
 });
 

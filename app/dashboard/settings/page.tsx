@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { useQuery, useAction } from "convex/react";
+import { useAction } from "convex/react";
 import { useUser, useOrganization, useClerk } from "@clerk/nextjs";
 import {
   Sun,
@@ -29,6 +29,7 @@ import { ThemeSwitch } from "@/components/ThemeSwitch";
 import { useTheme } from "@/components/ThemeProvider";
 import { BrandBadge, type BrandType } from "@/components/BrandBadge";
 import { api } from "@/convex/_generated/api";
+import { useAuthQuery } from "@/hooks/useAuthQuery";
 import {
   BRAND_THEMES,
   AGENCY_THEME,
@@ -58,9 +59,9 @@ export default function SettingsPage() {
   const { signOut, openUserProfile, openOrganizationProfile } = useClerk();
 
   // Data queries
-  const syncStatus = useQuery(api.stripeSync.checkSyncStatus);
-  const clientsData = useQuery(api.clients.list, { limit: 500 });
-  const invoicesData = useQuery(api.invoiceActions.listInvoices, { limit: 500 });
+  const syncStatus = useAuthQuery(api.stripeSync.checkSyncStatus, {});
+  const clientsData = useAuthQuery(api.clients.list, { limit: 500 });
+  const invoicesData = useAuthQuery(api.invoiceActions.listInvoices, { limit: 500 });
 
   // Stripe actions
   const checkStripeAccount = useAction(api.stripeSync.checkStripeAccount);

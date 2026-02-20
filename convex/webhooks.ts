@@ -115,6 +115,7 @@ export const getInvoiceByStripeId = internalQuery({
  * - invoice.paid
  * - checkout.session.completed
  * - checkout.session.async_payment_succeeded
+ * - manual (admin-only fallback)
  */
 export const processPaidInvoiceLedgerAttribution = internalMutation({
   args: {
@@ -123,7 +124,8 @@ export const processPaidInvoiceLedgerAttribution = internalMutation({
       v.literal("payment_intent.succeeded"),
       v.literal("invoice.paid"),
       v.literal("checkout.session.completed"),
-      v.literal("checkout.session.async_payment_succeeded")
+      v.literal("checkout.session.async_payment_succeeded"),
+      v.literal("manual")
     ),
     settlementId: v.string(),
     stripePaymentIntentId: v.string(),

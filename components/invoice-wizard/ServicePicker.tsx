@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, Plus, X, DollarSign, Tag, FileText } from "lucide-react";
 import { ServiceCard } from "./ServiceCard";
 import type { WizardService, SelectedServiceItem } from "@/data/wizard-sample";
@@ -18,6 +18,76 @@ interface ServicePickerProps {
   allowCustomRateOverrides?: boolean;
 }
 
+type ServiceGroupKey = "regular" | "addOns" | "packages";
+
+const serviceGroupSections: Array<{
+  key: ServiceGroupKey;
+  label: string;
+  description: string;
+}> = [
+  {
+    key: "regular",
+    label: "Regular Products",
+    description: "Core standalone services",
+  },
+  {
+    key: "addOns",
+    label: "Add-Ons",
+    description: "Optional enhancements",
+  },
+  {
+    key: "packages",
+    label: "Packages",
+    description: "Bundled or tiered offers",
+  },
+];
+
+const addOnKeywords = ["add-on", "add on", "addon", "addons"];
+const packageKeywords = ["package", "bundle", "package deal"];
+const packageTagKeywords = ["starter", "professional", "enterprise"];
+
+const normalize = (value: string | undefined): string =>
+  value?.trim().toLowerCase() ?? "";
+
+const containsKeyword = (value: string, keywords: string[]): boolean =>
+  keywords.some((keyword) => value.includes(keyword));
+
+const getServiceGroup = (service: WizardService): ServiceGroupKey => {
+  const normalizedTags = (service.tags ?? []).map((tag) => normalize(tag));
+  const searchableFields = [
+    service.name,
+    service.description,
+    service.category,
+    service.id,
+  ].map((field) => normalize(field));
+
+  const hasAddOnTag = normalizedTags.some((tag) =>
+    containsKeyword(tag, addOnKeywords)
+  );
+  const hasAddOnText = searchableFields.some((field) =>
+    containsKeyword(field, addOnKeywords)
+  );
+
+  if (hasAddOnTag || hasAddOnText) {
+    return "addOns";
+  }
+
+  const hasPackageTag = normalizedTags.some(
+    (tag) =>
+      containsKeyword(tag, packageKeywords) ||
+      containsKeyword(tag, packageTagKeywords)
+  );
+  const hasPackageText = searchableFields.some((field) =>
+    containsKeyword(field, packageKeywords)
+  );
+
+  if (normalize(service.category) === "bundle" || hasPackageTag || hasPackageText) {
+    return "packages";
+  }
+
+  return "regular";
+};
+
 export function ServicePicker({
   services,
   selectedServices,
@@ -31,6 +101,7 @@ export function ServicePicker({
   const [activeBrand, setActiveBrand] = useState<BrandType>("Sankofa");
   const [search, setSearch] = useState("");
   const [showCustomForm, setShowCustomForm] = useState(false);
+  const hasInitializedBrandFromSelection = useRef(false);
 
   // Custom service form state
   const [customName, setCustomName] = useState("");
@@ -51,6 +122,27 @@ export function ServicePicker({
     }
   }, [activeBrand, availableBrandTabs]);
 
+  useEffect(() => {
+    if (hasInitializedBrandFromSelection.current) {
+      return;
+    }
+
+    if (selectedServices.size === 0 || availableBrandTabs.length === 0) {
+      return;
+    }
+
+    const firstSelected = Array.from(selectedServices.values())[0];
+    const selectedBrand = firstSelected?.service.brand;
+    if (!selectedBrand) {
+      return;
+    }
+
+    if (availableBrandTabs.some((tab) => tab.id === selectedBrand)) {
+      setActiveBrand(selectedBrand);
+      hasInitializedBrandFromSelection.current = true;
+    }
+  }, [availableBrandTabs, selectedServices]);
+
   // Count selected services per brand
   const getSelectedCount = (brand: BrandType) => {
     return Array.from(selectedServices.values()).filter(
@@ -59,13 +151,32 @@ export function ServicePicker({
   };
 
   // Filter services by active brand and search
-  const filteredServices = services.filter((service) => {
-    if (service.brand !== activeBrand) return false;
-    return (
-      service.name.toLowerCase().includes(search.toLowerCase()) ||
-      service.description.toLowerCase().includes(search.toLowerCase())
-    );
-  });
+  const filteredServices = useMemo(() => {
+    const query = search.toLowerCase().trim();
+
+    return services.filter((service) => {
+      if (service.brand !== activeBrand) return false;
+      if (!query) return true;
+      return (
+        service.name.toLowerCase().includes(query) ||
+        service.description.toLowerCase().includes(query)
+      );
+    });
+  }, [activeBrand, search, services]);
+
+  const groupedServices = useMemo(() => {
+    const grouped: Record<ServiceGroupKey, WizardService[]> = {
+      regular: [],
+      addOns: [],
+      packages: [],
+    };
+
+    for (const service of filteredServices) {
+      grouped[getServiceGroup(service)].push(service);
+    }
+
+    return grouped;
+  }, [filteredServices]);
 
   // Handle adding custom service
   const handleAddCustomService = () => {
@@ -271,29 +382,59 @@ export function ServicePicker({
       </div>
 
       {/* Services list */}
-      <div className="space-y-3">
+      <div className="space-y-6">
         {filteredServices.length === 0 ? (
           <div className="text-center py-8 text-content-muted">
             <p>No services found</p>
           </div>
         ) : (
-          filteredServices.map((service) => {
-            const selected = selectedServices.get(service.id);
+          serviceGroupSections.map((groupSection) => {
+            const items = groupedServices[groupSection.key];
+
+            if (items.length === 0) {
+              return null;
+            }
+
             return (
-              <ServiceCard
-                key={service.id}
-                service={service}
-                selected={!!selected}
-                quantity={selected?.quantity || 1}
-                customRate={selected?.customRate}
-                onToggle={() => onToggleService(service)}
-                onQuantityChange={(qty) => onQuantityChange(service.id, qty)}
-                onCustomRateChange={
-                  onCustomRateChange && allowCustomRateOverrides
-                    ? (rate) => onCustomRateChange(service.id, rate)
-                    : undefined
-                }
-              />
+              <section key={groupSection.key} className="space-y-3">
+                <div className="flex items-center justify-between border-b border-border pb-2">
+                  <div className="min-w-0">
+                    <h4 className="text-sm font-semibold text-content">
+                      {groupSection.label}
+                    </h4>
+                    <p className="text-meta text-content-muted">
+                      {groupSection.description}
+                    </p>
+                  </div>
+                  <span className="text-meta text-content-muted whitespace-nowrap">
+                    {items.length} {items.length === 1 ? "item" : "items"}
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  {items.map((service) => {
+                    const selected = selectedServices.get(service.id);
+                    return (
+                      <ServiceCard
+                        key={service.id}
+                        service={service}
+                        selected={!!selected}
+                        quantity={selected?.quantity || 1}
+                        customRate={selected?.customRate}
+                        onToggle={() => onToggleService(service)}
+                        onQuantityChange={(qty) =>
+                          onQuantityChange(service.id, qty)
+                        }
+                        onCustomRateChange={
+                          onCustomRateChange && allowCustomRateOverrides
+                            ? (rate) => onCustomRateChange(service.id, rate)
+                            : undefined
+                        }
+                      />
+                    );
+                  })}
+                </div>
+              </section>
             );
           })
         )}

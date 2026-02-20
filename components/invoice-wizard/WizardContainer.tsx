@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAction, useQuery } from "convex/react";
+import { useAction } from "convex/react";
 import { ArrowLeft, ArrowRight, Send, Save, AlertCircle, Loader2 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -20,13 +20,32 @@ import { dollarsToCents } from "@/types/invoice";
 type Step = 1 | 2 | 3;
 type InvoiceStatus = "draft" | "sent" | "paid" | "overdue";
 type BillingMode = "one_time" | "subscription";
+type DraftSaveMode = "ledger" | "stripe";
+
+const getInitials = (name: string) =>
+  name
+    .split(" ")
+    .map((part) => part[0] ?? "")
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
 
 interface WizardContainerProps {
   initialBillingMode?: BillingMode;
+  editingInvoiceId?: string;
+  allowSubscriptionDraftAdjustment?: boolean;
 }
 
-export function WizardContainer({ initialBillingMode = "one_time" }: WizardContainerProps) {
+export function WizardContainer({
+  initialBillingMode = "one_time",
+  editingInvoiceId,
+  allowSubscriptionDraftAdjustment = false,
+}: WizardContainerProps) {
   const router = useRouter();
+  const normalizedEditingInvoiceId =
+    typeof editingInvoiceId === "string" && editingInvoiceId.length > 10
+      ? (editingInvoiceId as Id<"invoices">)
+      : undefined;
   const [currentStep, setCurrentStep] = useState<Step>(1);
   const [billingMode, setBillingMode] = useState<BillingMode>(initialBillingMode);
   const [selectedClient, setSelectedClient] = useState<WizardClient | null>(null);
@@ -34,6 +53,7 @@ export function WizardContainer({ initialBillingMode = "one_time" }: WizardConta
     new Map()
   );
   const [notes, setNotes] = useState("");
+  const [discountPercent, setDiscountPercent] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showInvoiceDocument, setShowInvoiceDocument] = useState(false);
   const [invoiceStatus, setInvoiceStatus] = useState<InvoiceStatus>("draft");
@@ -42,15 +62,25 @@ export function WizardContainer({ initialBillingMode = "one_time" }: WizardConta
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const [emailStatusMessage, setEmailStatusMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [draftSaveMode, setDraftSaveMode] = useState<DraftSaveMode>("ledger");
+  const [hasHydratedEditInvoice, setHasHydratedEditInvoice] = useState(false);
 
   // Convex queries
-  const convexClients = useQuery(api.clients.list, { limit: 100 });
+  const convexClients = useAuthQuery(api.clients.list, { limit: 100 });
   const convexServices = useAuthQuery(api.services.list, { limit: 5000 });
+  const editingInvoice = useAuthQuery(
+    api.invoiceActions.getInvoiceWithLineItems,
+    normalizedEditingInvoiceId
+      ? { invoiceId: normalizedEditingInvoiceId }
+      : "skip",
+  );
 
   // Convex action for creating invoices
   const createLedgerDraftInvoice = useAction(api.invoiceActions.createLedgerDraftInvoice);
   const updateLedgerDraftInvoice = useAction(api.invoiceActions.updateLedgerDraftInvoice);
   const reviseLedgerInvoice = useAction(api.invoiceActions.reviseLedgerInvoice);
+  const updateDraftInvoice = useAction(api.invoiceActions.updateDraftInvoice);
+  const reviseInvoice = useAction(api.invoiceActions.reviseInvoice);
   const createCheckoutSessionForInvoice = useAction(
     api.invoiceActions.createCheckoutSessionForInvoice
   );
@@ -83,11 +113,20 @@ export function WizardContainer({ initialBillingMode = "one_time" }: WizardConta
       description: service.description,
       baseRate: service.priceValue,
       category: service.category,
+      tags: service.tags,
       billingType: service.billingType ?? "one_time",
     }));
   }, [convexServices]);
 
   const selectedItems = useMemo(() => Array.from(selectedServices.values()), [selectedServices]);
+  const isEditingSubscriptionLinkedInvoice =
+    !!editingInvoice &&
+    (
+      editingInvoice.sourceType === "subscription" ||
+      !!editingInvoice.subscriptionId ||
+      !!editingInvoice.stripeSubscriptionId ||
+      editingInvoice.invoiceNumber.startsWith("INV-SUB-")
+    );
   const selectedBrands = useMemo(
     () => [...new Set(selectedItems.map((item) => item.service.brand))],
     [selectedItems]
@@ -151,7 +190,196 @@ export function WizardContainer({ initialBillingMode = "one_time" }: WizardConta
 
       return changed ? next : prev;
     });
+
+    setDiscountPercent(0);
   }, [billingMode]);
+
+  useEffect(() => {
+    if (!normalizedEditingInvoiceId || hasHydratedEditInvoice) {
+      return;
+    }
+
+    if (
+      editingInvoice === undefined ||
+      convexClients === undefined ||
+      convexServices === undefined
+    ) {
+      return;
+    }
+
+    if (!editingInvoice) {
+      setError("Invoice not found.");
+      setHasHydratedEditInvoice(true);
+      return;
+    }
+
+    const isSubscriptionLinkedInvoice =
+      editingInvoice.sourceType === "subscription" ||
+      !!editingInvoice.subscriptionId ||
+      !!editingInvoice.stripeSubscriptionId ||
+      editingInvoice.invoiceNumber.startsWith("INV-SUB-");
+
+    const canAdjustSubscriptionDraftHere =
+      isSubscriptionLinkedInvoice &&
+      allowSubscriptionDraftAdjustment &&
+      editingInvoice.status === "draft" &&
+      !!editingInvoice.stripeInvoiceId;
+
+    if (isSubscriptionLinkedInvoice && !canAdjustSubscriptionDraftHere) {
+      if (editingInvoice.subscriptionId) {
+        void router.replace(`/dashboard/subscriptions/${editingInvoice.subscriptionId}`);
+      } else {
+        setError("Subscription invoices can’t be edited here. Update the subscription instead.");
+      }
+      setHasHydratedEditInvoice(true);
+      return;
+    }
+
+    const matchingClient = convexClients.find(
+      (client) => client._id === editingInvoice.clientId,
+    );
+    const fallbackClientName = editingInvoice.client?.name ?? "Unknown Client";
+    const hydratedClient: WizardClient = matchingClient
+      ? {
+          id: matchingClient._id,
+          name: matchingClient.name,
+          company: matchingClient.company,
+          email: matchingClient.email,
+          initials: getInitials(matchingClient.name),
+        }
+      : {
+          id: editingInvoice.clientId,
+          name: fallbackClientName,
+          company: editingInvoice.client?.company ?? "",
+          email: editingInvoice.client?.email ?? "",
+          initials: getInitials(fallbackClientName),
+        };
+
+    const servicesById = new Map(
+      convexServices.map((service) => [service._id, service] as const),
+    );
+    const servicesByStripePriceId = new Map<string, (typeof convexServices)[number]>();
+    for (const service of convexServices) {
+      if (service.stripePriceId) {
+        servicesByStripePriceId.set(service.stripePriceId, service);
+      }
+      if (service.stripeRecurringPriceId) {
+        servicesByStripePriceId.set(service.stripeRecurringPriceId, service);
+      }
+    }
+    const hydratedServices = new Map<string, SelectedServiceItem>();
+    let subtotalBeforeDiscountCents = 0;
+    let discountCentsTotal = 0;
+
+    for (const item of editingInvoice.lineItems) {
+      const quantity = Math.max(1, item.quantity);
+      const effectivePriceCents = item.customPriceCents ?? item.unitPriceCents;
+      const lineAmountCents = effectivePriceCents * quantity;
+      const isDiscountLine =
+        !item.serviceId &&
+        item.category === "discount" &&
+        lineAmountCents < 0;
+
+      if (isDiscountLine) {
+        discountCentsTotal += Math.abs(lineAmountCents);
+        continue;
+      }
+
+      const catalogService = item.serviceId
+        ? servicesById.get(item.serviceId)
+        : item.stripePriceId
+          ? servicesByStripePriceId.get(item.stripePriceId)
+          : undefined;
+      const fallbackBaseRate = (item.unitPriceCents ?? 0) / 100;
+      const requestedCustomRate =
+        typeof item.customPriceCents === "number"
+          ? item.customPriceCents / 100
+          : undefined;
+
+      const service: WizardService = catalogService
+        ? {
+            id: catalogService._id,
+            brand: catalogService.brand,
+            name: catalogService.name,
+            description: catalogService.description,
+            baseRate: catalogService.priceValue,
+            category: catalogService.category,
+            tags: catalogService.tags,
+            billingType: catalogService.billingType ?? "one_time",
+          }
+        : {
+            id: `custom-${item._id}`,
+            brand: item.brand as BrandType,
+            name: item.name,
+            description: item.description ?? "",
+            baseRate: fallbackBaseRate,
+            category: item.category,
+            isCustom: true,
+          };
+
+      const serviceKey = catalogService ? catalogService._id : service.id;
+      const customRate =
+        requestedCustomRate !== undefined && requestedCustomRate !== service.baseRate
+          ? requestedCustomRate
+          : undefined;
+
+      if (lineAmountCents > 0) {
+        subtotalBeforeDiscountCents += lineAmountCents;
+      }
+
+      const existing = hydratedServices.get(serviceKey);
+      if (existing) {
+        hydratedServices.set(serviceKey, {
+          ...existing,
+          quantity: existing.quantity + quantity,
+          customRate: existing.customRate ?? customRate,
+        });
+      } else {
+        hydratedServices.set(serviceKey, {
+          service,
+          quantity,
+          customRate,
+        });
+      }
+    }
+
+    setBillingMode("one_time");
+    setCurrentStep(allowSubscriptionDraftAdjustment ? 2 : 3);
+    setSelectedClient(hydratedClient);
+    setSelectedServices(hydratedServices);
+    const inferredDiscountPercent =
+      subtotalBeforeDiscountCents > 0 && discountCentsTotal > 0
+        ? Math.min(
+            100,
+            Number(((discountCentsTotal / subtotalBeforeDiscountCents) * 100).toFixed(2)),
+          )
+        : 0;
+    setDiscountPercent(inferredDiscountPercent);
+    setNotes(editingInvoice.notes ?? "");
+    setDraftInvoiceId(editingInvoice._id);
+    setInvoiceNumber(editingInvoice.invoiceNumber ?? "");
+    setInvoiceStatus(
+      editingInvoice.status === "draft"
+        ? "draft"
+        : editingInvoice.status === "paid"
+          ? "paid"
+          : "sent",
+    );
+    setDraftSaveMode(editingInvoice.stripeInvoiceId ? "stripe" : "ledger");
+    setShowInvoiceDocument(false);
+    setCheckoutUrl(null);
+    setEmailStatusMessage(null);
+    setError(null);
+    setHasHydratedEditInvoice(true);
+  }, [
+    convexClients,
+    convexServices,
+    editingInvoice,
+    hasHydratedEditInvoice,
+    allowSubscriptionDraftAdjustment,
+    normalizedEditingInvoiceId,
+    router,
+  ]);
 
   const handleToggleService = (service: WizardService) => {
     setSelectedServices((prev) => {
@@ -234,8 +462,7 @@ export function WizardContainer({ initialBillingMode = "one_time" }: WizardConta
   // Convert selected services to InvoiceLineItem format for Convex
   const buildLineItems = (options?: { allowCustomPricing?: boolean }): InvoiceLineItem[] => {
     const allowCustomPricing = options?.allowCustomPricing ?? true;
-
-    return Array.from(selectedServices.values()).map((item) => {
+    const serviceLineItems = Array.from(selectedServices.values()).map((item) => {
       const { service, quantity, customRate } = item;
       const isAdHocService = !isValidConvexId(service.id);
       const isCustomItem = service.isCustom ?? isAdHocService;
@@ -257,6 +484,80 @@ export function WizardContainer({ initialBillingMode = "one_time" }: WizardConta
         isCustomItem,
       };
     });
+
+    if (billingMode !== "one_time") {
+      return serviceLineItems;
+    }
+
+    const normalizedDiscountPercent = Math.max(
+      0,
+      Math.min(100, Number.isFinite(discountPercent) ? discountPercent : 0),
+    );
+
+    if (normalizedDiscountPercent <= 0) {
+      return serviceLineItems;
+    }
+
+    const subtotalByBrand = new Map<BrandType, number>();
+    let subtotalCents = 0;
+    for (const item of serviceLineItems) {
+      const lineTotalCents = (item.customPriceCents ?? item.unitPriceCents) * item.quantity;
+      if (lineTotalCents <= 0) {
+        continue;
+      }
+
+      subtotalCents += lineTotalCents;
+      subtotalByBrand.set(
+        item.brand,
+        (subtotalByBrand.get(item.brand) ?? 0) + lineTotalCents,
+      );
+    }
+
+    if (subtotalCents <= 0) {
+      return serviceLineItems;
+    }
+
+    const totalDiscountCents = Math.round(
+      (subtotalCents * normalizedDiscountPercent) / 100,
+    );
+
+    if (totalDiscountCents <= 0) {
+      return serviceLineItems;
+    }
+
+    const discountLabel = normalizedDiscountPercent
+      .toFixed(2)
+      .replace(/\.00$/, "");
+
+    const brandEntries = Array.from(subtotalByBrand.entries());
+    let allocatedDiscountCents = 0;
+    const discountLineItems: InvoiceLineItem[] = [];
+
+    for (let index = 0; index < brandEntries.length; index += 1) {
+      const [brand, brandSubtotalCents] = brandEntries[index];
+      const isLast = index === brandEntries.length - 1;
+      const brandDiscountCents = isLast
+        ? totalDiscountCents - allocatedDiscountCents
+        : Math.round((brandSubtotalCents / subtotalCents) * totalDiscountCents);
+
+      allocatedDiscountCents += brandDiscountCents;
+      if (brandDiscountCents <= 0) {
+        continue;
+      }
+
+      discountLineItems.push({
+        brand,
+        category: "discount",
+        name: `Discount (${discountLabel}%)`,
+        description: "One-time percentage discount",
+        quantity: 1,
+        unitPriceCents: -brandDiscountCents,
+        customPriceCents: -brandDiscountCents,
+        isCustomItem: true,
+      });
+    }
+
+    return [...serviceLineItems, ...discountLineItems];
   };
 
   const handleCreateDraft = async () => {
@@ -269,11 +570,18 @@ export function WizardContainer({ initialBillingMode = "one_time" }: WizardConta
     try {
       const lineItems = buildLineItems();
       if (draftInvoiceId && invoiceStatus !== "draft") {
-        const result = await reviseLedgerInvoice({
-          invoiceId: draftInvoiceId,
-          lineItems,
-          notes: notes || undefined,
-        });
+        const result =
+          draftSaveMode === "stripe"
+            ? await reviseInvoice({
+                invoiceId: draftInvoiceId,
+                lineItems,
+                notes: notes || undefined,
+              })
+            : await reviseLedgerInvoice({
+                invoiceId: draftInvoiceId,
+                lineItems,
+                notes: notes || undefined,
+              });
 
         if (result.success && result.invoiceNumber && result.invoiceId) {
           setInvoiceNumber(result.invoiceNumber);
@@ -285,11 +593,18 @@ export function WizardContainer({ initialBillingMode = "one_time" }: WizardConta
           setError(result.error || "Failed to create invoice revision");
         }
       } else if (draftInvoiceId) {
-        const result = await updateLedgerDraftInvoice({
-          invoiceId: draftInvoiceId,
-          lineItems,
-          notes: notes || undefined,
-        });
+        const result =
+          draftSaveMode === "stripe"
+            ? await updateDraftInvoice({
+                invoiceId: draftInvoiceId,
+                lineItems,
+                notes: notes || undefined,
+              })
+            : await updateLedgerDraftInvoice({
+                invoiceId: draftInvoiceId,
+                lineItems,
+                notes: notes || undefined,
+              });
 
         if (result.success && result.invoiceNumber) {
           setInvoiceNumber(result.invoiceNumber);
@@ -310,6 +625,7 @@ export function WizardContainer({ initialBillingMode = "one_time" }: WizardConta
           setInvoiceNumber(result.invoiceNumber);
           setInvoiceStatus("draft");
           setDraftInvoiceId(result.invoiceId);
+          setDraftSaveMode("ledger");
           setCheckoutUrl(null);
           setShowInvoiceDocument(true);
         } else {
@@ -398,11 +714,18 @@ export function WizardContainer({ initialBillingMode = "one_time" }: WizardConta
       };
 
       if (draftInvoiceId) {
-        const updateResult = await updateLedgerDraftInvoice({
-          invoiceId: draftInvoiceId,
-          lineItems,
-          notes: notes || undefined,
-        });
+        const updateResult =
+          draftSaveMode === "stripe"
+            ? await updateDraftInvoice({
+                invoiceId: draftInvoiceId,
+                lineItems,
+                notes: notes || undefined,
+              })
+            : await updateLedgerDraftInvoice({
+                invoiceId: draftInvoiceId,
+                lineItems,
+                notes: notes || undefined,
+              });
 
         if (!updateResult.success) {
           setError(updateResult.error || "Failed to update draft invoice");
@@ -455,6 +778,7 @@ export function WizardContainer({ initialBillingMode = "one_time" }: WizardConta
         setInvoiceNumber(sendResult.invoiceNumber || draftResult.invoiceNumber || "");
         setInvoiceStatus("sent");
         setDraftInvoiceId(draftResult.invoiceId);
+        setDraftSaveMode("ledger");
         setCheckoutUrl(sendResult.checkoutUrl || null);
         setEmailStatusMessage(
           getEmailStatusMessage(sendResult.emailSent, sendResult.emailSkipped)
@@ -483,11 +807,18 @@ export function WizardContainer({ initialBillingMode = "one_time" }: WizardConta
 
     try {
       const lineItems = buildLineItems();
-      const result = await reviseLedgerInvoice({
-        invoiceId: draftInvoiceId,
-        lineItems,
-        notes: notes || undefined,
-      });
+      const result =
+        draftSaveMode === "stripe"
+          ? await reviseInvoice({
+              invoiceId: draftInvoiceId,
+              lineItems,
+              notes: notes || undefined,
+            })
+          : await reviseLedgerInvoice({
+              invoiceId: draftInvoiceId,
+              lineItems,
+              notes: notes || undefined,
+            });
 
       if (result.success && result.invoiceNumber && result.invoiceId) {
         setInvoiceNumber(result.invoiceNumber);
@@ -584,10 +915,55 @@ export function WizardContainer({ initialBillingMode = "one_time" }: WizardConta
                 ? "Confirm details before creating the subscription."
                 : "Confirm the details before creating the invoice"}
             </p>
+            {allowSubscriptionDraftAdjustment &&
+              isEditingSubscriptionLinkedInvoice && (
+                <div className="mb-4 rounded-lg border border-border bg-surface-tertiary px-3 py-2 text-sm text-content-secondary">
+                  One-time draft adjustment mode: this updates only this draft invoice. Future
+                  subscription cycles stay on the subscription plan price.
+                  <div className="mt-3">
+                    <button
+                      onClick={() => setCurrentStep(2)}
+                      className="px-3 py-1.5 rounded-lg border border-border hover:bg-surface-hover transition-colors text-xs font-medium"
+                    >
+                      Go To Price Editor
+                    </button>
+                  </div>
+                </div>
+              )}
+            {billingMode === "one_time" && (
+              <div className="mb-4 rounded-lg border border-border bg-surface-tertiary px-3 py-2">
+                <label className="block text-sm font-medium text-content mb-2">
+                  Discount Percentage
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={0.01}
+                    value={Number(discountPercent.toFixed(2))}
+                    onChange={(event) => {
+                      const parsed = Number.parseFloat(event.target.value);
+                      if (!Number.isFinite(parsed)) {
+                        setDiscountPercent(0);
+                        return;
+                      }
+                      setDiscountPercent(Math.min(100, Math.max(0, parsed)));
+                    }}
+                    className="input-field w-28 text-right"
+                  />
+                  <span className="text-content-muted text-sm">%</span>
+                </div>
+                <p className="text-xs text-content-muted mt-2">
+                  Applies to this invoice only. Subscription plan pricing is unchanged.
+                </p>
+              </div>
+            )}
             {selectedClient && (
               <InvoicePreview
                 client={selectedClient}
                 selectedServices={selectedServices}
+                discountPercent={discountPercent}
                 notes={notes}
                 onNotesChange={setNotes}
               />
@@ -693,6 +1069,7 @@ export function WizardContainer({ initialBillingMode = "one_time" }: WizardConta
       <InvoiceDocument
         client={selectedClient}
         selectedServices={selectedServices}
+        discountPercent={discountPercent}
         notes={notes}
         invoiceNumber={invoiceNumber}
         status={invoiceStatus}
@@ -762,6 +1139,7 @@ export function WizardContainer({ initialBillingMode = "one_time" }: WizardConta
         <LivePreviewSidebar
           client={selectedClient}
           selectedServices={selectedServices}
+          discountPercent={discountPercent}
           onRemoveService={handleRemoveService}
         />
       </div>

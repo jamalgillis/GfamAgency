@@ -19,6 +19,7 @@ export interface WizardService {
   description: string;
   baseRate: number;
   category: string;
+  tags?: string[];
   billingType?: "one_time" | "recurring";
   isCustom?: boolean; // True for ad-hoc line items
 }
