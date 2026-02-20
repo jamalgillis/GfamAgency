@@ -22,7 +22,6 @@ export default function ServicesPage() {
   const [selectedBrand, setSelectedBrand] = useState("all");
   const servicesFromDb = useAuthQuery(api.services.list, {
     limit: 5000,
-    includeInactive: true,
   });
   const isLoadingServices = servicesFromDb === undefined;
 
@@ -174,7 +173,7 @@ export default function ServicesPage() {
         <div className="text-center py-16">
           <p className="text-content-muted text-lg">No services found</p>
           <p className="text-content-muted text-sm mt-2">
-            Try adjusting your search/filter, and confirm records are in this org with status set to `active`.
+            Try adjusting your search/filter, and confirm records are in this org.
           </p>
         </div>
       )}

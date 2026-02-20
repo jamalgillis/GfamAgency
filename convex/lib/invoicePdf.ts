@@ -241,11 +241,13 @@ export function buildInvoicePdfDocument(input: InvoicePdfDocumentInput): Uint8Ar
     return sum + unitCents * item.quantity;
   }, 0);
 
-  addText("GFAM AGENCY INVOICE", { bold: true, size: 16, lineHeight: 20 });
+  addText("SANKOFA MARKETING GROUP INVOICE", { bold: true, size: 16, lineHeight: 20 });
   addText(`Invoice Number: ${input.invoiceNumber}`, { bold: true, size: 12, lineHeight: 18 });
   addText(`Status: ${input.status.toUpperCase()}`);
   addText(`Issue Date: ${issueDateLabel}`);
   addText(`Due Date: ${dueDateLabel}`);
+  addText("813 Lake Air Dr Suite B");
+  addText("Waco, TX 76710");
   drawLine();
 
   addText("BILL TO", { bold: true, size: 11 });

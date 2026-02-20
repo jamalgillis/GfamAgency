@@ -617,10 +617,10 @@ export default function InvoiceDetailPage() {
           {/* Invoice Header */}
           <div className="invoice-header">
             <div>
-              <h2 className="invoice-company-name">GFAM Agency</h2>
+              <h2 className="invoice-company-name">Sankofa Marketing Group</h2>
               <p className="invoice-client-detail mt-2">
-                123 Creative Street<br />
-                Austin, TX 78701
+                813 Lake Air Dr Suite B<br />
+                Waco, TX 76710
               </p>
             </div>
             <div className="text-left sm:text-right">
@@ -725,7 +725,7 @@ export default function InvoiceDetailPage() {
           {/* Footer */}
           <div className="invoice-footer">
             <p className="invoice-footer-text">Thank you for your business!</p>
-            <p className="invoice-footer-brand">GFAM Agency</p>
+            <p className="invoice-footer-brand">Sankofa Marketing Group</p>
           </div>
         </div>
       </div>
