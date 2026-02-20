@@ -13,39 +13,46 @@ export const list = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => withOrg(ctx, async (orgId) => {
-    const limit = args.limit ?? 100;
+    // Prevent expensive reads from unbounded client limits.
+    const limit = Math.min(Math.max(args.limit ?? 100, 1), 500);
 
-    // Filter by brand if specified
-    if (args.brand) {
-      const services = await ctx.db
-        .query("services")
-        .withIndex("by_org_brand", (q) => q.eq("orgId", orgId).eq("brand", args.brand!))
-        .filter((q) => q.eq(q.field("status"), "active"))
-        .take(limit);
+    try {
+      // Filter by brand if specified
+      if (args.brand) {
+        const services = await ctx.db
+          .query("services")
+          .withIndex("by_org_brand", (q) => q.eq("orgId", orgId).eq("brand", args.brand!))
+          .filter((q) => q.eq(q.field("status"), "active"))
+          .take(limit);
 
-      // Further filter by category if specified
-      if (args.category) {
-        return services.filter((s) => s.category === args.category);
+        // Further filter by category if specified
+        if (args.category) {
+          return services.filter((s) => s.category === args.category);
+        }
+        return services;
       }
-      return services;
-    }
 
-    // Filter by category if specified
-    if (args.category) {
+      // Filter by category if specified
+      if (args.category) {
+        return await ctx.db
+          .query("services")
+          .withIndex("by_org_category", (q) =>
+            q.eq("orgId", orgId).eq("category", args.category!)
+          )
+          .filter((q) => q.eq(q.field("status"), "active"))
+          .take(limit);
+      }
+
+      // Return all active services
       return await ctx.db
         .query("services")
-        .withIndex("by_org_category", (q) =>
-          q.eq("orgId", orgId).eq("category", args.category!)
-        )
-        .filter((q) => q.eq(q.field("status"), "active"))
+        .withIndex("by_org_status", (q) => q.eq("orgId", orgId).eq("status", "active"))
         .take(limit);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      console.error(`❌ services.list failed for org ${orgId}: ${message}`);
+      return [];
     }
-
-    // Return all active services
-    return await ctx.db
-      .query("services")
-      .withIndex("by_org_status", (q) => q.eq("orgId", orgId).eq("status", "active"))
-      .take(limit);
   }),
 });
 
@@ -66,26 +73,37 @@ export const get = query({
 export const listByBrand = query({
   args: {},
   handler: async (ctx) => withOrg(ctx, async (orgId) => {
-    const services = await ctx.db
-      .query("services")
-      .withIndex("by_org_status", (q) => q.eq("orgId", orgId).eq("status", "active"))
-      .collect();
+    try {
+      const services = await ctx.db
+        .query("services")
+        .withIndex("by_org_status", (q) => q.eq("orgId", orgId).eq("status", "active"))
+        .collect();
 
-    // Group by brand
-    const grouped: Record<string, typeof services> = {
-      Sankofa: [],
-      Lighthouse: [],
-      Centex: [],
-      "GFAM Media Studios": [],
-    };
+      // Group by brand
+      const grouped: Record<string, typeof services> = {
+        Sankofa: [],
+        Lighthouse: [],
+        Centex: [],
+        "GFAM Media Studios": [],
+      };
 
-    for (const service of services) {
-      if (grouped[service.brand]) {
-        grouped[service.brand].push(service);
+      for (const service of services) {
+        if (grouped[service.brand]) {
+          grouped[service.brand].push(service);
+        }
       }
-    }
 
-    return grouped;
+      return grouped;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      console.error(`❌ services.listByBrand failed for org ${orgId}: ${message}`);
+      return {
+        Sankofa: [],
+        Lighthouse: [],
+        Centex: [],
+        "GFAM Media Studios": [],
+      };
+    }
   }),
 });
 
@@ -95,12 +113,18 @@ export const listByBrand = query({
 export const getCategories = query({
   args: {},
   handler: async (ctx) => withOrg(ctx, async (orgId) => {
-    const services = await ctx.db
-      .query("services")
-      .withIndex("by_org_status", (q) => q.eq("orgId", orgId).eq("status", "active"))
-      .collect();
+    try {
+      const services = await ctx.db
+        .query("services")
+        .withIndex("by_org_status", (q) => q.eq("orgId", orgId).eq("status", "active"))
+        .collect();
 
-    const categories = new Set(services.map((s) => s.category));
-    return [...categories].sort();
+      const categories = new Set(services.map((s) => s.category));
+      return [...categories].sort();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      console.error(`❌ services.getCategories failed for org ${orgId}: ${message}`);
+      return [];
+    }
   }),
 });

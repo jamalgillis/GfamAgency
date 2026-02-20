@@ -7,8 +7,37 @@ import {
 } from "@/lib/tenant-routing";
 
 const isDashboardRoute = createRouteMatcher(["/dashboard(.*)"]);
+const CANONICAL_PRODUCTION_DOMAIN = "gfamagency.com";
+
+function isLocalHost(hostname: string): boolean {
+  return (
+    hostname === "localhost" ||
+    hostname.endsWith(".localhost") ||
+    hostname === "127.0.0.1"
+  );
+}
+
+function isAllowedProductionHost(hostname: string): boolean {
+  return (
+    hostname === CANONICAL_PRODUCTION_DOMAIN ||
+    hostname.endsWith(`.${CANONICAL_PRODUCTION_DOMAIN}`)
+  );
+}
 
 export default clerkMiddleware(async (auth, req) => {
+  const hostname = req.nextUrl.hostname.toLowerCase();
+  const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ?? "";
+  const usingLiveClerkKey = publishableKey.startsWith("pk_live_");
+
+  // Guard against loading production Clerk keys from non-production hosts.
+  // This prevents a blank screen when users hit an unsupported deployment domain.
+  if (usingLiveClerkKey && !isLocalHost(hostname) && !isAllowedProductionHost(hostname)) {
+    const canonicalUrl = req.nextUrl.clone();
+    canonicalUrl.protocol = "https";
+    canonicalUrl.host = CANONICAL_PRODUCTION_DOMAIN;
+    return NextResponse.redirect(canonicalUrl);
+  }
+
   const pathname = req.nextUrl.pathname;
   const tenantSlug = getTenantSlugFromPath(pathname);
 
