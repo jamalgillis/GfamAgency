@@ -20,8 +20,12 @@ export function DashboardShell({ children }: DashboardShellProps) {
   const { isLoaded, isSignedIn, orgId } = useAuth();
   const isAuthReady = isLoaded && isSignedIn && !!orgId;
   const orgBrandingQuery = (api as any).orgBranding?.getCurrent;
+  // `useQuery` requires a function reference as its first arg.
+  // Use a stable fallback ref and skip via args until org branding query is available.
+  const fallbackQueryRef = (api as any).clients?.list;
   const orgBranding = useQuery(
-    isAuthReady && orgBrandingQuery ? orgBrandingQuery : "skip",
+    (orgBrandingQuery ?? fallbackQueryRef) as any,
+    isAuthReady && orgBrandingQuery ? {} : "skip",
   );
 
   const toggleSidebar = () => setSidebarOpen((prev) => !prev);

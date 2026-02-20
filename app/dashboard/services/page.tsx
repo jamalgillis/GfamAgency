@@ -13,7 +13,6 @@ import { BrandBadge, type BrandType } from "@/components/BrandBadge";
 import { api } from "@/convex/_generated/api";
 import { useAuthQuery } from "@/hooks/useAuthQuery";
 import {
-  allServices,
   serviceBrandFilters,
   type ServiceData,
 } from "@/data/services-sample";
@@ -22,9 +21,10 @@ export default function ServicesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBrand, setSelectedBrand] = useState("all");
   const servicesFromDb = useAuthQuery(api.services.list, { limit: 5000 });
+  const isLoadingServices = servicesFromDb === undefined;
 
   const services = useMemo<ServiceData[]>(() => {
-    if (!servicesFromDb) return allServices;
+    if (!servicesFromDb) return [];
 
     return servicesFromDb.map((service) => ({
       id: service._id,
@@ -150,22 +150,28 @@ export default function ServicesPage() {
       </div>
 
       {/* Services Grid */}
-      <div className="services-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {filteredServices.map((service, index) => (
-          <ServiceCard
-            key={service.id}
-            service={service}
-            delay={150 + index * 60}
-          />
-        ))}
-      </div>
+      {isLoadingServices ? (
+        <div className="text-center py-16">
+          <p className="text-content-muted text-lg">Loading services...</p>
+        </div>
+      ) : (
+        <div className="services-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {filteredServices.map((service, index) => (
+            <ServiceCard
+              key={service.id}
+              service={service}
+              delay={150 + index * 60}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Empty State */}
-      {filteredServices.length === 0 && (
+      {!isLoadingServices && filteredServices.length === 0 && (
         <div className="text-center py-16">
           <p className="text-content-muted text-lg">No services found</p>
           <p className="text-content-muted text-sm mt-2">
-            Try adjusting your search or filter
+            Try adjusting your search/filter, and confirm records are in this org with status set to `active`.
           </p>
         </div>
       )}
