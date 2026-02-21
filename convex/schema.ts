@@ -199,7 +199,7 @@ export default defineSchema({
     .index("by_invoice", ["invoiceId"])
     .index("by_brand", ["brand"]),
 
-  // Internal ledger for brand-level earnings attribution (no external transfers yet)
+  // Internal ledger for brand-level earnings attribution and transfer audit trail
   brandLedger: defineTable({
     orgId: v.string(),
 
@@ -208,6 +208,7 @@ export default defineSchema({
     amountCents: v.number(), // Net amount after platform fee
     platformFeeCents: v.number(), // Amount retained by platform
     stripePaymentIntentId: v.optional(v.string()), // Audit trail back to settled Stripe payment
+    stripeTransferId: v.optional(v.string()), // Transfer that paid this brand out (if automated)
     status: v.union(
       v.literal("pending"),
       v.literal("credited"),

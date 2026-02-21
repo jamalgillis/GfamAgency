@@ -716,7 +716,7 @@ async function handleCheckoutSessionSuccess(
     `[${PARENT_ORGANIZATION}] Checkout Session ${session.id} paid for invoice ${invoiceId}`
   );
 
-  await ctx.runMutation(internal.webhooks.processPaidInvoiceLedgerAttribution, {
+  await ctx.runAction("webhooks:processCheckoutSessionTransferPayout" as any, {
     invoiceId: invoiceId as any,
     settlementSource,
     settlementId: session.id,

@@ -317,7 +317,6 @@ function resolveStatementDescriptorSuffix(participatingBrands: string[]): string
 
 async function createCheckoutSessionForInvoiceRecord(
   stripe: any,
-  context: any,
   invoice: {
     _id: Id<"invoices">;
     invoiceNumber: string;
@@ -363,12 +362,12 @@ async function createCheckoutSessionForInvoiceRecord(
       payment_intent_data: {
         // Hybrid model: keep org merchant of record but append a brand hint on statements.
         statement_descriptor_suffix: statementDescriptorSuffix,
+        transfer_group: invoice._id,
         metadata: {
           invoiceId: invoice._id,
         },
       },
     },
-    context,
   );
 }
 
@@ -3463,11 +3462,9 @@ export const createCheckoutSessionForInvoice = action({
       }
 
       const stripe = getStripeClient();
-      const context = getStripeContext(PARENT_ORGANIZATION as StripeBrand);
 
       const checkoutSession = await createCheckoutSessionForInvoiceRecord(
         stripe,
-        context,
         {
           _id: invoice._id,
           invoiceNumber: invoice.invoiceNumber,
@@ -4185,11 +4182,9 @@ export const sendDraftInvoice = action({
         }
 
         const stripe = getStripeClient();
-        const context = getStripeContext(PARENT_ORGANIZATION as StripeBrand);
 
         const checkoutSession = await createCheckoutSessionForInvoiceRecord(
           stripe,
-          context,
           {
             _id: invoice._id,
             invoiceNumber: invoice.invoiceNumber,

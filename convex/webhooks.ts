@@ -1,8 +1,21 @@
 import { v } from "convex/values";
-import { internalMutation, internalQuery } from "./_generated/server";
+import { internalAction, internalMutation, internalQuery } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
+import { getBrandAccountId, getStripeClient, type StripeBrand } from "./lib/stripe";
+import { brandUnion } from "./schema";
 
 const PLATFORM_FEE_BPS = 200; // 2.00%
+const paidSettlementSourceValidator = v.union(
+  v.literal("payment_intent.succeeded"),
+  v.literal("invoice.paid"),
+  v.literal("checkout.session.completed"),
+  v.literal("checkout.session.async_payment_succeeded"),
+  v.literal("manual")
+);
+const checkoutSettlementSourceValidator = v.union(
+  v.literal("checkout.session.completed"),
+  v.literal("checkout.session.async_payment_succeeded")
+);
 
 /**
  * Update invoice status from Stripe webhook
@@ -120,13 +133,7 @@ export const getInvoiceByStripeId = internalQuery({
 export const processPaidInvoiceLedgerAttribution = internalMutation({
   args: {
     invoiceId: v.id("invoices"),
-    settlementSource: v.union(
-      v.literal("payment_intent.succeeded"),
-      v.literal("invoice.paid"),
-      v.literal("checkout.session.completed"),
-      v.literal("checkout.session.async_payment_succeeded"),
-      v.literal("manual")
-    ),
+    settlementSource: paidSettlementSourceValidator,
     settlementId: v.string(),
     stripePaymentIntentId: v.string(),
   },
@@ -250,6 +257,282 @@ export const processPaidInvoiceLedgerAttribution = internalMutation({
       insertedLedgerRows: insertedCount,
       patchedLedgerRows: patchedCount,
       skippedExistingRows: totalsByBrand.size - insertedCount,
+    };
+  },
+});
+
+/**
+ * Load invoice settlement data for payout transfer processing.
+ */
+export const getCheckoutTransferWorkset = internalQuery({
+  args: {
+    invoiceId: v.id("invoices"),
+  },
+  handler: async (ctx, args) => {
+    const invoice = await ctx.db.get(args.invoiceId);
+    if (!invoice) {
+      return null;
+    }
+
+    const lineItems = await ctx.db
+      .query("invoiceLineItems")
+      .withIndex("by_org_invoice", (q) =>
+        q.eq("orgId", invoice.orgId).eq("invoiceId", args.invoiceId)
+      )
+      .collect();
+
+    const totalsByBrand = new Map<(typeof lineItems)[number]["brand"], number>();
+    for (const item of lineItems) {
+      const effectiveUnitPrice = item.customPriceCents ?? item.unitPriceCents;
+      const lineTotal = effectiveUnitPrice * item.quantity;
+      totalsByBrand.set(item.brand, (totalsByBrand.get(item.brand) ?? 0) + lineTotal);
+    }
+
+    const existingLedgerRowsByOrg = await ctx.db
+      .query("brandLedger")
+      .withIndex("by_org_invoice", (q) =>
+        q.eq("orgId", invoice.orgId).eq("invoiceId", args.invoiceId)
+      )
+      .collect();
+
+    const existingLedgerRowsByInvoice = await ctx.db
+      .query("brandLedger")
+      .withIndex("by_invoice", (q) => q.eq("invoiceId", args.invoiceId))
+      .collect();
+
+    const existingLedgerRowsMap = new Map(
+      existingLedgerRowsByOrg.map((entry) => [entry._id, entry])
+    );
+    for (const entry of existingLedgerRowsByInvoice) {
+      existingLedgerRowsMap.set(entry._id, entry);
+    }
+    const existingLedgerRows = Array.from(existingLedgerRowsMap.values());
+
+    const brands = Array.from(totalsByBrand.entries()).map(([brand, grossAmountCents]) => {
+      const platformFeeCents = Math.round((grossAmountCents * PLATFORM_FEE_BPS) / 10_000);
+      const netAmountCents = grossAmountCents - platformFeeCents;
+
+      return {
+        brand,
+        grossAmountCents,
+        platformFeeCents,
+        netAmountCents,
+      };
+    });
+
+    return {
+      invoiceId: args.invoiceId,
+      orgId: invoice.orgId,
+      brands,
+      ledgerRows: existingLedgerRows.map((entry) => ({
+        _id: entry._id,
+        brand: entry.brand,
+        amountCents: entry.amountCents,
+        platformFeeCents: entry.platformFeeCents,
+        stripePaymentIntentId: entry.stripePaymentIntentId,
+        stripeTransferId: entry.stripeTransferId,
+        status: entry.status,
+        orgId: entry.orgId,
+      })),
+    };
+  },
+});
+
+/**
+ * Mark all ledger rows for an invoice+brand as transferred.
+ * Handles legacy rows missing orgId.
+ */
+export const markBrandLedgerTransferForInvoiceBrand = internalMutation({
+  args: {
+    invoiceId: v.id("invoices"),
+    orgId: v.string(),
+    brand: brandUnion,
+    stripeTransferId: v.string(),
+    stripePaymentIntentId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const rowsByOrg = await ctx.db
+      .query("brandLedger")
+      .withIndex("by_org_invoice", (q) =>
+        q.eq("orgId", args.orgId).eq("invoiceId", args.invoiceId)
+      )
+      .collect();
+
+    const rowsByInvoice = await ctx.db
+      .query("brandLedger")
+      .withIndex("by_invoice", (q) => q.eq("invoiceId", args.invoiceId))
+      .collect();
+
+    const rowMap = new Map(rowsByOrg.map((entry) => [entry._id, entry]));
+    for (const row of rowsByInvoice) {
+      rowMap.set(row._id, row);
+    }
+
+    let patchedCount = 0;
+    for (const row of rowMap.values()) {
+      if (row.brand !== args.brand) {
+        continue;
+      }
+
+      const updates: {
+        orgId?: string;
+        stripeTransferId?: string;
+        stripePaymentIntentId?: string;
+        status?: "pending" | "credited" | "withdrawable" | "paid_out";
+      } = {};
+
+      if (row.orgId !== args.orgId) {
+        updates.orgId = args.orgId;
+      }
+      if (!row.stripeTransferId) {
+        updates.stripeTransferId = args.stripeTransferId;
+      }
+      if (!row.stripePaymentIntentId && args.stripePaymentIntentId) {
+        updates.stripePaymentIntentId = args.stripePaymentIntentId;
+      }
+      if (row.status !== "paid_out") {
+        updates.status = "paid_out";
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await ctx.db.patch(row._id, updates);
+        patchedCount += 1;
+      }
+    }
+
+    return {
+      success: true,
+      patchedCount,
+    };
+  },
+});
+
+/**
+ * Checkout-session settlement path:
+ * - ensure brand ledger attribution exists
+ * - create one transfer per brand (idempotent)
+ */
+export const processCheckoutSessionTransferPayout = internalAction({
+  args: {
+    invoiceId: v.id("invoices"),
+    settlementSource: checkoutSettlementSourceValidator,
+    settlementId: v.string(),
+    stripePaymentIntentId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const attribution = await ctx.runMutation(
+      "webhooks:processPaidInvoiceLedgerAttribution" as any,
+      {
+        invoiceId: args.invoiceId,
+        settlementSource: args.settlementSource,
+        settlementId: args.settlementId,
+        stripePaymentIntentId: args.stripePaymentIntentId,
+      }
+    );
+
+    if (!attribution?.success) {
+      return {
+        success: false,
+        error: attribution?.error ?? "Failed to attribute paid invoice settlement",
+      };
+    }
+
+    const workset = await ctx.runQuery("webhooks:getCheckoutTransferWorkset" as any, {
+      invoiceId: args.invoiceId,
+    });
+
+    if (!workset) {
+      return { success: false, error: "Invoice not found" };
+    }
+
+    const stripe = getStripeClient();
+    const errors: string[] = [];
+    const skipped: Array<{ brand: string; reason: string }> = [];
+    let transferredCount = 0;
+
+    for (const brandTotals of workset.brands as Array<{
+      brand: string;
+      grossAmountCents: number;
+      platformFeeCents: number;
+      netAmountCents: number;
+    }>) {
+      const brand = brandTotals.brand;
+      const rowsForBrand = (workset.ledgerRows as Array<{
+        _id: Id<"brandLedger">;
+        brand: string;
+        amountCents: number;
+        platformFeeCents: number;
+        stripePaymentIntentId?: string;
+        stripeTransferId?: string;
+        status: "pending" | "credited" | "withdrawable" | "paid_out";
+        orgId?: string;
+      }>).filter((row) => row.brand === brand);
+
+      if (rowsForBrand.some((row) => typeof row.stripeTransferId === "string")) {
+        skipped.push({ brand, reason: "already_transferred" });
+        continue;
+      }
+
+      const ledgerRow = rowsForBrand[0];
+      if (!ledgerRow) {
+        errors.push(`${brand}: missing_ledger_row`);
+        continue;
+      }
+
+      if (ledgerRow.amountCents <= 0) {
+        skipped.push({ brand, reason: "non_positive_amount" });
+        continue;
+      }
+
+      const destinationAccountId = getBrandAccountId(brand as StripeBrand);
+      if (!destinationAccountId) {
+        errors.push(`${brand}: missing_destination_account_id`);
+        continue;
+      }
+
+      try {
+        const transfer = await stripe.transfers.create(
+          {
+            amount: ledgerRow.amountCents,
+            currency: "usd",
+            destination: destinationAccountId,
+            transfer_group: args.invoiceId,
+            metadata: {
+              invoiceId: args.invoiceId,
+              brand,
+              settlementSource: args.settlementSource,
+              settlementId: args.settlementId,
+              stripePaymentIntentId: args.stripePaymentIntentId,
+            },
+          },
+          {
+            idempotencyKey: `invoice-transfer:${args.invoiceId}:${brand}`,
+          }
+        );
+
+        await ctx.runMutation("webhooks:markBrandLedgerTransferForInvoiceBrand" as any, {
+          invoiceId: args.invoiceId,
+          orgId: workset.orgId,
+          brand,
+          stripeTransferId: transfer.id,
+          stripePaymentIntentId: args.stripePaymentIntentId,
+        });
+
+        transferredCount += 1;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown error";
+        errors.push(`${brand}: ${message}`);
+      }
+    }
+
+    return {
+      success: errors.length === 0,
+      invoiceId: args.invoiceId,
+      transferredCount,
+      skippedCount: skipped.length,
+      skipped,
+      errorCount: errors.length,
+      errors,
     };
   },
 });

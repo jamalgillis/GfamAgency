@@ -411,3 +411,74 @@ export const seedClients = mutation({
     };
   },
 });
+
+/**
+ * Audit orgId coverage across org-scoped tables.
+ * Useful in dev when seeded data was written to a fallback orgId.
+ * Run with: bunx convex run seed:auditOrgCoverage '{}'
+ */
+export const auditOrgCoverage = mutation({
+  args: {
+    limitPerTable: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limitPerTable = Math.min(Math.max(args.limitPerTable ?? 50000, 1), 100000);
+
+    const tally = <T extends { orgId?: string }>(rows: T[]) => {
+      const byOrg: Record<string, number> = {};
+      let missingOrg = 0;
+
+      for (const row of rows) {
+        if (typeof row.orgId !== "string" || row.orgId.length === 0) {
+          missingOrg += 1;
+          continue;
+        }
+        byOrg[row.orgId] = (byOrg[row.orgId] ?? 0) + 1;
+      }
+
+      return {
+        scanned: rows.length,
+        byOrg,
+        missingOrg,
+      };
+    };
+
+    const services = tally(await ctx.db.query("services").take(limitPerTable));
+    const clients = tally(await ctx.db.query("clients").take(limitPerTable));
+    const invoices = tally(await ctx.db.query("invoices").take(limitPerTable));
+    const invoiceLineItems = tally(await ctx.db.query("invoiceLineItems").take(limitPerTable));
+    const subscriptions = tally(await ctx.db.query("subscriptions").take(limitPerTable));
+    const brandLedger = tally(await ctx.db.query("brandLedger").take(limitPerTable));
+    const orgBranding = tally(await ctx.db.query("orgBranding").take(limitPerTable));
+
+    const aggregateByOrg: Record<string, number> = {};
+    for (const table of [
+      services,
+      clients,
+      invoices,
+      invoiceLineItems,
+      subscriptions,
+      brandLedger,
+      orgBranding,
+    ]) {
+      for (const [orgId, count] of Object.entries(table.byOrg)) {
+        aggregateByOrg[orgId] = (aggregateByOrg[orgId] ?? 0) + count;
+      }
+    }
+
+    return {
+      success: true,
+      limitPerTable,
+      aggregateByOrg,
+      tables: {
+        services,
+        clients,
+        invoices,
+        invoiceLineItems,
+        subscriptions,
+        brandLedger,
+        orgBranding,
+      },
+    };
+  },
+});
