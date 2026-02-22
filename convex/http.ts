@@ -48,6 +48,7 @@ http.route({
             sourceType?: "one_time" | "subscription";
             subscriptionId?: string;
             stripeSubscriptionId?: string;
+            stripeCheckoutSessionId?: string;
             billingPeriodEnd?: number;
             notes?: string;
           };
@@ -95,6 +96,25 @@ http.route({
           ? endOfDayTimestamp(data.invoice.createdAt + 30 * DAY_IN_MS)
           : endOfDayTimestamp(data.invoice.createdAt);
 
+    let checkoutUrl: string | undefined;
+    if (data.invoice.stripeCheckoutSessionId) {
+      try {
+        const stripe = getStripeClient();
+        const context = getStripeContext(PARENT_ORGANIZATION as StripeBrand);
+        const checkoutSession = await stripe.checkout.sessions.retrieve(
+          data.invoice.stripeCheckoutSessionId,
+          {},
+          context,
+        );
+        checkoutUrl = checkoutSession.url ?? undefined;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown error";
+        console.warn(
+          `[invoice-pdf] Unable to load checkout session URL for ${data.invoice.invoiceNumber}: ${message}`,
+        );
+      }
+    }
+
     const pdf = buildInvoicePdfDocument({
       invoiceNumber: data.invoice.invoiceNumber,
       status: data.invoice.status,
@@ -107,6 +127,7 @@ http.route({
         email: data.client.email,
       },
       notes: data.invoice.notes,
+      checkoutUrl,
       lineItems: data.lineItems.map((item) => ({
         brand: item.brand,
         category: item.category,

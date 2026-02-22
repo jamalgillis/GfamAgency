@@ -73,6 +73,7 @@ export type InvoicePdfDocumentInput = {
     email: string;
   };
   notes?: string;
+  checkoutUrl?: string;
   lineItems: InvoicePdfLineItem[];
 };
 
@@ -503,6 +504,7 @@ export function buildInvoicePdfDocument(input: InvoicePdfDocumentInput): Uint8Ar
   const badgeColor = statusColor(input.status);
   const participatingBrands =
     input.participatingBrands.length > 0 ? input.participatingBrands : ["GFAM Agency"];
+  const checkoutUrl = input.checkoutUrl?.trim() || null;
 
   const companyName =
     participatingBrands.length === 1 ? participatingBrands[0] : "GFAM Agency";
@@ -1053,6 +1055,72 @@ export function buildInvoicePdfDocument(input: InvoicePdfDocumentInput): Uint8Ar
     advance(boxHeight + 12);
   };
 
+  const drawPaymentLink = () => {
+    if (!checkoutUrl) return;
+
+    const helperLine = "Pay this invoice online using the current checkout link:";
+    const helperLines = clampLines(
+      wrapTextToWidth(helperLine, CONTENT_WIDTH - 24, BODY_SMALL_SIZE),
+      2,
+    );
+    const urlLines = clampLines(
+      wrapTextToWidth(checkoutUrl, CONTENT_WIDTH - 24, 8),
+      4,
+    );
+    const footerHint = "If the link has expired, request a refreshed payment link.";
+    const hintLines = clampLines(
+      wrapTextToWidth(footerHint, CONTENT_WIDTH - 24, 8),
+      2,
+    );
+    const boxHeight =
+      34 + helperLines.length * 11 + urlLines.length * 10 + hintLines.length * 10 + 14;
+
+    ensureSpace(boxHeight + 12);
+
+    const x = CONTENT_X;
+    const yTop = cursorY;
+    drawRect(x, yTop - boxHeight, CONTENT_WIDTH, boxHeight, {
+      fill: COLORS.panelBg,
+      stroke: COLORS.info,
+      lineWidth: 1,
+    });
+
+    sectionLabel("Payment Link", x + 12, yTop - 14);
+
+    let textY = yTop - 31;
+    helperLines.forEach((line) => {
+      drawText(line, {
+        x: x + 12,
+        y: textY,
+        size: BODY_SMALL_SIZE,
+        color: COLORS.textSoft,
+      });
+      textY -= 11;
+    });
+
+    urlLines.forEach((line) => {
+      drawText(line, {
+        x: x + 12,
+        y: textY,
+        size: 8,
+        color: COLORS.info,
+      });
+      textY -= 10;
+    });
+
+    hintLines.forEach((line) => {
+      drawText(line, {
+        x: x + 12,
+        y: textY,
+        size: 8,
+        color: COLORS.textFaint,
+      });
+      textY -= 10;
+    });
+
+    advance(boxHeight + 12);
+  };
+
   const drawMultiBrandPills = () => {
     if (participatingBrands.length <= 1) return;
 
@@ -1109,6 +1177,7 @@ export function buildInvoicePdfDocument(input: InvoicePdfDocumentInput): Uint8Ar
   drawLineItemsTable();
 
   drawTotalsBox();
+  drawPaymentLink();
   drawNotes();
   drawMultiBrandPills();
   drawFooter();

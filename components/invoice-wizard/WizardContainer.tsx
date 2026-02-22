@@ -774,37 +774,73 @@ export function WizardContainer({
       };
 
       if (draftInvoiceId) {
-        const dueAtForSave = calculateDueAt(issueAtMs, extraDueDays);
-        const updateResult =
-          draftSaveMode === "stripe"
-            ? await updateDraftInvoice({
-                invoiceId: draftInvoiceId,
-                lineItems,
-                notes: notes || undefined,
-                dueAt: dueAtForSave,
-              })
-            : await updateLedgerDraftInvoice({
-                invoiceId: draftInvoiceId,
-                lineItems,
-                notes: notes || undefined,
-                dueAt: dueAtForSave,
-              });
+        let invoiceIdToSend = draftInvoiceId;
+        let invoiceNumberForSend = invoiceNumber;
+        let issueAtForSend = issueAtMs;
 
-        if (!updateResult.success) {
-          setError(updateResult.error || "Failed to update draft invoice");
-          return;
+        if (invoiceStatus !== "draft") {
+          const revisionIssueAt = Date.now();
+          const dueAtForSave = calculateDueAt(revisionIssueAt, extraDueDays);
+          const revisionResult =
+            draftSaveMode === "stripe"
+              ? await reviseInvoice({
+                  invoiceId: draftInvoiceId,
+                  lineItems,
+                  notes: notes || undefined,
+                  dueAt: dueAtForSave,
+                })
+              : await reviseLedgerInvoice({
+                  invoiceId: draftInvoiceId,
+                  lineItems,
+                  notes: notes || undefined,
+                  dueAt: dueAtForSave,
+                });
+
+          if (!revisionResult.success || !revisionResult.invoiceId) {
+            setError(revisionResult.error || "Failed to create invoice revision");
+            return;
+          }
+
+          invoiceIdToSend = revisionResult.invoiceId;
+          invoiceNumberForSend = revisionResult.invoiceNumber || invoiceNumberForSend;
+          issueAtForSend = revisionIssueAt;
+        } else {
+          const dueAtForSave = calculateDueAt(issueAtMs, extraDueDays);
+          const updateResult =
+            draftSaveMode === "stripe"
+              ? await updateDraftInvoice({
+                  invoiceId: draftInvoiceId,
+                  lineItems,
+                  notes: notes || undefined,
+                  dueAt: dueAtForSave,
+                })
+              : await updateLedgerDraftInvoice({
+                  invoiceId: draftInvoiceId,
+                  lineItems,
+                  notes: notes || undefined,
+                  dueAt: dueAtForSave,
+                });
+
+          if (!updateResult.success) {
+            setError(updateResult.error || "Failed to update draft invoice");
+            return;
+          }
+
+          invoiceNumberForSend = updateResult.invoiceNumber || invoiceNumberForSend;
         }
 
-        const { successUrl, cancelUrl } = buildCheckoutUrls(draftInvoiceId);
+        const { successUrl, cancelUrl } = buildCheckoutUrls(invoiceIdToSend);
         const sendResult = await createCheckoutSessionForInvoice({
-          invoiceId: draftInvoiceId,
+          invoiceId: invoiceIdToSend,
           successUrl,
           cancelUrl,
         });
 
         if (sendResult.success) {
-          setInvoiceNumber(sendResult.invoiceNumber || invoiceNumber);
+          setInvoiceNumber(sendResult.invoiceNumber || invoiceNumberForSend);
           setInvoiceStatus("sent");
+          setDraftInvoiceId(invoiceIdToSend);
+          setIssueAtMs(issueAtForSend);
           setCheckoutUrl(sendResult.checkoutUrl || null);
           setEmailStatusMessage(
             getEmailStatusMessage(sendResult.emailSent, sendResult.emailSkipped)
