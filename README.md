@@ -41,6 +41,16 @@ bun run seed
 bun dev
 ```
 
+## Stripe Key Mode
+
+- This app is configured for **single-account Stripe mode**.
+- Set `STRIPE_SECRET_KEY` to a standard account key:
+  - `sk_test_*` for test mode
+  - `sk_live_*` for live mode
+- Do **not** use Organization keys (`sk_org_*` / `rk_*`) in this app mode.
+- `STRIPE_ACCOUNT_ID_*` variables are not required for normal invoice charging in single-account mode.
+- Future multi-tenant Stripe Connect migration plan: `docs/STRIPE_CONNECT_MULTITENANT_ROADMAP.md`
+
 ## Scripts
 
 | Command | Description |

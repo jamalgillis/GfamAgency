@@ -74,6 +74,7 @@ export default function SettingsPage() {
     ok: boolean;
     keyMode: string;
     isOrgKey: boolean;
+    supportsSingleAccountMode: boolean;
     message: string;
     hasApiKey: boolean;
     hasWebhookSecret: boolean;
@@ -86,16 +87,33 @@ export default function SettingsPage() {
   } | null>(null);
 
   const handleCheckStripe = useCallback(async () => {
-    setStripeStatus({ checked: false, loading: true, ok: false, keyMode: "", isOrgKey: false, message: "", hasApiKey: false, hasWebhookSecret: false });
+    setStripeStatus({
+      checked: false,
+      loading: true,
+      ok: false,
+      keyMode: "",
+      isOrgKey: false,
+      supportsSingleAccountMode: false,
+      message: "",
+      hasApiKey: false,
+      hasWebhookSecret: false,
+    });
     try {
       const result = await checkStripeAccount();
+      const ok = result.configured;
+      const message = ok
+        ? "Stripe is configured"
+        : result.isOrgKey
+          ? "Organization API key detected. Use sk_test_* or sk_live_* for STRIPE_SECRET_KEY."
+          : "Stripe configuration incomplete";
       setStripeStatus({
         checked: true,
         loading: false,
-        ok: result.configured,
+        ok,
         keyMode: result.keyMode,
         isOrgKey: result.isOrgKey,
-        message: result.configured ? "Stripe is configured" : "Stripe configuration incomplete",
+        supportsSingleAccountMode: result.supportsSingleAccountMode,
+        message,
         hasApiKey: result.hasApiKey,
         hasWebhookSecret: result.hasWebhookSecret,
       });
@@ -106,6 +124,7 @@ export default function SettingsPage() {
         ok: false,
         keyMode: "unknown",
         isOrgKey: false,
+        supportsSingleAccountMode: false,
         message: err instanceof Error ? err.message : "Failed to check Stripe",
         hasApiKey: false,
         hasWebhookSecret: false,
@@ -430,14 +449,28 @@ export default function SettingsPage() {
               {stripeStatus?.checked && (
                 <div className="ml-7 pl-3 border-l-2 border-border space-y-2">
                   <div className="flex items-center gap-2 text-meta-lg">
-                    {stripeStatus.hasApiKey
+                    {stripeStatus.hasApiKey && stripeStatus.supportsSingleAccountMode
                       ? <CheckCircle className="w-3.5 h-3.5 text-success" />
                       : <XCircle className="w-3.5 h-3.5 text-error" />
                     }
-                    <span className={stripeStatus.hasApiKey ? "text-content-secondary" : "text-error"}>
-                      Secret Key
+                    <span
+                      className={
+                        stripeStatus.hasApiKey && stripeStatus.supportsSingleAccountMode
+                          ? "text-content-secondary"
+                          : "text-error"
+                      }
+                    >
+                      Secret Key (single-account)
                     </span>
                   </div>
+                  {stripeStatus.isOrgKey && (
+                    <div className="flex items-center gap-2 text-meta-lg">
+                      <AlertCircle className="w-3.5 h-3.5 text-warning" />
+                      <span className="text-warning">
+                        STRIPE_SECRET_KEY is an Organization key. Replace with sk_test_* or sk_live_*.
+                      </span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 text-meta-lg">
                     {stripeStatus.hasWebhookSecret
                       ? <CheckCircle className="w-3.5 h-3.5 text-success" />

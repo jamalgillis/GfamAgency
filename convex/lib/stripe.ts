@@ -29,6 +29,10 @@ export const SUB_BRANDS: StripeBrand[] = [
 // Singleton Stripe client instance
 let stripeClient: Stripe | null = null;
 
+function isOrganizationLikeKey(apiKey: string | undefined): boolean {
+  return !!apiKey && (apiKey.startsWith("sk_org_") || apiKey.startsWith("rk_"));
+}
+
 /**
  * Get the single Stripe client for GFAM Agency
  * All brands use this same account with metadata differentiation
@@ -44,6 +48,15 @@ export function getStripeClient(): Stripe {
     throw new Error(
       "Missing STRIPE_SECRET_KEY environment variable. " +
         "Please set this in your Convex dashboard under Settings > Environment Variables.",
+    );
+  }
+
+  // This app runs in single-account mode only.
+  // Organization keys require per-request Stripe-Context and are intentionally unsupported.
+  if (isOrganizationLikeKey(apiKey)) {
+    throw new Error(
+      "Unsupported STRIPE_SECRET_KEY for current app mode. " +
+        "Use a standard account key (sk_test_* or sk_live_*), not an Organization key (sk_org_* or rk_*).",
     );
   }
 
@@ -77,14 +90,18 @@ export function checkStripeConfiguration(): {
   configured: boolean;
   hasApiKey: boolean;
   hasWebhookSecret: boolean;
+  supportsSingleAccountMode: boolean;
 } {
-  const hasApiKey = !!process.env.STRIPE_SECRET_KEY;
+  const apiKey = process.env.STRIPE_SECRET_KEY;
+  const hasApiKey = !!apiKey;
   const hasWebhookSecret = !!process.env.STRIPE_WEBHOOK_SECRET;
+  const supportsSingleAccountMode = hasApiKey && !isOrganizationLikeKey(apiKey);
 
   return {
-    configured: hasApiKey,
+    configured: supportsSingleAccountMode,
     hasApiKey,
     hasWebhookSecret,
+    supportsSingleAccountMode,
   };
 }
 
@@ -145,8 +162,7 @@ export const STRIPE_ENV_VARS = {
 
 /**
  * Mapping of brands to their respective Stripe Account IDs.
- * Required when using Organization API keys (sk_org_*).
- * These must be set in your Convex Environment Variables.
+ * Used for transfer destinations when optional brand payout transfers are enabled.
  */
 export function getBrandAccountId(brand: StripeBrand): string | undefined {
   const accountMap: Record<StripeBrand, string | undefined> = {
@@ -164,31 +180,27 @@ export function getBrandAccountId(brand: StripeBrand): string | undefined {
  */
 export function isOrganizationKey(): boolean {
   const apiKey = process.env.STRIPE_SECRET_KEY;
-  return apiKey?.startsWith("sk_org_") || apiKey?.startsWith("rk_") || false;
+  return isOrganizationLikeKey(apiKey);
 }
 
 /**
- * Generates the options object required for Organization API keys.
- * The stripeContext property tells the SDK to include the Stripe-Context header.
- * Returns undefined if not using an Organization key.
+ * Legacy helper retained for existing call sites.
+ * In single-account mode it always returns undefined.
+ * If an Organization key is detected, it throws a clear configuration error.
  */
 export function getStripeContext(
-  brand: StripeBrand,
+  _brand: StripeBrand,
 ): (Stripe.RequestOptions & { stripeContext?: string }) | undefined {
   // If not using an Organization key, no context needed
   if (!isOrganizationKey()) {
     return undefined;
   }
 
-  const accountId = getBrandAccountId(brand);
-  if (!accountId) {
-    throw new Error(
-      `Missing Stripe Account ID for brand: ${brand}. ` +
-        `Please set STRIPE_ACCOUNT_ID_${brand.toUpperCase().replace(/ /g, "_")} in your Convex environment variables.`,
-    );
-  }
-
-  return { stripeContext: accountId };
+  // Organization key mode is intentionally unsupported in this app.
+  throw new Error(
+    "Organization API keys are not supported in this app mode. " +
+      "Use sk_test_* or sk_live_* for STRIPE_SECRET_KEY.",
+  );
 }
 
 /**
@@ -200,7 +212,8 @@ export const ALL_BRANDS_WITH_ACCOUNTS: StripeBrand[] = [
 ];
 
 /**
- * Check if all brand account IDs are configured (for Organization keys)
+ * Legacy diagnostic for Organization-key mode.
+ * Single-account mode does not require brand account IDs.
  */
 export function checkBrandAccountConfiguration(): {
   configured: boolean;

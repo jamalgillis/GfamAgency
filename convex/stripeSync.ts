@@ -432,6 +432,7 @@ export const checkStripeAccount = action({
     organization: string;
     isOrgKey: boolean;
     keyMode: "test" | "live" | "unknown";
+    supportsSingleAccountMode: boolean;
     brandAccountsConfigured: boolean;
     missingBrandAccounts: string[];
   }> => {
@@ -446,6 +447,7 @@ export const checkStripeAccount = action({
       organization: PARENT_ORGANIZATION,
       isOrgKey,
       keyMode,
+      supportsSingleAccountMode: status.supportsSingleAccountMode,
       brandAccountsConfigured: brandStatus.configured,
       missingBrandAccounts: brandStatus.missing,
     };
@@ -465,12 +467,12 @@ export const pingStripe = action({
     contextAttached: boolean;
   }> => {
     await requireOrgId(ctx);
-    const stripe = getStripeClient();
     const keyMode = getStripeKeyMode();
     const isOrgKey = isOrganizationKey();
-    const context = isOrgKey ? getStripeContext(PARENT_ORGANIZATION) : undefined;
 
     try {
+      const stripe = getStripeClient();
+      const context = isOrgKey ? getStripeContext(PARENT_ORGANIZATION) : undefined;
       await stripe.customers.list({ limit: 1 }, context);
       return {
         ok: true,
@@ -486,7 +488,7 @@ export const pingStripe = action({
         message: errorMessage,
         keyMode,
         isOrgKey,
-        contextAttached: !!context,
+        contextAttached: false,
       };
     }
   },

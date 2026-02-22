@@ -16,6 +16,8 @@ const checkoutSettlementSourceValidator = v.union(
   v.literal("checkout.session.completed"),
   v.literal("checkout.session.async_payment_succeeded")
 );
+const ENABLE_BRAND_PAYOUT_TRANSFERS =
+  (process.env.ENABLE_BRAND_PAYOUT_TRANSFERS ?? "false").toLowerCase() === "true";
 
 /**
  * Update invoice status from Stripe webhook
@@ -410,7 +412,7 @@ export const markBrandLedgerTransferForInvoiceBrand = internalMutation({
 /**
  * Checkout-session settlement path:
  * - ensure brand ledger attribution exists
- * - create one transfer per brand (idempotent)
+ * - optionally create one transfer per brand (idempotent)
  */
 export const processCheckoutSessionTransferPayout = internalAction({
   args: {
@@ -445,28 +447,82 @@ export const processCheckoutSessionTransferPayout = internalAction({
       return { success: false, error: "Invoice not found" };
     }
 
+    const brandTotalsList = workset.brands as Array<{
+      brand: string;
+      grossAmountCents: number;
+      platformFeeCents: number;
+      netAmountCents: number;
+    }>;
+    const ledgerRows = workset.ledgerRows as Array<{
+      _id: Id<"brandLedger">;
+      brand: string;
+      amountCents: number;
+      platformFeeCents: number;
+      stripePaymentIntentId?: string;
+      stripeTransferId?: string;
+      status: "pending" | "credited" | "withdrawable" | "paid_out";
+      orgId?: string;
+    }>;
+
+    const plannedTransfers = brandTotalsList.map((brandTotals) => {
+      const rowsForBrand = ledgerRows.filter((row) => row.brand === brandTotals.brand);
+      const ledgerRow = rowsForBrand[0];
+      const destinationAccountId = getBrandAccountId(brandTotals.brand as StripeBrand);
+      const alreadyTransferred = rowsForBrand.some(
+        (row) => typeof row.stripeTransferId === "string"
+      );
+
+      let blockedReason: string | null = null;
+      if (alreadyTransferred) {
+        blockedReason = "already_transferred";
+      } else if (!ledgerRow) {
+        blockedReason = "missing_ledger_row";
+      } else if (ledgerRow.amountCents <= 0) {
+        blockedReason = "non_positive_amount";
+      } else if (!destinationAccountId) {
+        blockedReason = "missing_destination_account_id";
+      }
+
+      return {
+        brand: brandTotals.brand,
+        grossAmountCents: brandTotals.grossAmountCents,
+        platformFeeCents: brandTotals.platformFeeCents,
+        netAmountCents: brandTotals.netAmountCents,
+        ledgerAmountCents: ledgerRow?.amountCents ?? null,
+        destinationAccountId: destinationAccountId ?? null,
+        blockedReason,
+      };
+    });
+
+    if (!ENABLE_BRAND_PAYOUT_TRANSFERS) {
+      console.log(
+        `⏸️ Skipping Stripe transfer payout for invoice ${args.invoiceId} (ENABLE_BRAND_PAYOUT_TRANSFERS=false)`
+      );
+
+      return {
+        success: true,
+        invoiceId: args.invoiceId,
+        payoutTransfersEnabled: false,
+        transferredCount: 0,
+        skippedCount: plannedTransfers.length,
+        skipped: plannedTransfers.map((plan) => ({
+          brand: plan.brand,
+          reason: plan.blockedReason ?? "disabled_by_config",
+        })),
+        errorCount: 0,
+        errors: [] as string[],
+        plannedTransfers,
+      };
+    }
+
     const stripe = getStripeClient();
     const errors: string[] = [];
     const skipped: Array<{ brand: string; reason: string }> = [];
     let transferredCount = 0;
 
-    for (const brandTotals of workset.brands as Array<{
-      brand: string;
-      grossAmountCents: number;
-      platformFeeCents: number;
-      netAmountCents: number;
-    }>) {
+    for (const brandTotals of brandTotalsList) {
       const brand = brandTotals.brand;
-      const rowsForBrand = (workset.ledgerRows as Array<{
-        _id: Id<"brandLedger">;
-        brand: string;
-        amountCents: number;
-        platformFeeCents: number;
-        stripePaymentIntentId?: string;
-        stripeTransferId?: string;
-        status: "pending" | "credited" | "withdrawable" | "paid_out";
-        orgId?: string;
-      }>).filter((row) => row.brand === brand);
+      const rowsForBrand = ledgerRows.filter((row) => row.brand === brand);
 
       if (rowsForBrand.some((row) => typeof row.stripeTransferId === "string")) {
         skipped.push({ brand, reason: "already_transferred" });
@@ -528,11 +584,13 @@ export const processCheckoutSessionTransferPayout = internalAction({
     return {
       success: errors.length === 0,
       invoiceId: args.invoiceId,
+      payoutTransfersEnabled: true,
       transferredCount,
       skippedCount: skipped.length,
       skipped,
       errorCount: errors.length,
       errors,
+      plannedTransfers,
     };
   },
 });
