@@ -28,7 +28,8 @@ import { useAuthQuery } from "@/hooks/useAuthQuery";
 
 type InvoiceLifecycleStatus = "draft" | "open" | "paid" | "void" | "uncollectible";
 type InvoiceDisplayStatus = "paid" | "pending" | "overdue" | "draft" | "void";
-type SummaryFilter = "all" | InvoiceDisplayStatus;
+type StatusFilter = "all" | InvoiceDisplayStatus;
+type SummaryFilter = StatusFilter | "invoiced";
 type DateRangeKey = "week" | "month" | "quarter" | "year" | "custom";
 
 interface InvoiceData {
@@ -60,7 +61,7 @@ const brandColorMap: Record<string, string> = {
   "GFAM Agency": "#64748B",
 };
 
-const statusFilters: { key: SummaryFilter; label: string; color?: string }[] = [
+const statusFilters: { key: StatusFilter; label: string; color?: string }[] = [
   { key: "all", label: "All Statuses" },
   { key: "paid", label: "Paid", color: "#10B981" },
   { key: "pending", label: "Pending", color: "#F59E0B" },
@@ -200,11 +201,11 @@ export default function InvoicesPage() {
   // Filter states
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBrand, setSelectedBrand] = useState("all");
-  const [selectedStatus, setSelectedStatus] = useState<SummaryFilter>("all");
+  const [selectedStatus, setSelectedStatus] = useState<StatusFilter>("all");
   const [selectedDateRange, setSelectedDateRange] = useState<DateRangeKey>("month");
   const [customDateFrom, setCustomDateFrom] = useState("");
   const [customDateTo, setCustomDateTo] = useState("");
-  const [activeSummaryCard, setActiveSummaryCard] = useState<SummaryFilter>("all");
+  const [activeSummaryCard, setActiveSummaryCard] = useState<SummaryFilter>("invoiced");
 
   // Dropdown states
   const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
@@ -259,14 +260,22 @@ export default function InvoicesPage() {
 
   const invoiceSummary = useMemo(() => {
     const summary = {
-      totalRevenue: { amount: 0, count: allInvoices.length },
+      totalInvoiced: { amount: 0, count: 0 },
       paid: { amount: 0, count: 0 },
       pending: { amount: 0, count: 0 },
       overdue: { amount: 0, count: 0 },
     };
 
     for (const invoice of allInvoices) {
-      summary.totalRevenue.amount += invoice.amount;
+      if (
+        invoice.status === "paid" ||
+        invoice.status === "pending" ||
+        invoice.status === "overdue"
+      ) {
+        summary.totalInvoiced.amount += invoice.amount;
+        summary.totalInvoiced.count += 1;
+      }
+
       if (invoice.status === "paid") {
         summary.paid.amount += invoice.amount;
         summary.paid.count += 1;
@@ -320,7 +329,12 @@ export default function InvoicesPage() {
 
       // Status filter (from cards or dropdown)
       const activeStatus = activeSummaryCard !== "all" ? activeSummaryCard : selectedStatus;
-      const matchesStatus = activeStatus === "all" || invoice.status === activeStatus;
+      const matchesStatus =
+        activeStatus === "all"
+          ? true
+          : activeStatus === "invoiced"
+            ? invoice.status === "paid" || invoice.status === "pending" || invoice.status === "overdue"
+            : invoice.status === activeStatus;
 
       // Date filter
       const invoiceDate = new Date(invoice.issuedAt);
@@ -505,10 +519,10 @@ export default function InvoicesPage() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6">
-        {/* Total Revenue */}
+        {/* Total Invoiced */}
         <button
-          onClick={() => handleSummaryClick("all")}
-          className={`summary-card opacity-0 animate-fade-in-up ${activeSummaryCard === "all" ? "active" : ""}`}
+          onClick={() => handleSummaryClick("invoiced")}
+          className={`summary-card opacity-0 animate-fade-in-up ${activeSummaryCard === "invoiced" ? "active" : ""}`}
           style={{ animationDelay: "50ms" }}
         >
           <div className="flex items-start justify-between">
@@ -517,9 +531,9 @@ export default function InvoicesPage() {
             </div>
           </div>
           <div className="mt-4 text-left">
-            <div className="summary-value">{formatCurrency(invoiceSummary.totalRevenue.amount)}</div>
-            <div className="summary-label">Total Revenue</div>
-            <div className="summary-count">{invoiceSummary.totalRevenue.count} invoices</div>
+            <div className="summary-value">{formatCurrency(invoiceSummary.totalInvoiced.amount)}</div>
+            <div className="summary-label">Total Invoiced</div>
+            <div className="summary-count">{invoiceSummary.totalInvoiced.count} invoices</div>
           </div>
         </button>
 
@@ -626,7 +640,7 @@ export default function InvoicesPage() {
                       key={status.key}
                       className={`dropdown-item ${selectedStatus === status.key ? "active" : ""}`}
                       onClick={() => {
-                        setSelectedStatus(status.key as SummaryFilter);
+                        setSelectedStatus(status.key);
                         setActiveSummaryCard("all");
                         setStatusDropdownOpen(false);
                         setCurrentPage(1);
