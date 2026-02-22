@@ -371,6 +371,93 @@ async function createCheckoutSessionForInvoiceRecord(
   );
 }
 
+function getCheckoutSessionPaymentIntentId(session: Stripe.Checkout.Session): string {
+  if (typeof session.payment_intent === "string") {
+    return session.payment_intent;
+  }
+
+  if (
+    session.payment_intent &&
+    typeof session.payment_intent === "object" &&
+    "id" in session.payment_intent
+  ) {
+    return session.payment_intent.id;
+  }
+
+  return session.id;
+}
+
+/**
+ * Defensive Stripe reconciliation for checkout-based invoices.
+ * Handles missed webhooks by syncing paid status locally and prevents duplicate sessions.
+ */
+async function reconcileExistingCheckoutSessionForInvoice(
+  ctx: any,
+  stripe: Stripe,
+  params: {
+    orgId: string;
+    invoiceId: Id<"invoices">;
+    invoiceNumber: string;
+    stripeCheckoutSessionId?: string;
+    expireOpenSession?: boolean;
+  },
+): Promise<{
+  alreadyPaid: boolean;
+  expiredOpenSession: boolean;
+}> {
+  if (!params.stripeCheckoutSessionId) {
+    return { alreadyPaid: false, expiredOpenSession: false };
+  }
+
+  const context = getStripeContext(PARENT_ORGANIZATION as StripeBrand);
+
+  try {
+    const checkoutSession = await stripe.checkout.sessions.retrieve(
+      params.stripeCheckoutSessionId,
+      {},
+      context,
+    );
+
+    if (checkoutSession.payment_status === "paid") {
+      const stripePaymentIntentId = getCheckoutSessionPaymentIntentId(checkoutSession);
+      const paidAt = Date.now();
+
+      await ctx.runMutation(internal.invoiceActions.updateInvoiceStatus, {
+        orgId: params.orgId,
+        invoiceId: params.invoiceId,
+        status: "paid",
+        paidAt,
+      });
+
+      await ctx.runMutation(internal.webhooks.processPaidInvoiceLedgerAttribution, {
+        invoiceId: params.invoiceId,
+        settlementSource: "manual",
+        settlementId: checkoutSession.id,
+        stripePaymentIntentId,
+      });
+
+      console.log(
+        `✅ Reconciled paid Checkout Session ${checkoutSession.id} for invoice ${params.invoiceNumber}`,
+      );
+
+      return { alreadyPaid: true, expiredOpenSession: false };
+    }
+
+    if (params.expireOpenSession && checkoutSession.status === "open") {
+      await stripe.checkout.sessions.expire(params.stripeCheckoutSessionId, {}, context);
+      return { alreadyPaid: false, expiredOpenSession: true };
+    }
+  } catch (checkoutError) {
+    const message =
+      checkoutError instanceof Error ? checkoutError.message : "Unknown error";
+    console.warn(
+      `⚠️ Unable to reconcile checkout session ${params.stripeCheckoutSessionId} for invoice ${params.invoiceNumber}: ${message}`,
+    );
+  }
+
+  return { alreadyPaid: false, expiredOpenSession: false };
+}
+
 async function replaceStripeInvoiceItems(
   ctx: any,
   stripe: any,
@@ -3462,6 +3549,24 @@ export const createCheckoutSessionForInvoice = action({
       }
 
       const stripe = getStripeClient();
+      const checkoutReconcile = await reconcileExistingCheckoutSessionForInvoice(
+        ctx,
+        stripe,
+        {
+          orgId,
+          invoiceId: args.invoiceId,
+          invoiceNumber: invoice.invoiceNumber,
+          stripeCheckoutSessionId: invoice.stripeCheckoutSessionId,
+          expireOpenSession: true,
+        },
+      );
+      if (checkoutReconcile.alreadyPaid) {
+        return {
+          success: false,
+          error:
+            "Stripe shows this checkout invoice as already paid. Local status has been synced.",
+        };
+      }
 
       const checkoutSession = await createCheckoutSessionForInvoiceRecord(
         stripe,
@@ -4357,6 +4462,178 @@ export const sendDraftInvoice = action({
 });
 
 /**
+ * Manually reconcile one invoice's local status against Stripe.
+ * Useful for recovering from missed/delayed webhooks without resending the invoice.
+ */
+export const syncInvoiceFromStripe = action({
+  args: {
+    invoiceId: v.id("invoices"),
+  },
+  handler: async (ctx, args): Promise<{
+    success: boolean;
+    source?: "checkout_session" | "stripe_invoice";
+    localStatus?: "draft" | "open" | "paid" | "void" | "uncollectible";
+    remoteStatus?: string;
+    changed?: boolean;
+    message?: string;
+    error?: string;
+  }> => withOrg(ctx, async (orgId) => {
+    try {
+      const invoice = await ctx.runQuery(internal.invoiceActions.getInvoiceById, {
+        orgId,
+        invoiceId: args.invoiceId,
+      });
+
+      if (!invoice) {
+        return { success: false, error: "Invoice not found" };
+      }
+
+      const stripe = getStripeClient();
+
+      if (invoice.stripeInvoiceId) {
+        const context = getStripeContext(invoice.primaryBrand as StripeBrand);
+        const stripeInvoice = await stripe.invoices.retrieve(
+          invoice.stripeInvoiceId,
+          { expand: ["payment_intent"] },
+          context,
+        );
+
+        const mappedStatus = mapStripeInvoiceStatus(stripeInvoice.status);
+        const paidAt =
+          mappedStatus === "paid"
+            ? toMillis(stripeInvoice.status_transitions?.paid_at) ?? Date.now()
+            : undefined;
+
+        const changed = mappedStatus !== invoice.status;
+        if (changed) {
+          await ctx.runMutation(internal.invoiceActions.updateInvoiceStatus, {
+            orgId,
+            invoiceId: args.invoiceId,
+            status: mappedStatus,
+            paidAt,
+          });
+        }
+
+        if (mappedStatus === "paid") {
+          const paymentIntent = stripeInvoice.payment_intent;
+          const stripePaymentIntentId =
+            typeof paymentIntent === "string"
+              ? paymentIntent
+              : paymentIntent &&
+                  typeof paymentIntent === "object" &&
+                  "id" in paymentIntent
+                ? paymentIntent.id
+                : undefined;
+
+          if (stripePaymentIntentId) {
+            await ctx.runMutation(internal.webhooks.processPaidInvoiceLedgerAttribution, {
+              invoiceId: args.invoiceId,
+              settlementSource: "manual",
+              settlementId: stripeInvoice.id,
+              stripePaymentIntentId,
+            });
+          }
+        }
+
+        return {
+          success: true,
+          source: "stripe_invoice",
+          localStatus: mappedStatus,
+          remoteStatus: stripeInvoice.status ?? "unknown",
+          changed,
+          message: changed
+            ? `Synced from Stripe invoice. Local status updated to ${mappedStatus}.`
+            : `Stripe invoice already matches local status (${mappedStatus}).`,
+        };
+      }
+
+      if (invoice.stripeCheckoutSessionId) {
+        const context = getStripeContext(PARENT_ORGANIZATION as StripeBrand);
+        const checkoutSession = await stripe.checkout.sessions.retrieve(
+          invoice.stripeCheckoutSessionId,
+          {},
+          context,
+        );
+
+        const remoteStatus = `session:${checkoutSession.status ?? "unknown"} payment:${checkoutSession.payment_status ?? "unknown"}`;
+
+        if (checkoutSession.payment_status === "paid") {
+          const stripePaymentIntentId = getCheckoutSessionPaymentIntentId(checkoutSession);
+          const changed = invoice.status !== "paid";
+
+          if (changed) {
+            await ctx.runMutation(internal.invoiceActions.updateInvoiceStatus, {
+              orgId,
+              invoiceId: args.invoiceId,
+              status: "paid",
+              paidAt: Date.now(),
+            });
+          }
+
+          await ctx.runAction("webhooks:processCheckoutSessionTransferPayout" as any, {
+            invoiceId: args.invoiceId,
+            settlementSource: "checkout.session.completed",
+            settlementId: checkoutSession.id,
+            stripePaymentIntentId,
+          });
+
+          return {
+            success: true,
+            source: "checkout_session",
+            localStatus: "paid",
+            remoteStatus,
+            changed,
+            message: changed
+              ? "Stripe checkout shows payment completed. Local invoice status has been synced to paid."
+              : "Stripe checkout payment is already reflected locally.",
+          };
+        }
+
+        if (
+          checkoutSession.status === "open" &&
+          invoice.status !== "open" &&
+          invoice.status !== "paid" &&
+          invoice.status !== "void"
+        ) {
+          await ctx.runMutation(internal.invoiceActions.updateInvoiceStatus, {
+            orgId,
+            invoiceId: args.invoiceId,
+            status: "open",
+          });
+
+          return {
+            success: true,
+            source: "checkout_session",
+            localStatus: "open",
+            remoteStatus,
+            changed: true,
+            message: "Stripe checkout is still open. Local invoice status has been synced to open.",
+          };
+        }
+
+        return {
+          success: true,
+          source: "checkout_session",
+          localStatus: invoice.status,
+          remoteStatus,
+          changed: false,
+          message: "No status change needed. Stripe checkout state has been checked.",
+        };
+      }
+
+      return {
+        success: false,
+        error: "Invoice has no Stripe invoice or checkout session reference to sync.",
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error("❌ Failed to sync invoice from Stripe:", errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  }),
+});
+
+/**
  * Mark an invoice as paid manually.
  * For Stripe invoices, this records out-of-band payment in Stripe first.
  */
@@ -4729,28 +5006,24 @@ export const voidInvoice = action({
           await stripe.invoices.voidInvoice(invoice.stripeInvoiceId, context);
         }
       } else if (invoice.stripeCheckoutSessionId) {
-        const context = getStripeContext(PARENT_ORGANIZATION as StripeBrand);
+        const checkoutReconcile = await reconcileExistingCheckoutSessionForInvoice(
+          ctx,
+          stripe,
+          {
+            orgId,
+            invoiceId: args.invoiceId,
+            invoiceNumber: invoice.invoiceNumber,
+            stripeCheckoutSessionId: invoice.stripeCheckoutSessionId,
+            expireOpenSession: true,
+          },
+        );
 
-        try {
-          const checkoutSession = await stripe.checkout.sessions.retrieve(
-            invoice.stripeCheckoutSessionId,
-            {},
-            context,
-          );
-
-          if (checkoutSession.status === "open") {
-            await stripe.checkout.sessions.expire(
-              invoice.stripeCheckoutSessionId,
-              {},
-              context,
-            );
-          }
-        } catch (checkoutError) {
-          const message =
-            checkoutError instanceof Error ? checkoutError.message : "Unknown error";
-          console.warn(
-            `⚠️ Unable to expire checkout session ${invoice.stripeCheckoutSessionId}: ${message}`,
-          );
+        if (checkoutReconcile.alreadyPaid) {
+          return {
+            success: false,
+            error:
+              "Stripe shows this checkout invoice as paid, so it can’t be voided. Local status has been synced.",
+          };
         }
       }
 

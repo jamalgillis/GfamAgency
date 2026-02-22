@@ -15,6 +15,7 @@ import {
   CheckCircle,
   XCircle,
   Circle,
+  RefreshCw,
 } from "lucide-react";
 import { ThemeSwitch } from "@/components/ThemeSwitch";
 import { api } from "@/convex/_generated/api";
@@ -119,6 +120,7 @@ export default function InvoiceDetailPage() {
   const createCheckoutSessionForInvoice = useAction(
     api.invoiceActions.createCheckoutSessionForInvoice
   );
+  const syncInvoiceFromStripe = useAction(api.invoiceActions.syncInvoiceFromStripe);
   const markInvoiceAsPaid = useAction(api.invoiceActions.markInvoiceAsPaid);
   const deleteInvoice = useAction(api.invoiceActions.deleteInvoice);
   const cancelSubscriptionInvoiceCycle = useAction(
@@ -128,6 +130,7 @@ export default function InvoiceDetailPage() {
 
   const [actionsOpen, setActionsOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isSyncingStripe, setIsSyncingStripe] = useState(false);
   const [isMarkingPaid, setIsMarkingPaid] = useState(false);
   const [isDeletingInvoice, setIsDeletingInvoice] = useState(false);
   const [isCancelingCycle, setIsCancelingCycle] = useState(false);
@@ -210,6 +213,9 @@ export default function InvoiceDetailPage() {
     !!invoiceWithDetails &&
     (invoiceWithDetails.status === "open" ||
       invoiceWithDetails.status === "uncollectible");
+  const canSyncFromStripe =
+    !!invoiceWithDetails &&
+    (!!invoiceWithDetails.stripeInvoiceId || !!invoiceWithDetails.stripeCheckoutSessionId);
 
   // Calculate totals
   const subtotal = useMemo(
@@ -324,6 +330,32 @@ export default function InvoiceDetailPage() {
       setSendError(err instanceof Error ? err.message : "Failed to mark invoice as paid");
     } finally {
       setIsMarkingPaid(false);
+    }
+  };
+
+  const handleSyncFromStripe = async () => {
+    if (!invoiceWithDetails || !hasValidInvoiceId || !canSyncFromStripe) return;
+
+    setActionsOpen(false);
+    setIsSyncingStripe(true);
+    setSendError(null);
+    setSendStatusMessage(null);
+
+    try {
+      const result = await syncInvoiceFromStripe({
+        invoiceId: invoiceId as Id<"invoices">,
+      });
+
+      if (!result.success) {
+        setSendError(result.error || "Failed to sync invoice from Stripe");
+        return;
+      }
+
+      setSendStatusMessage(result.message || "Invoice synced from Stripe.");
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : "Failed to sync invoice from Stripe");
+    } finally {
+      setIsSyncingStripe(false);
     }
   };
 
@@ -589,9 +621,26 @@ export default function InvoiceDetailPage() {
                   )}
                   <button
                     className="dropdown-item disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={handleSyncFromStripe}
+                    disabled={
+                      !canSyncFromStripe ||
+                      isSyncingStripe ||
+                      isSending ||
+                      isMarkingPaid ||
+                      isDeletingInvoice ||
+                      isCancelingCycle ||
+                      isVoidingInvoice
+                    }
+                  >
+                    <RefreshCw className={`w-4 h-4 ${isSyncingStripe ? "animate-spin" : ""}`} />
+                    {isSyncingStripe ? "Syncing..." : "Sync from Stripe"}
+                  </button>
+                  <button
+                    className="dropdown-item disabled:opacity-50 disabled:cursor-not-allowed"
                     onClick={handleMarkAsPaid}
                     disabled={
                       !canMarkAsPaid ||
+                      isSyncingStripe ||
                       isMarkingPaid ||
                       isDeletingInvoice ||
                       isCancelingCycle ||
@@ -607,6 +656,7 @@ export default function InvoiceDetailPage() {
                       onClick={handleVoidInvoice}
                       disabled={
                         !canVoidInvoice ||
+                        isSyncingStripe ||
                         isVoidingInvoice ||
                         isMarkingPaid ||
                         isDeletingInvoice ||
@@ -623,6 +673,7 @@ export default function InvoiceDetailPage() {
                     onClick={handleDeleteInvoice}
                     disabled={
                       !canDeleteInvoice ||
+                      isSyncingStripe ||
                       isMarkingPaid ||
                       isDeletingInvoice ||
                       isCancelingCycle ||

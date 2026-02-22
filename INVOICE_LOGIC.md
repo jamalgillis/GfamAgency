@@ -39,3 +39,16 @@
   convexInvoiceId: string
 }
 ```
+
+## 6. Authorization / Roles (Current vs Future)
+
+### Current State
+- Invoice actions are currently scoped to the active Clerk organization (`orgId`) but are **not role-gated** (no member vs admin permission checks yet).
+- In practice, any authenticated org member with dashboard access can trigger the available invoice actions from the UI.
+
+### Future Role-Gating Note (Planned)
+- Add explicit Clerk role checks (or org membership role checks) for invoice/payment operations.
+- Suggested split:
+  - **Member-safe actions**: create draft, edit draft, send invoice, view invoice, download/print invoice.
+  - **Admin-only actions**: mark as paid, void invoice, delete invoice, cancel subscription cycle invoice, manual "Sync from Stripe", Stripe connection/settings changes, payout/transfer controls.
+- Keep backend enforcement as the source of truth (do not rely only on hiding UI buttons).

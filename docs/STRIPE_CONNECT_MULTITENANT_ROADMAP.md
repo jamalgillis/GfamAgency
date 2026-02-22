@@ -92,3 +92,6 @@ This document captures the planned migration path for supporting multi-tenant St
 - Keep `brandLedger` as the source of truth for internal allocation and reporting.
 - Ledger-only mode should remain supported even if payout transfers are disabled.
 - Prefer incremental rollout over full cutover to avoid webhook and ID-mapping regressions.
+- Add backend role-based authorization (RBAC) for payment operations.
+  - Current app behavior is org-scoped but not role-gated.
+  - Future expectation: member-safe invoice actions vs admin-only payment recovery/void/manual sync/Stripe settings actions.
