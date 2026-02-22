@@ -3488,6 +3488,37 @@ export const createCheckoutSessionForInvoice = action({
       });
 
       if (invoice.revisesInvoiceId) {
+        const revisedInvoice = await ctx.runQuery(internal.invoiceActions.getInvoiceById, {
+          orgId,
+          invoiceId: invoice.revisesInvoiceId,
+        });
+
+        if (revisedInvoice?.stripeCheckoutSessionId) {
+          const context = getStripeContext(PARENT_ORGANIZATION as StripeBrand);
+
+          try {
+            const previousCheckoutSession = await stripe.checkout.sessions.retrieve(
+              revisedInvoice.stripeCheckoutSessionId,
+              {},
+              context,
+            );
+
+            if (previousCheckoutSession.status === "open") {
+              await stripe.checkout.sessions.expire(
+                revisedInvoice.stripeCheckoutSessionId,
+                {},
+                context,
+              );
+            }
+          } catch (checkoutError) {
+            const message =
+              checkoutError instanceof Error ? checkoutError.message : "Unknown error";
+            console.warn(
+              `⚠️ Unable to expire replaced invoice checkout session ${revisedInvoice.stripeCheckoutSessionId}: ${message}`,
+            );
+          }
+        }
+
         await ctx.runMutation(internal.invoiceActions.updateInvoiceStatus, {
           orgId,
           invoiceId: invoice.revisesInvoiceId,
@@ -4208,6 +4239,37 @@ export const sendDraftInvoice = action({
         });
 
         if (invoice.revisesInvoiceId) {
+          const revisedInvoice = await ctx.runQuery(internal.invoiceActions.getInvoiceById, {
+            orgId,
+            invoiceId: invoice.revisesInvoiceId,
+          });
+
+          if (revisedInvoice?.stripeCheckoutSessionId) {
+            const context = getStripeContext(PARENT_ORGANIZATION as StripeBrand);
+
+            try {
+              const previousCheckoutSession = await stripe.checkout.sessions.retrieve(
+                revisedInvoice.stripeCheckoutSessionId,
+                {},
+                context,
+              );
+
+              if (previousCheckoutSession.status === "open") {
+                await stripe.checkout.sessions.expire(
+                  revisedInvoice.stripeCheckoutSessionId,
+                  {},
+                  context,
+                );
+              }
+            } catch (checkoutError) {
+              const message =
+                checkoutError instanceof Error ? checkoutError.message : "Unknown error";
+              console.warn(
+                `⚠️ Unable to expire replaced invoice checkout session ${revisedInvoice.stripeCheckoutSessionId}: ${message}`,
+              );
+            }
+          }
+
           await ctx.runMutation(internal.invoiceActions.updateInvoiceStatus, {
             orgId,
             invoiceId: invoice.revisesInvoiceId,

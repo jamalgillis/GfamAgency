@@ -149,6 +149,13 @@ export const processPaidInvoiceLedgerAttribution = internalMutation({
       return { success: false, error: "Invoice not found" as const };
     }
 
+    if (invoice.status === "void") {
+      console.warn(
+        `Ignoring ${args.settlementSource} (${args.settlementId}) for void invoice ${args.invoiceId}`
+      );
+      return { success: false, error: "Invoice is void" as const };
+    }
+
     if (invoice.status !== "paid") {
       await ctx.db.patch(args.invoiceId, { status: "paid" });
     }

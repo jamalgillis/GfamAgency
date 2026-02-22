@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
 
 type PaymentSuccessPageProps = {
@@ -29,14 +28,6 @@ export default async function PaymentSuccessPage({
             Reference: <span className="font-mono">{invoiceId}</span>
           </p>
         )}
-        <div className="mt-6 flex justify-center">
-          <Link
-            href="/"
-            className="inline-flex items-center justify-center rounded-lg border border-border px-4 py-2 text-sm hover:bg-surface-hover transition-colors"
-          >
-            Return to Home
-          </Link>
-        </div>
         <p className="text-xs text-content-muted mt-4">
           You can close this window.
         </p>
