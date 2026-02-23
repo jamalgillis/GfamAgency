@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAction } from "convex/react";
+import { useAction, useMutation } from "convex/react";
 import { ArrowLeft, ArrowRight, Send, Save, AlertCircle, Loader2 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -100,6 +100,7 @@ export function WizardContainer({
       ? { invoiceId: normalizedEditingInvoiceId }
       : "skip",
   );
+  const createClient = useMutation(api.clients.create);
 
   // Convex action for creating invoices
   const createLedgerDraftInvoice = useAction(api.invoiceActions.createLedgerDraftInvoice);
@@ -477,6 +478,21 @@ export function WizardContainer({
       const next = new Map(prev);
       next.set(service.id, { service, quantity: 1 });
       return next;
+    });
+  };
+
+  const handleCreateClient = async (client: {
+    name: string;
+    company: string;
+    email: string;
+  }) => {
+    const clientId = await createClient(client);
+    setSelectedClient({
+      id: clientId,
+      name: client.name,
+      company: client.company,
+      email: client.email,
+      initials: getInitials(client.name),
     });
   };
 
@@ -959,15 +975,12 @@ export function WizardContainer({
                 <Loader2 className="w-6 h-6 animate-spin text-content-muted" />
                 <span className="ml-2 text-content-muted">Loading clients...</span>
               </div>
-            ) : clients.length === 0 ? (
-              <div className="text-center py-12 text-content-muted">
-                <p>No clients found. Create a client first.</p>
-              </div>
             ) : (
               <ClientSelector
                 clients={clients}
                 selectedClient={selectedClient}
                 onSelect={setSelectedClient}
+                onCreateClient={handleCreateClient}
               />
             )}
           </div>
