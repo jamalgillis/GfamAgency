@@ -704,7 +704,7 @@ export default function ClientsPage() {
 
       {/* Client Invoices Modal */}
       {viewingClient && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
           <div
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={closeInvoicesModal}
@@ -830,7 +830,7 @@ export default function ClientsPage() {
 
       {/* Add/Edit Client Modal */}
       {modalMode && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={closeModal} />
           <div className="relative bg-surface-secondary rounded-card-lg border border-border p-6 w-full max-w-md animate-fade-in-up">
             <div className="flex items-center justify-between mb-6">
@@ -913,7 +913,7 @@ export default function ClientsPage() {
 
       {/* Delete Confirmation Modal */}
       {deletingClient && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={closeDeleteModal} />
           <div className="relative bg-surface-secondary rounded-card-lg border border-border p-6 w-full max-w-sm animate-fade-in-up">
             <h2 className="text-lg font-semibold text-content mb-2">Delete Client</h2>

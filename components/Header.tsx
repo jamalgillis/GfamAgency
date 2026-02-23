@@ -168,7 +168,7 @@ export function Header({ title, subtitle, onNewInvoice }: HeaderProps) {
             </button>
 
             {notificationsOpen && (
-              <div className="absolute right-0 top-full mt-2 w-[320px] sm:w-[360px] rounded-xl border border-border bg-surface-secondary shadow-[var(--shadow-card-hover)] z-50 overflow-hidden animate-fade-in-up">
+              <div className="absolute right-0 top-full mt-2 w-[320px] sm:w-[360px] rounded-xl border border-border bg-surface-secondary shadow-[var(--shadow-card-hover)] z-40 overflow-hidden animate-fade-in-up">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-surface-tertiary/60">
                   <div>
                     <p className="text-sm font-semibold text-content">Notifications</p>
