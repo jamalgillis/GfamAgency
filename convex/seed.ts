@@ -482,3 +482,217 @@ export const auditOrgCoverage = mutation({
     };
   },
 });
+
+/**
+ * Delete duplicate service rows by explicit keep/delete pairs with safety checks.
+ * Intended for one-time production cleanup after a manual audit.
+ */
+export const dedupeServicesByIdPairs = mutation({
+  args: {
+    orgId: v.string(),
+    pairs: v.array(
+      v.object({
+        keepId: v.id("services"),
+        deleteId: v.id("services"),
+      }),
+    ),
+    dryRun: v.optional(v.boolean()),
+    confirm: v.optional(v.string()),
+    requireKeepStripeSynced: v.optional(v.boolean()),
+    requireDeleteUnsynced: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const dryRun = args.dryRun ?? true;
+    const requireKeepStripeSynced = args.requireKeepStripeSynced ?? true;
+    const requireDeleteUnsynced = args.requireDeleteUnsynced ?? true;
+
+    if (!dryRun && args.confirm !== "DELETE_DUPLICATE_SERVICES") {
+      throw new Error(
+        "Refusing to delete in non-dry-run mode without confirm=DELETE_DUPLICATE_SERVICES",
+      );
+    }
+
+    const normalize = (value: string) => value.trim().toLowerCase();
+
+    if (args.pairs.length === 0) {
+      return {
+        success: true,
+        dryRun,
+        orgId: args.orgId,
+        requestedPairs: 0,
+        deleted: 0,
+      };
+    }
+
+    const pairKeys = new Set<string>();
+    const keepIds = new Set<string>();
+    const deleteIds = new Set<string>();
+
+    for (const pair of args.pairs) {
+      if (pair.keepId === pair.deleteId) {
+        throw new Error(`Invalid pair: keepId and deleteId are the same (${pair.keepId})`);
+      }
+
+      const key = `${pair.keepId}=>${pair.deleteId}`;
+      if (pairKeys.has(key)) {
+        throw new Error(`Duplicate pair specified: ${key}`);
+      }
+      pairKeys.add(key);
+
+      if (keepIds.has(pair.keepId)) {
+        throw new Error(`A keepId is used more than once: ${pair.keepId}`);
+      }
+      if (deleteIds.has(pair.deleteId)) {
+        throw new Error(`A deleteId is used more than once: ${pair.deleteId}`);
+      }
+      if (deleteIds.has(pair.keepId) || keepIds.has(pair.deleteId)) {
+        throw new Error(
+          `ID appears across keep/delete sets; refusing to continue (${pair.keepId}, ${pair.deleteId})`,
+        );
+      }
+
+      keepIds.add(pair.keepId);
+      deleteIds.add(pair.deleteId);
+    }
+
+    const orgServices = await ctx.db
+      .query("services")
+      .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+      .take(50000);
+    const servicesById = new Map(orgServices.map((service) => [service._id, service]));
+
+    const pairAudit = args.pairs.map((pair) => {
+      const keep = servicesById.get(pair.keepId);
+      const duplicate = servicesById.get(pair.deleteId);
+
+      if (!keep) {
+        throw new Error(`Keep service not found in org ${args.orgId}: ${pair.keepId}`);
+      }
+      if (!duplicate) {
+        throw new Error(`Delete service not found in org ${args.orgId}: ${pair.deleteId}`);
+      }
+
+      if (keep.orgId !== args.orgId || duplicate.orgId !== args.orgId) {
+        throw new Error(`Pair contains service outside org ${args.orgId}`);
+      }
+
+      if (keep.brand !== duplicate.brand) {
+        throw new Error(
+          `Brand mismatch for pair ${pair.keepId}/${pair.deleteId}: ${keep.brand} vs ${duplicate.brand}`,
+        );
+      }
+      if (normalize(keep.name) !== normalize(duplicate.name)) {
+        throw new Error(
+          `Name mismatch for pair ${pair.keepId}/${pair.deleteId}: "${keep.name}" vs "${duplicate.name}"`,
+        );
+      }
+      if (keep.category !== duplicate.category) {
+        throw new Error(
+          `Category mismatch for pair ${pair.keepId}/${pair.deleteId}: ${keep.category} vs ${duplicate.category}`,
+        );
+      }
+      if (keep.priceValue !== duplicate.priceValue) {
+        throw new Error(
+          `priceValue mismatch for pair ${pair.keepId}/${pair.deleteId}: ${keep.priceValue} vs ${duplicate.priceValue}`,
+        );
+      }
+
+      if (requireKeepStripeSynced && keep.stripeSynced !== true) {
+        throw new Error(`Keep service must be stripeSynced=true: ${pair.keepId}`);
+      }
+      if (requireDeleteUnsynced && duplicate.stripeSynced !== false) {
+        throw new Error(`Delete service must be stripeSynced=false: ${pair.deleteId}`);
+      }
+
+      if (duplicate.stripeProductId || duplicate.stripePriceId || duplicate.stripeRecurringPriceId) {
+        throw new Error(
+          `Delete service has Stripe IDs; refusing to delete without manual review: ${pair.deleteId}`,
+        );
+      }
+
+      return {
+        keepId: pair.keepId,
+        deleteId: pair.deleteId,
+        brand: keep.brand,
+        name: keep.name,
+        category: keep.category,
+        keepStripeSynced: keep.stripeSynced,
+        deleteStripeSynced: duplicate.stripeSynced,
+      };
+    });
+
+    const invoiceLineItems = await ctx.db
+      .query("invoiceLineItems")
+      .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+      .collect();
+    const invoiceLineItemReferences = invoiceLineItems
+      .filter((row) => !!row.serviceId && deleteIds.has(row.serviceId))
+      .map((row) => ({
+        lineItemId: row._id,
+        invoiceId: row.invoiceId,
+        serviceId: row.serviceId,
+        name: row.name,
+        stripePriceId: row.stripePriceId,
+      }));
+
+    const subscriptions = await ctx.db
+      .query("subscriptions")
+      .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+      .collect();
+    const subscriptionReferences = subscriptions.flatMap((subscription) =>
+      subscription.items
+        .map((item, itemIndex) => ({ item, itemIndex }))
+        .filter(({ item }) => !!item.serviceId && deleteIds.has(item.serviceId))
+        .map(({ item, itemIndex }) => ({
+          subscriptionId: subscription._id,
+          stripeSubscriptionId: subscription.stripeSubscriptionId,
+          itemIndex,
+          serviceId: item.serviceId,
+          itemName: item.name,
+          stripePriceId: item.stripePriceId,
+          status: subscription.status,
+        })),
+    );
+
+    if (invoiceLineItemReferences.length > 0 || subscriptionReferences.length > 0) {
+      return {
+        success: false,
+        dryRun,
+        blocked: true,
+        reason: "references_to_delete_ids_found",
+        orgId: args.orgId,
+        requestedPairs: args.pairs.length,
+        invoiceLineItemReferences,
+        subscriptionReferences,
+      };
+    }
+
+    if (dryRun) {
+      return {
+        success: true,
+        dryRun: true,
+        blocked: false,
+        orgId: args.orgId,
+        requestedPairs: args.pairs.length,
+        validatedPairs: pairAudit.length,
+        wouldDelete: pairAudit.map((pair) => pair.deleteId),
+        pairAudit,
+      };
+    }
+
+    for (const pair of pairAudit) {
+      await ctx.db.delete(pair.deleteId);
+    }
+
+    return {
+      success: true,
+      dryRun: false,
+      blocked: false,
+      orgId: args.orgId,
+      requestedPairs: args.pairs.length,
+      deleted: pairAudit.length,
+      deletedIds: pairAudit.map((pair) => pair.deleteId),
+      keptIds: pairAudit.map((pair) => pair.keepId),
+    };
+  },
+});

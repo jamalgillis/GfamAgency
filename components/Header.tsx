@@ -82,7 +82,7 @@ export function Header({ title, subtitle, onNewInvoice }: HeaderProps) {
   }, [notificationsOpen]);
 
   return (
-    <header className="mb-6 md:mb-8 animate-fade-in-up">
+    <header className="relative z-[60] mb-6 md:mb-8 animate-fade-in-up">
       {/* Mobile Search Overlay */}
       {searchOpen && (
         <div className="fixed inset-0 bg-surface z-50 p-4 md:hidden">
