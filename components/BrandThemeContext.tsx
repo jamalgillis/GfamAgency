@@ -9,8 +9,8 @@ import {
   type ReactNode,
 } from "react";
 import {
-  BRAND_THEMES,
   AGENCY_THEME,
+  PARENT_ORGANIZATION,
   getBrandTheme,
   getBrandCSSVariables,
   type BrandType,
@@ -54,10 +54,7 @@ export function BrandThemeProvider({
   const [activeBrands, setActiveBrandsState] = useState<BrandType[]>(initialBrands);
 
   const setActiveBrands = useCallback((brands: BrandType[]) => {
-    // Filter to unique valid brands
-    const uniqueBrands = [...new Set(brands)].filter(
-      (brand) => brand in BRAND_THEMES
-    );
+    const uniqueBrands = [...new Set(brands.map((brand) => brand.trim()))].filter(Boolean);
     setActiveBrandsState(uniqueBrands);
   }, []);
 
@@ -68,7 +65,7 @@ export function BrandThemeProvider({
       return AGENCY_THEME;
     }
     if (activeBrands.length === 1) {
-      return BRAND_THEMES[activeBrands[0]];
+      return getBrandTheme(activeBrands[0]);
     }
     // Multiple brands - use agency theme
     return AGENCY_THEME;
@@ -83,7 +80,7 @@ export function BrandThemeProvider({
     if (activeBrands.length === 1) {
       return activeBrands[0];
     }
-    return "GFAM Agency";
+    return PARENT_ORGANIZATION;
   }, [activeBrands]);
 
   const value: BrandThemeContextValue = useMemo(

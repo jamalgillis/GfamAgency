@@ -1,6 +1,11 @@
 import { mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { brandUnion, serviceStatusUnion } from "./schema";
+import {
+  billingTypeUnion,
+  brandUnion,
+  recurringIntervalUnion,
+  serviceStatusUnion,
+} from "./schema";
 
 /**
  * Seed the services table with mapped brand data
@@ -18,6 +23,9 @@ export const seedServices = mutation({
         price: v.string(),
         priceValue: v.number(),
         priceSuffix: v.optional(v.string()),
+        billingType: v.optional(billingTypeUnion),
+        recurringInterval: v.optional(recurringIntervalUnion),
+        recurringIntervalCount: v.optional(v.number()),
         tags: v.array(v.string()),
         status: serviceStatusUnion,
         stripeSynced: v.boolean(),
@@ -58,6 +66,71 @@ export const seedServices = mutation({
 });
 
 /**
+ * Replace all services for a single brand in a specific org.
+ * Useful for targeted pricing updates without wiping every brand.
+ */
+export const replaceServicesForBrand = mutation({
+  args: {
+    orgId: v.string(),
+    brand: brandUnion,
+    services: v.array(
+      v.object({
+        brand: brandUnion,
+        name: v.string(),
+        description: v.string(),
+        category: v.string(),
+        price: v.string(),
+        priceValue: v.number(),
+        priceSuffix: v.optional(v.string()),
+        billingType: v.optional(billingTypeUnion),
+        recurringInterval: v.optional(recurringIntervalUnion),
+        recurringIntervalCount: v.optional(v.number()),
+        tags: v.array(v.string()),
+        status: serviceStatusUnion,
+        stripeSynced: v.boolean(),
+        stripeProductId: v.optional(v.string()),
+        stripePriceId: v.optional(v.string()),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const brandServices = args.services.filter((service) => service.brand === args.brand);
+
+    if (brandServices.length === 0) {
+      throw new Error(`No services provided for brand "${args.brand}"`);
+    }
+
+    const mismatchedServices = args.services.filter((service) => service.brand !== args.brand);
+    if (mismatchedServices.length > 0) {
+      throw new Error(`Received ${mismatchedServices.length} services for the wrong brand`);
+    }
+
+    const existing = await ctx.db
+      .query("services")
+      .withIndex("by_org_brand", (q) => q.eq("orgId", args.orgId).eq("brand", args.brand))
+      .collect();
+
+    for (const service of existing) {
+      await ctx.db.delete(service._id);
+    }
+
+    const inserted: string[] = [];
+    for (const service of brandServices) {
+      const id = await ctx.db.insert("services", { ...service, orgId: args.orgId });
+      inserted.push(id);
+    }
+
+    return {
+      success: true,
+      orgId: args.orgId,
+      brand: args.brand,
+      removed: existing.length,
+      inserted: inserted.length,
+    };
+  },
+});
+
+/**
  * Seed a single service (useful for testing)
  */
 export const seedSingleService = mutation({
@@ -70,6 +143,9 @@ export const seedSingleService = mutation({
     price: v.string(),
     priceValue: v.number(),
     priceSuffix: v.optional(v.string()),
+    billingType: v.optional(billingTypeUnion),
+    recurringInterval: v.optional(recurringIntervalUnion),
+    recurringIntervalCount: v.optional(v.number()),
     tags: v.array(v.string()),
     status: serviceStatusUnion,
     stripeSynced: v.boolean(),

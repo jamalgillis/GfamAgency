@@ -1,30 +1,25 @@
 import Stripe from "stripe";
 
 /**
- * Brand types for the GFAM Agency ecosystem
+ * Brand identifiers used across Stripe metadata and transfer routing.
  * All brands operate under a single Stripe account with metadata-based tracking
  */
-export type StripeBrand =
-  | "Sankofa"
-  | "Lighthouse"
-  | "Centex"
-  | "GFAM Media Studios"
-  | "GFAM Agency"; // Parent organization for multi-brand invoices
+export type StripeBrand = string;
 
 /**
  * Parent organization - owns the single Stripe account
  */
-export const PARENT_ORGANIZATION = "GFAM Agency";
+export const PARENT_ORGANIZATION =
+  process.env.STRIPE_PARENT_ORGANIZATION?.trim() || "Agency";
 
 /**
- * All sub-brands under GFAM Agency
+ * Optional sub-brand list used for diagnostics.
+ * Configure via STRIPE_SUB_BRANDS="Brand A,Brand B"
  */
-export const SUB_BRANDS: StripeBrand[] = [
-  "Sankofa",
-  "Lighthouse",
-  "Centex",
-  "GFAM Media Studios",
-];
+export const SUB_BRANDS: StripeBrand[] = (process.env.STRIPE_SUB_BRANDS ?? "")
+  .split(",")
+  .map((brand) => brand.trim())
+  .filter((brand) => brand.length > 0);
 
 // Singleton Stripe client instance
 let stripeClient: Stripe | null = null;
@@ -34,7 +29,7 @@ function isOrganizationLikeKey(apiKey: string | undefined): boolean {
 }
 
 /**
- * Get the single Stripe client for GFAM Agency
+ * Get the single Stripe client for the configured parent organization
  * All brands use this same account with metadata differentiation
  */
 export function getStripeClient(): Stripe {
@@ -153,6 +148,10 @@ export function isValidBrand(brand: string): brand is StripeBrand {
 export const STRIPE_ENV_VARS = {
   apiKey: "STRIPE_SECRET_KEY",
   webhookSecret: "STRIPE_WEBHOOK_SECRET",
+  parentOrganization: "STRIPE_PARENT_ORGANIZATION",
+  subBrands: "STRIPE_SUB_BRANDS",
+  accountIdPrefix: "STRIPE_ACCOUNT_ID__",
+  // Legacy optional account-id keys retained for backwards compatibility.
   accountIdSankofa: "STRIPE_ACCOUNT_ID_SANKOFA",
   accountIdLighthouse: "STRIPE_ACCOUNT_ID_LIGHTHOUSE",
   accountIdCentex: "STRIPE_ACCOUNT_ID_CENTEX",
@@ -160,19 +159,42 @@ export const STRIPE_ENV_VARS = {
   accountIdGfamAgency: "STRIPE_ACCOUNT_ID_GFAM_AGENCY",
 } as const;
 
-/**
- * Mapping of brands to their respective Stripe Account IDs.
- * Used for transfer destinations when optional brand payout transfers are enabled.
- */
-export function getBrandAccountId(brand: StripeBrand): string | undefined {
-  const accountMap: Record<StripeBrand, string | undefined> = {
+function toBrandEnvSuffix(brand: string): string {
+  return brand
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .replace(/_{2,}/g, "_");
+}
+
+function getLegacyBrandAccountId(brand: string): string | undefined {
+  const legacyKeyMap: Record<string, string | undefined> = {
     Sankofa: process.env.STRIPE_ACCOUNT_ID_SANKOFA,
     Lighthouse: process.env.STRIPE_ACCOUNT_ID_LIGHTHOUSE,
     Centex: process.env.STRIPE_ACCOUNT_ID_CENTEX,
     "GFAM Media Studios": process.env.STRIPE_ACCOUNT_ID_GFAM_STUDIOS,
     "GFAM Agency": process.env.STRIPE_ACCOUNT_ID_GFAM_AGENCY,
   };
-  return accountMap[brand];
+
+  return legacyKeyMap[brand];
+}
+
+/**
+ * Mapping of brands to their respective Stripe Account IDs.
+ * Used for transfer destinations when optional brand payout transfers are enabled.
+ */
+export function getBrandAccountId(brand: StripeBrand): string | undefined {
+  const envSuffix = toBrandEnvSuffix(brand);
+  if (envSuffix.length > 0) {
+    const envKey = `${STRIPE_ENV_VARS.accountIdPrefix}${envSuffix}`;
+    const configured = process.env[envKey];
+    if (configured) {
+      return configured;
+    }
+  }
+
+  return getLegacyBrandAccountId(brand);
 }
 
 /**
@@ -207,8 +229,7 @@ export function getStripeContext(
  * All brands that need Stripe Account IDs configured (including parent for multi-brand invoices)
  */
 export const ALL_BRANDS_WITH_ACCOUNTS: StripeBrand[] = [
-  ...SUB_BRANDS,
-  "GFAM Agency",
+  ...Array.from(new Set([...SUB_BRANDS, PARENT_ORGANIZATION])),
 ];
 
 /**

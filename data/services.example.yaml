@@ -2,10 +2,10 @@
 # Copy this file to services.yaml and fill in your Stripe Price IDs
 #
 # Brand Mapping Rules:
-# - website, social-media → Sankofa
+# - website, social-media, marketing, seo → Sankofa
 # - video, bundle, photography → Lighthouse
 # - podcast (with sports/live-event tags) → Centex
-# - podcast (standard), studio-rental → GFAM Media Studios
+# - podcast (standard), studio-rental, membership, membership-upgrade, photo-room, fees → GFAM Media Studios
 
 services:
   # ═══════════════════════════════════════════════════════
@@ -29,6 +29,24 @@ services:
     baseRate: 800
     stripePriceId: "price_XXXXXXXXXXXXXXXX"
     category: "social-media"
+
+  - name: "Local Entity Foundation"
+    description: "Google Business Profile entity optimization, local citations, review framework, and high-intent page optimization"
+    baseRate: 495
+    stripePriceId: "price_XXXXXXXXXXXXXXXX"
+    category: "seo"
+
+  - name: "Regional Authority & AI Engine"
+    description: "Regional SEO growth with content clusters, technical SEO, regional pages, and schema deployment"
+    baseRate: 1495
+    stripePriceId: "price_XXXXXXXXXXXXXXXX"
+    category: "seo"
+
+  - name: "Market Dominance Framework"
+    description: "Premium SEO retainer with digital PR, full schema suite, CRO, and aggressive content execution"
+    baseRate: 2950
+    stripePriceId: "price_XXXXXXXXXXXXXXXX"
+    category: "seo"
 
   # ═══════════════════════════════════════════════════════
   # LIGHTHOUSE - Post-Production, Video, Photography
@@ -62,29 +80,83 @@ services:
   # GFAM MEDIA STUDIOS - Podcasts & Studio Rentals
   # ═══════════════════════════════════════════════════════
 
-  - name: "Podcast Episode (Audio Only)"
-    description: "Single episode recording with editing and mastering"
-    baseRate: 150
+  - name: "Foundation Monthly Membership"
+    description: "2 monthly studio sessions with engineer support, 1080p capture, same-day file handoff, and 10% off add-ons"
+    baseRate: 349
     stripePriceId: "price_XXXXXXXXXXXXXXXX"
-    category: "podcast"
+    category: "membership"
 
-  - name: "Podcast Episode (Video)"
-    description: "Single episode with multi-camera video recording"
-    baseRate: 350
+  - name: "Content Engine Monthly Membership"
+    description: "4 monthly episodes, full multi-cam edits, short-form clips, captions, thumbnails, and a monthly photo room session"
+    baseRate: 1199
     stripePriceId: "price_XXXXXXXXXXXXXXXX"
-    category: "podcast"
+    category: "membership"
 
-  - name: "Studio Rental (Hourly)"
-    description: "Access to podcast studio with equipment"
+  - name: "Market Authority Monthly Membership"
+    description: "Premium outsourced media retainer with 4K masters, raw ISOs, distribution support, SEO, and priority delivery"
+    baseRate: 2199
+    stripePriceId: "price_XXXXXXXXXXXXXXXX"
+    category: "membership"
+
+  - name: "Photo Room Hourly Rental"
+    description: "Self-serve photo room rental with standard backdrops and lighting"
     baseRate: 75
     stripePriceId: "price_XXXXXXXXXXXXXXXX"
-    category: "studio-rental"
+    category: "photo-room"
 
-  - name: "Studio Rental (Half Day)"
-    description: "4-hour studio rental with engineer support"
+  - name: "Photo Room Half-Day Pass (4 Hours)"
+    description: "Half-day access to the photo room for agency or creator shoots"
     baseRate: 250
     stripePriceId: "price_XXXXXXXXXXXXXXXX"
-    category: "studio-rental"
+    category: "photo-room"
+
+  - name: "Photo Room Full-Day Takeover (8 Hours)"
+    description: "Full-day commercial booking for lookbooks, campaigns, or all-day production"
+    baseRate: 450
+    stripePriceId: "price_XXXXXXXXXXXXXXXX"
+    category: "photo-room"
+
+  - name: "Premium Headshot Session"
+    description: "15-minute add-on with 2 fully retouched high-res headshots"
+    baseRate: 99
+    stripePriceId: "price_XXXXXXXXXXXXXXXX"
+    category: "photo-room"
+
+  - name: "Show Promo & Thumbnail Pack"
+    description: "30-minute photo room session for thumbnail, cover, and quote graphic imagery"
+    baseRate: 149
+    stripePriceId: "price_XXXXXXXXXXXXXXXX"
+    category: "photo-room"
+
+  - name: "B-Roll / Lifestyle Video Shoot"
+    description: "4K lifestyle footage capture in the photo room for reels, ads, and overlays"
+    baseRate: 199
+    stripePriceId: "price_XXXXXXXXXXXXXXXX"
+    category: "photo-room"
+
+  - name: "Visual Refresh Upgrade"
+    description: "Adds a recurring monthly photo room slot and 10 fresh brand photos"
+    baseRate: 199
+    stripePriceId: "price_XXXXXXXXXXXXXXXX"
+    category: "membership-upgrade"
+
+  - name: "Late Reschedule Fee"
+    description: "Applies when a booked recording block is changed inside the 48-hour window"
+    baseRate: 50
+    stripePriceId: "price_XXXXXXXXXXXXXXXX"
+    category: "fees"
+
+  - name: "Session Overage (30 min)"
+    description: "Automatic half-hour overage billing when a session runs past package limits"
+    baseRate: 50
+    stripePriceId: "price_XXXXXXXXXXXXXXXX"
+    category: "fees"
+
+  - name: "Photo Room Cleaning / Reset Fee"
+    description: "Protects backdrop margins on self-serve rentals that require cleanup or replacement"
+    baseRate: 50
+    stripePriceId: "price_XXXXXXXXXXXXXXXX"
+    category: "fees"
 
   # ═══════════════════════════════════════════════════════
   # CENTEX - Sports Podcasts & Live Production

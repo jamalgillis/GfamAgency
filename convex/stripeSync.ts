@@ -110,7 +110,7 @@ export const markServiceSyncFailed = internalMutation({
 });
 
 /**
- * Sync a single service to the GFAM Agency Stripe account
+ * Sync a single service to the configured parent Stripe account
  * Creates a Product and Price with brand metadata for tracking
  */
 export const syncSingleService = action({
@@ -237,7 +237,7 @@ export const getServiceById = internalQuery({
 
 /**
  * Sync services for a specific brand
- * All services sync to the single GFAM Agency Stripe account
+ * All services sync to the single configured parent Stripe account
  */
 export const syncBrandServices = action({
   args: {
@@ -295,8 +295,8 @@ export const syncBrandServices = action({
 });
 
 /**
- * Batch sync all unsynced services to GFAM Agency Stripe account
- * Processes by brand for organized logging
+ * Batch sync all unsynced services to the configured Stripe account.
+ * Processes by brand for organized logging.
  */
 export const syncAllServices = action({
   args: {
@@ -308,14 +308,28 @@ export const syncAllServices = action({
     failed: number;
     byBrand: Record<string, { synced: number; failed: number }>;
     errors: string[];
-  }> => withOrg(ctx, async (_orgId) => {
+  }> => withOrg(ctx, async (orgId) => {
     const limit = args.limit ?? 100;
     const allErrors: string[] = [];
     let totalSynced = 0;
     let totalFailed = 0;
     const byBrand: Record<string, { synced: number; failed: number }> = {};
 
-    const brands = ["Sankofa", "Lighthouse", "Centex", "GFAM Media Studios"];
+    const unsyncedServices = await ctx.runQuery(
+      internal.stripeSync.getUnsyncedServices,
+      { orgId, limit }
+    );
+    const brands = [...new Set(unsyncedServices.map((service) => service.brand))];
+
+    if (brands.length === 0) {
+      return {
+        total: 0,
+        synced: 0,
+        failed: 0,
+        byBrand: {},
+        errors: [],
+      };
+    }
 
     console.log(`\n🏢 Syncing all services to ${PARENT_ORGANIZATION} Stripe account...\n`);
 

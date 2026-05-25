@@ -18,8 +18,11 @@ import {
 } from "lucide-react";
 import { BrandFilter } from "./BrandFilter";
 import {
+  dashboardPathToTenantHostPath,
   dashboardPathToTenantPath,
+  getTenantSlugFromHost,
   getTenantSlugFromPath,
+  tenantHostPathToDashboardPath,
   tenantPathToDashboardPath,
 } from "@/lib/tenant-routing";
 
@@ -38,6 +41,34 @@ const navItems: NavItem[] = [
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
+const commonOrgSwitcherElements = {
+  organizationSwitcherPopoverCard:
+    "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 shadow-xl",
+  organizationSwitcherPopoverMain: "bg-white dark:bg-zinc-900",
+  organizationSwitcherPopoverActions:
+    "bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-700",
+  organizationSwitcherPopoverActionButton:
+    "text-zinc-900 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800",
+  organizationSwitcherPopoverActionButton__manageOrganization:
+    "text-zinc-900 dark:text-zinc-100 font-semibold",
+  organizationSwitcherPopoverActionButton__createOrganization:
+    "text-zinc-900 dark:text-zinc-100 font-semibold",
+  organizationSwitcherPreviewButton:
+    "hover:bg-zinc-100 dark:hover:bg-zinc-800",
+  organizationPreviewMainIdentifier__organizationSwitcherListedOrganization:
+    "text-zinc-900 dark:text-zinc-100 font-semibold",
+  organizationPreviewSecondaryIdentifier__organizationSwitcherListedOrganization:
+    "text-zinc-700 dark:text-zinc-300",
+  organizationPreviewMainIdentifier__organizationList:
+    "text-zinc-900 dark:text-zinc-100 font-semibold",
+  organizationPreviewSecondaryIdentifier__organizationList:
+    "text-zinc-700 dark:text-zinc-300",
+  organizationPreviewMainIdentifier__organizationSwitcherActiveOrganization:
+    "text-zinc-900 dark:text-zinc-100 font-semibold",
+  organizationPreviewSecondaryIdentifier__organizationSwitcherActiveOrganization:
+    "text-zinc-700 dark:text-zinc-300",
+} as const;
+
 interface SidebarProps {
   isOpen?: boolean;
   onToggle?: () => void;
@@ -47,12 +78,45 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen = false, onToggle, collapsed = false, onCollapseToggle }: SidebarProps) {
   const pathname = usePathname();
-  const tenantSlug = getTenantSlugFromPath(pathname ?? "");
-  const pathnameForMatching = tenantSlug
-    ? tenantPathToDashboardPath(pathname ?? "") ?? pathname ?? ""
-    : pathname ?? "";
-
-  const switcherRedirect = tenantSlug ? `/${tenantSlug}` : "/dashboard";
+  const resolvedPathname = pathname ?? "";
+  const currentHostname =
+    typeof window !== "undefined" ? window.location.hostname.toLowerCase() : "";
+  const canonicalHost =
+    process.env.NEXT_PUBLIC_CANONICAL_PRODUCTION_DOMAIN?.trim().toLowerCase() || null;
+  const tenantBaseDomain =
+    process.env.NEXT_PUBLIC_TENANT_SUBDOMAIN_BASE_DOMAIN?.trim().toLowerCase() ||
+    canonicalHost;
+  const hostTenantSlug = getTenantSlugFromHost(currentHostname, {
+    baseDomain: tenantBaseDomain,
+    canonicalHost,
+  });
+  const pathTenantSlug = hostTenantSlug
+    ? (
+        resolvedPathname === `/${hostTenantSlug}` ||
+        resolvedPathname.startsWith(`/${hostTenantSlug}/`)
+      )
+        ? hostTenantSlug
+        : null
+    : getTenantSlugFromPath(resolvedPathname);
+  const usesTenantHostPaths =
+    !!hostTenantSlug &&
+    !pathTenantSlug &&
+    tenantHostPathToDashboardPath(resolvedPathname) !== null;
+  const pathnameForMatching = pathTenantSlug
+    ? tenantPathToDashboardPath(resolvedPathname) ?? resolvedPathname
+    : usesTenantHostPaths
+      ? tenantHostPathToDashboardPath(resolvedPathname) ?? resolvedPathname
+      : resolvedPathname;
+  const canonicalDashboardRedirect =
+    canonicalHost && typeof window !== "undefined"
+      ? `${window.location.protocol}//${canonicalHost}/dashboard`
+      : "/dashboard";
+  const switcherRedirect = hostTenantSlug
+    ? canonicalDashboardRedirect
+    : pathTenantSlug
+      ? `/${pathTenantSlug}`
+      : "/dashboard";
+  const createOrganizationUrl = "/organization-select?next=/dashboard";
 
   // Close sidebar when route changes on mobile
   useEffect(() => {
@@ -88,8 +152,11 @@ export function Sidebar({ isOpen = false, onToggle, collapsed = false, onCollaps
                 hidePersonal
                 afterSelectOrganizationUrl={switcherRedirect}
                 afterCreateOrganizationUrl={switcherRedirect}
+                createOrganizationMode="navigation"
+                createOrganizationUrl={createOrganizationUrl}
                 appearance={{
                   elements: {
+                    ...commonOrgSwitcherElements,
                     rootBox: "w-full min-w-0",
                     organizationSwitcherTrigger:
                       "w-full justify-center px-0 py-0 border-none shadow-none bg-transparent hover:bg-transparent focus:shadow-none",
@@ -105,8 +172,11 @@ export function Sidebar({ isOpen = false, onToggle, collapsed = false, onCollaps
                 hidePersonal
                 afterSelectOrganizationUrl={switcherRedirect}
                 afterCreateOrganizationUrl={switcherRedirect}
+                createOrganizationMode="navigation"
+                createOrganizationUrl={createOrganizationUrl}
                 appearance={{
                   elements: {
+                    ...commonOrgSwitcherElements,
                     rootBox: "w-full min-w-0",
                     organizationSwitcherTrigger:
                       "w-full min-w-0 max-w-none justify-start gap-3 px-0 py-0 border-none shadow-none bg-transparent hover:bg-transparent focus:shadow-none",
@@ -132,7 +202,11 @@ export function Sidebar({ isOpen = false, onToggle, collapsed = false, onCollaps
         {/* Navigation */}
         <nav className="py-4 flex-1 overflow-y-auto scrollbar-hide">
           {navItems.map((item) => {
-            const href = tenantSlug ? dashboardPathToTenantPath(item.href, tenantSlug) : item.href;
+            const href = pathTenantSlug
+              ? dashboardPathToTenantPath(item.href, pathTenantSlug)
+              : usesTenantHostPaths
+                ? dashboardPathToTenantHostPath(item.href)
+                : item.href;
             const isActive = pathnameForMatching === item.href ||
               (item.href !== "/dashboard" && pathnameForMatching.startsWith(item.href));
             const Icon = item.icon;

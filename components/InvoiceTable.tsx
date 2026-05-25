@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { MoreHorizontal, ArrowRight, Trash2, Download, Send } from "lucide-react";
-import { BrandBadge, StatusBadge, type BrandType, type StatusType } from "./BrandBadge";
+import { BrandBadge, StatusBadge, type StatusType } from "./BrandBadge";
 
 export interface Invoice {
   id: string;
@@ -12,7 +12,7 @@ export interface Invoice {
     initials: string;
     avatarBg?: string;
   };
-  brand: BrandType | string;
+  brand: string;
   amount: number;
   date: string;
   status: StatusType | string;
@@ -23,11 +23,7 @@ interface InvoiceTableProps {
   onViewAll?: () => void;
 }
 
-const KNOWN_BRANDS: BrandType[] = ["Sankofa", "Lighthouse", "Centex", "GFAM Media Studios"];
 const KNOWN_STATUSES: StatusType[] = ["paid", "pending", "overdue", "draft"];
-
-const isKnownBrand = (brand: string): brand is BrandType =>
-  KNOWN_BRANDS.includes(brand as BrandType);
 
 const isKnownStatus = (status: string): status is StatusType =>
   KNOWN_STATUSES.includes(status as StatusType);
@@ -151,11 +147,7 @@ export function InvoiceTable({ invoices, onViewAll }: InvoiceTableProps) {
                     </div>
                   </td>
                   <td className="px-4 lg:px-6 py-4 hidden lg:table-cell">
-                    {isKnownBrand(invoice.brand) ? (
-                      <BrandBadge brand={invoice.brand} variant="dot" />
-                    ) : (
-                      <span className="text-content-secondary text-sm">{invoice.brand}</span>
-                    )}
+                    <BrandBadge brand={invoice.brand} variant="dot" />
                   </td>
                   <td className="px-4 lg:px-6 py-4 font-medium text-content">
                     {formatCurrency(invoice.amount)}
@@ -227,15 +219,11 @@ export function InvoiceTable({ invoices, onViewAll }: InvoiceTableProps) {
                   <MoreHorizontal className="w-4 h-4 text-content-muted" />
                 </button>
               </div>
-              <div className="flex items-center justify-between mt-3 pl-7">
-                <div className="flex items-center gap-3">
-                  {isKnownBrand(invoice.brand) ? (
+                <div className="flex items-center justify-between mt-3 pl-7">
+                  <div className="flex items-center gap-3">
                     <BrandBadge brand={invoice.brand} variant="dot" showLabel={false} />
-                  ) : (
-                    <span className="text-sm text-content-muted">{invoice.brand}</span>
-                  )}
-                  <span className="text-sm text-content-muted">{invoice.date}</span>
-                </div>
+                    <span className="text-sm text-content-muted">{invoice.date}</span>
+                  </div>
                 <div className="flex items-center gap-3">
                   <span className="font-semibold text-content">
                     {formatCurrency(invoice.amount)}

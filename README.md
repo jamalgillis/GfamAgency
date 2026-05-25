@@ -67,7 +67,7 @@ The seed script automatically maps services based on category:
 
 | Category | Brand |
 |----------|-------|
-| `website`, `social-media` | Sankofa |
+| `website`, `social-media`, `marketing`, `seo` | Sankofa |
 | `video`, `bundle`, `photography` | Lighthouse |
 | `podcast` + `sports`/`live-event` tags | Centex |
-| `podcast`, `studio-rental` | GFAM Media Studios |
+| `podcast`, `studio-rental`, `membership`, `membership-upgrade`, `photo-room`, `fees` | GFAM Media Studios |

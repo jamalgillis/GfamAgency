@@ -1,13 +1,21 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import {
+  dashboardPathToTenantHostPath,
   dashboardPathToTenantPath,
+  dashboardPathToTenantSyncPath,
+  getTenantSlugFromHost,
   getTenantSlugFromPath,
+  tenantHostPathToDashboardPath,
   tenantPathToDashboardPath,
 } from "@/lib/tenant-routing";
 
 const isDashboardRoute = createRouteMatcher(["/dashboard(.*)"]);
-const CANONICAL_PRODUCTION_DOMAIN = "gfamagency.com";
+const CANONICAL_PRODUCTION_DOMAIN =
+  process.env.CANONICAL_PRODUCTION_DOMAIN?.trim().toLowerCase() || null;
+const TENANT_SUBDOMAIN_BASE_DOMAIN =
+  process.env.TENANT_SUBDOMAIN_BASE_DOMAIN?.trim().toLowerCase() ||
+  CANONICAL_PRODUCTION_DOMAIN;
 
 function isLocalHost(hostname: string): boolean {
   return (
@@ -18,9 +26,76 @@ function isLocalHost(hostname: string): boolean {
 }
 
 function isAllowedProductionHost(hostname: string): boolean {
+  if (!CANONICAL_PRODUCTION_DOMAIN && !TENANT_SUBDOMAIN_BASE_DOMAIN) {
+    return true;
+  }
+
+  const normalizedHostname = hostname.toLowerCase();
+  const canonicalMatch =
+    !!CANONICAL_PRODUCTION_DOMAIN &&
+    (
+      normalizedHostname === CANONICAL_PRODUCTION_DOMAIN ||
+      normalizedHostname.endsWith(`.${CANONICAL_PRODUCTION_DOMAIN}`)
+    );
+  const tenantBaseMatch =
+    !!TENANT_SUBDOMAIN_BASE_DOMAIN &&
+    (
+      normalizedHostname === TENANT_SUBDOMAIN_BASE_DOMAIN ||
+      normalizedHostname.endsWith(`.${TENANT_SUBDOMAIN_BASE_DOMAIN}`)
+    );
+
+  return canonicalMatch || tenantBaseMatch;
+}
+
+function buildTenantHost(tenantSlug: string): string | null {
+  if (!TENANT_SUBDOMAIN_BASE_DOMAIN) {
+    return null;
+  }
+
+  return `${tenantSlug}.${TENANT_SUBDOMAIN_BASE_DOMAIN}`;
+}
+
+function buildOrganizationSelectUrl(
+  req: Request,
+  nextPath: string,
+  hostOverride?: string | null,
+): URL {
+  const url = new URL(req.url);
+  if (hostOverride) {
+    url.host = hostOverride;
+  }
+  url.pathname = "/organization-select";
+  url.search = "";
+  url.searchParams.set("next", nextPath);
+  return url;
+}
+
+function buildTenantRedirectUrl(
+  req: Request,
+  tenantSlug: string,
+  dashboardPath: string,
+): URL {
+  const url = new URL(req.url);
+  const tenantHost = buildTenantHost(tenantSlug);
+
+  if (tenantHost) {
+    url.host = tenantHost;
+    url.pathname = dashboardPathToTenantHostPath(dashboardPath);
+    return url;
+  }
+
+  url.pathname = dashboardPathToTenantPath(dashboardPath, tenantSlug);
+  return url;
+}
+
+function isTenantRedirectRequired(
+  currentHost: string,
+  currentPathname: string,
+  targetUrl: URL,
+): boolean {
   return (
-    hostname === CANONICAL_PRODUCTION_DOMAIN ||
-    hostname.endsWith(`.${CANONICAL_PRODUCTION_DOMAIN}`)
+    currentHost !== targetUrl.host ||
+    currentPathname !== targetUrl.pathname
   );
 }
 
@@ -31,7 +106,12 @@ export default clerkMiddleware(async (auth, req) => {
 
   // Guard against loading production Clerk keys from non-production hosts.
   // This prevents a blank screen when users hit an unsupported deployment domain.
-  if (usingLiveClerkKey && !isLocalHost(hostname) && !isAllowedProductionHost(hostname)) {
+  if (
+    usingLiveClerkKey &&
+    CANONICAL_PRODUCTION_DOMAIN &&
+    !isLocalHost(hostname) &&
+    !isAllowedProductionHost(hostname)
+  ) {
     const canonicalUrl = req.nextUrl.clone();
     canonicalUrl.protocol = "https";
     canonicalUrl.host = CANONICAL_PRODUCTION_DOMAIN;
@@ -39,10 +119,24 @@ export default clerkMiddleware(async (auth, req) => {
   }
 
   const pathname = req.nextUrl.pathname;
-  const tenantSlug = getTenantSlugFromPath(pathname);
+  const pathTenantSlug = getTenantSlugFromPath(pathname);
+  const hostTenantSlug = getTenantSlugFromHost(hostname, {
+    baseDomain: TENANT_SUBDOMAIN_BASE_DOMAIN,
+    canonicalHost: CANONICAL_PRODUCTION_DOMAIN,
+  });
 
-  // Tenant-slug URLs (e.g. /acme, /acme/invoices) rewrite to internal /dashboard routes.
-  if (tenantSlug) {
+  if (hostTenantSlug) {
+    const isHostSyncPath =
+      pathname === `/${hostTenantSlug}` ||
+      pathname.startsWith(`/${hostTenantSlug}/`);
+    const dashboardPath =
+      (isHostSyncPath ? tenantPathToDashboardPath(pathname) : null) ??
+      tenantHostPathToDashboardPath(pathname);
+
+    if (!dashboardPath) {
+      return;
+    }
+
     await auth.protect();
 
     const authState = await auth();
@@ -50,19 +144,64 @@ export default clerkMiddleware(async (auth, req) => {
     const activeOrgSlug = (authState as { orgSlug?: string | null }).orgSlug ?? null;
 
     if (!orgId) {
-      const orgSelectionUrl = new URL("/organization-select", req.url);
-      orgSelectionUrl.searchParams.set("next", pathname);
-      return NextResponse.redirect(orgSelectionUrl);
+      return NextResponse.redirect(
+        buildOrganizationSelectUrl(req, dashboardPathToTenantHostPath(dashboardPath)),
+      );
     }
 
-    if (activeOrgSlug && activeOrgSlug !== tenantSlug) {
+    if (activeOrgSlug !== hostTenantSlug) {
+      if (isHostSyncPath) {
+        return NextResponse.redirect(
+          buildOrganizationSelectUrl(req, "/dashboard", CANONICAL_PRODUCTION_DOMAIN),
+        );
+      }
+
+      const syncUrl = req.nextUrl.clone();
+      syncUrl.pathname = dashboardPathToTenantSyncPath(dashboardPath, hostTenantSlug);
+      return NextResponse.redirect(syncUrl);
+    }
+
+    const canonicalTenantPath = dashboardPathToTenantHostPath(dashboardPath);
+    if (pathname !== canonicalTenantPath) {
       const canonicalUrl = req.nextUrl.clone();
-      canonicalUrl.pathname = `/${activeOrgSlug}${pathname.slice(tenantSlug.length + 1) || ""}`;
+      canonicalUrl.pathname = canonicalTenantPath;
       return NextResponse.redirect(canonicalUrl);
+    }
+
+    if (dashboardPath !== pathname) {
+      const rewriteUrl = req.nextUrl.clone();
+      rewriteUrl.pathname = dashboardPath;
+      return NextResponse.rewrite(rewriteUrl);
+    }
+
+    return;
+  }
+
+  // Tenant-slug URLs (e.g. /acme, /acme/invoices) rewrite to internal /dashboard routes.
+  if (pathTenantSlug) {
+    await auth.protect();
+
+    const authState = await auth();
+    const { orgId } = authState;
+    const activeOrgSlug = (authState as { orgSlug?: string | null }).orgSlug ?? null;
+
+    if (!orgId) {
+      return NextResponse.redirect(buildOrganizationSelectUrl(req, pathname));
     }
 
     const internalPath = tenantPathToDashboardPath(pathname);
     if (!internalPath) return;
+
+    if (activeOrgSlug && activeOrgSlug !== pathTenantSlug) {
+      return NextResponse.redirect(buildTenantRedirectUrl(req, activeOrgSlug, internalPath));
+    }
+
+    if (activeOrgSlug && activeOrgSlug === pathTenantSlug && buildTenantHost(activeOrgSlug)) {
+      const canonicalUrl = buildTenantRedirectUrl(req, activeOrgSlug, internalPath);
+      if (isTenantRedirectRequired(req.nextUrl.host, pathname, canonicalUrl)) {
+        return NextResponse.redirect(canonicalUrl);
+      }
+    }
 
     const rewriteUrl = req.nextUrl.clone();
     rewriteUrl.pathname = internalPath;
@@ -78,23 +217,33 @@ export default clerkMiddleware(async (auth, req) => {
   const activeOrgSlug = (authState as { orgSlug?: string | null }).orgSlug ?? null;
 
   if (!orgId && !pathname.startsWith("/organization-select")) {
-    const orgSelectionUrl = new URL("/organization-select", req.url);
-    return NextResponse.redirect(orgSelectionUrl);
+    return NextResponse.redirect(buildOrganizationSelectUrl(req, pathname));
   }
 
-  // Canonicalize old /dashboard URLs to /{tenantSlug}/... when org slug is available.
+  // Canonicalize old /dashboard URLs to tenant host or /{tenantSlug}/... when org slug is available.
   if (activeOrgSlug) {
-    const tenantPath = dashboardPathToTenantPath(pathname, activeOrgSlug);
-    if (tenantPath !== pathname) {
-      const canonicalUrl = req.nextUrl.clone();
-      canonicalUrl.pathname = tenantPath;
+    const canonicalUrl = buildTenantRedirectUrl(req, activeOrgSlug, pathname);
+    if (isTenantRedirectRequired(req.nextUrl.host, pathname, canonicalUrl)) {
       return NextResponse.redirect(canonicalUrl);
     }
   }
 }, (req) => {
   // Keep Clerk's active org in sync with /{tenantSlug}/... URLs.
   // This allows slug-based navigation to drive org context when the user has access.
-  const tenantSlug = getTenantSlugFromPath(req.nextUrl.pathname);
+  const hostTenantSlug = getTenantSlugFromHost(req.nextUrl.hostname, {
+    baseDomain: TENANT_SUBDOMAIN_BASE_DOMAIN,
+    canonicalHost: CANONICAL_PRODUCTION_DOMAIN,
+  });
+  const tenantSlug =
+    hostTenantSlug &&
+    (
+      req.nextUrl.pathname === `/${hostTenantSlug}` ||
+      req.nextUrl.pathname.startsWith(`/${hostTenantSlug}/`)
+    )
+      ? hostTenantSlug
+      : !hostTenantSlug
+        ? getTenantSlugFromPath(req.nextUrl.pathname)
+        : null;
   if (!tenantSlug) return {};
 
   return {

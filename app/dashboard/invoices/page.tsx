@@ -22,7 +22,13 @@ import {
   X,
 } from "lucide-react";
 import { ThemeSwitch } from "@/components/ThemeSwitch";
-import { BrandBadge, StatusBadge, type BrandType, type StatusType } from "@/components/BrandBadge";
+import {
+  BrandBadge,
+  StatusBadge,
+  getBrandColor,
+  getBrandDisplayName,
+  type StatusType,
+} from "@/components/BrandBadge";
 import { api } from "@/convex/_generated/api";
 import { useAuthQuery } from "@/hooks/useAuthQuery";
 
@@ -50,16 +56,7 @@ interface InvoiceData {
   status: InvoiceDisplayStatus;
 }
 
-const knownBrands: BrandType[] = ["Sankofa", "Lighthouse", "Centex", "GFAM Media Studios"];
 const knownBadgeStatuses: StatusType[] = ["paid", "pending", "overdue", "draft"];
-
-const brandColorMap: Record<string, string> = {
-  Sankofa: "#10B981",
-  Lighthouse: "#8B5CF6",
-  Centex: "#F59E0B",
-  "GFAM Media Studios": "#3B82F6",
-  "GFAM Agency": "#64748B",
-};
 
 const statusFilters: { key: StatusFilter; label: string; color?: string }[] = [
   { key: "all", label: "All Statuses" },
@@ -139,9 +136,6 @@ const getInitials = (name: string) =>
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? "")
     .join("") || "UC";
-
-const isKnownBrand = (brand: string): brand is BrandType =>
-  knownBrands.includes(brand as BrandType);
 
 const isKnownBadgeStatus = (status: string): status is StatusType =>
   knownBadgeStatuses.includes(status as StatusType);
@@ -299,8 +293,8 @@ export default function InvoicesPage() {
       { key: "all", label: "All", color: undefined },
       ...brands.map((brand) => ({
         key: brand,
-        label: brand === "GFAM Media Studios" ? "GFAM Media" : brand,
-        color: brandColorMap[brand],
+        label: getBrandDisplayName(brand),
+        color: getBrandColor(brand),
       })),
     ];
   }, [allInvoices]);
@@ -452,21 +446,11 @@ export default function InvoicesPage() {
   };
 
   const renderBrandPill = (brand: string) => {
-    if (isKnownBrand(brand)) {
-      return <BrandBadge brand={brand} variant="pill" />;
-    }
-    return (
-      <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-surface-tertiary text-content-secondary">
-        {brand}
-      </span>
-    );
+    return <BrandBadge brand={brand} variant="pill" />;
   };
 
   const renderBrandDot = (brand: string) => {
-    if (isKnownBrand(brand)) {
-      return <BrandBadge brand={brand} variant="dot" showLabel={false} />;
-    }
-    return <span className="text-xs text-content-muted">{brand}</span>;
+    return <BrandBadge brand={brand} variant="dot" showLabel={false} />;
   };
 
   return (

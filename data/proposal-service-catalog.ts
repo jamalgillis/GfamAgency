@@ -14,6 +14,9 @@ export interface ServiceCatalogItem {
   price: string;
   priceValue: number;
   priceSuffix?: string;
+  billingType?: "one_time" | "recurring";
+  recurringInterval?: "day" | "week" | "month" | "year";
+  recurringIntervalCount?: number;
   tags: string[];
   status: ServiceCatalogStatus;
   stripeSynced: boolean;
@@ -229,6 +232,71 @@ export const proposalServiceCatalog: ServiceCatalogItem[] = [
     category: "photography"
   },
   {
+    id: "seo-local-entity-foundation",
+    brand: "Sankofa",
+    name: "Local Entity Foundation",
+    description: "Foundational local SEO retainer for single-location businesses that need stronger Waco-area visibility. Includes Google Business Profile entity optimization, hyper-local citation building, review acquisition framework setup, and essential on-page optimization for primary high-intent pages.",
+    price: "$495/month",
+    priceValue: 495,
+    billingType: "recurring",
+    recurringInterval: "month",
+    recurringIntervalCount: 1,
+    tags: [
+      "SEO",
+      "starter",
+      "Google Entity",
+      "AI Search",
+      "Local"
+    ],
+    status: "active",
+    stripeSynced: false,
+    category: "seo"
+  },
+  {
+    id: "seo-regional-authority-ai-engine",
+    brand: "Sankofa",
+    name: "Regional Authority & AI Engine",
+    description: "Regional SEO growth retainer for brands expanding across Central Texas. Includes topical authority content clusters, technical and semantic SEO improvements, regional landing page expansion, and core Organization plus LocalBusiness schema deployment for stronger AI and search visibility.",
+    price: "$1,495/month",
+    priceValue: 1495,
+    billingType: "recurring",
+    recurringInterval: "month",
+    recurringIntervalCount: 1,
+    tags: [
+      "SEO",
+      "professional",
+      "Google Entity",
+      "AI Search",
+      "Regional",
+      "GEO"
+    ],
+    status: "active",
+    stripeSynced: false,
+    category: "seo"
+  },
+  {
+    id: "seo-market-dominance-framework",
+    brand: "Sankofa",
+    name: "Market Dominance Framework",
+    description: "Premium search authority retainer for competitive or multi-location brands that want full market share pressure. Includes advanced entity-linking and digital PR, comprehensive schema deployment, conversion rate optimization, and deeper content velocity or programmatic SEO execution when applicable.",
+    price: "$2,950/month",
+    priceValue: 2950,
+    billingType: "recurring",
+    recurringInterval: "month",
+    recurringIntervalCount: 1,
+    tags: [
+      "SEO",
+      "enterprise",
+      "Digital PR",
+      "AI Search",
+      "GEO",
+      "CRO"
+    ],
+    status: "active",
+    stripeSynced: false,
+    category: "seo"
+  },
+  {
     id: "video-essential-package",
     brand: "Lighthouse",
     name: "Essential Package",
@@ -434,407 +502,227 @@ export const proposalServiceCatalog: ServiceCatalogItem[] = [
     category: "bundle"
   },
   {
-    id: "podcast-single-angle-basic",
+    id: "membership-foundation-monthly",
     brand: "GFAM Media Studios",
-    name: "Single Angle Basic",
-    description: "Includes 60-minute studio recording session with single camera angle and basic editing. Ideal for 30-45 minute finished episodes. Perfect for solo creators and entry-level podcasters. Includes: 60min Recording | Studio | Engineer | Equipment | Editing.",
-    price: "$150",
-    priceValue: 150,
-    priceSuffix: "/episode",
+    name: "Foundation Monthly Membership",
+    description: "Technical infrastructure subscription for DIY creators, local nonprofits, and agency teams. Includes 2 monthly studio sessions (up to 2 hours each), on-site audio engineer support, 1080p multi-camera capture, clean-slate studio set access, sync-ready file handoff within 3 hours, and 10% off post-production add-ons. Editing, color correction, clip cutting, and distribution are not included.",
+    price: "$349 - $399/month",
+    priceValue: 349,
+    billingType: "recurring",
+    recurringInterval: "month",
+    recurringIntervalCount: 1,
     tags: [
-      "Full-Service Podcast Production"
+      "Membership",
+      "starter",
+      "Batch Recording",
+      "MRR"
     ],
     status: "active",
     stripeSynced: false,
-    category: "podcast"
+    category: "membership"
   },
   {
-    id: "podcast-multi-angle-plus-producer-plus-live-switching",
+    id: "membership-content-engine-monthly",
     brand: "GFAM Media Studios",
-    name: "Multi-Angle + Producer + Live Switching",
-    description: "Includes 90-minute studio recording session with multiple camera angles, professional audio production, and real-time camera switching during recording. Ideal for 45-60 minute finished episodes. Our most popular choice for interview-style shows. Includes: 90min Recording | Studio | Engineer | Multi-Cam | Editing.",
-    price: "$225",
-    priceValue: 225,
-    priceSuffix: "/episode",
+    name: "Content Engine Monthly Membership",
+    description: "Turnkey weekly-show package with 4 monthly episodes recorded across 1 or 2 batch studio days. Includes producer/engineer session management, 4 polished full-length multi-camera edits, 8 to 12 vertical social clips, dynamic captions, a 30-minute monthly photo room session, 4 custom thumbnails, and organized delivery within 5 business days. Scheduling, publishing, and copywriting are not included.",
+    price: "$1,199 - $1,399/month",
+    priceValue: 1199,
+    billingType: "recurring",
+    recurringInterval: "month",
+    recurringIntervalCount: 1,
     tags: [
-      "Full-Service Podcast Production",
-      "Featured"
+      "Membership",
+      "professional",
+      "Batch Recording",
+      "Featured",
+      "MRR"
     ],
     status: "active",
     stripeSynced: false,
-    category: "podcast"
+    category: "membership"
   },
   {
-    id: "podcast-premium-multi-angle",
+    id: "membership-market-authority-monthly",
     brand: "GFAM Media Studios",
-    name: "Premium Multi-Angle",
-    description: "Includes 90-minute studio recording session with multi-angle + live switching, advanced editing, motion graphics, captions, guest photos, and priority 48-hour delivery. Ideal for 45-60+ minute finished episodes with maximum polish. Includes: 90min Recording | Studio | Multi-Cam | Premium Edit.",
-    price: "$300",
-    priceValue: 300,
-    priceSuffix: "/episode",
+    name: "Market Authority Monthly Membership",
+    description: "Premium outsourced media department for brands that want full execution. Includes executive producer support, 4 premium episodes on a flexible batch schedule, 4K master exports, raw ISO audio and video archives, cinematic color and sound finishing, 16 to 24 branded social clips, a 60-minute monthly photo room takeover, turnkey distribution management, YouTube SEO support, and 48-hour priority delivery.",
+    price: "$2,199 - $2,499/month",
+    priceValue: 2199,
+    billingType: "recurring",
+    recurringInterval: "month",
+    recurringIntervalCount: 1,
     tags: [
-      "Full-Service Podcast Production"
+      "Membership",
+      "enterprise",
+      "VIP",
+      "MRR"
     ],
     status: "active",
     stripeSynced: false,
-    category: "podcast"
+    category: "membership"
   },
   {
-    id: "podcast-live-event-streaming",
+    id: "photo-room-hourly-rental",
     brand: "GFAM Media Studios",
-    name: "Live Event Streaming",
-    description: "Professional live streaming for events, conferences, and special broadcasts. Includes travel within 50 miles, setup, and multi-platform streaming. Includes: Equipment | Engineer | Travel | Streaming Setup.",
-    price: "$450",
-    priceValue: 450,
-    priceSuffix: "/episode",
-    tags: [
-      "Full-Service Podcast Production"
-    ],
-    status: "active",
-    stripeSynced: false,
-    category: "podcast"
-  },
-  {
-    id: "podcast-2-hour-studio-session",
-    brand: "GFAM Media Studios",
-    name: "2-Hour Studio Session",
-    description: "Perfect for standard podcast episodes. Includes 90 minutes recording time (plus 30 minutes setup/breakdown), engineer/producer, multi-camera setup, and basic post-production editing. Ideal for 45-60 minute finished episodes. Includes: 90min Recording | Engineer | Multi-Cam | Basic Edit.",
-    price: "$225",
-    priceValue: 225,
-    tags: [
-      "Studio Session Rentals"
-    ],
-    status: "active",
-    stripeSynced: false,
-    category: "studio-rental"
-  },
-  {
-    id: "podcast-4-hour-studio-session",
-    brand: "GFAM Media Studios",
-    name: "4-Hour Studio Session",
-    description: "Extended sessions for longer content (60-90+ min episodes), multiple guests, back-to-back recordings, or special productions. Includes up to 3.5 hours recording time (plus 30 minutes setup), engineer/producer, multi-camera setup, and premium post-production. Includes: 3.5hr Recording | Engineer | Multi-Cam | Premium Edit.",
-    price: "$400",
-    priceValue: 400,
-    tags: [
-      "Studio Session Rentals"
-    ],
-    status: "active",
-    stripeSynced: false,
-    category: "studio-rental"
-  },
-  {
-    id: "podcast-additional-recording-time-30-min",
-    brand: "GFAM Media Studios",
-    name: "Additional Recording Time (30 min)",
-    description: "Production Add-Ons add-on for podcast production.",
-    price: "+$50",
-    priceValue: 50,
-    tags: [
-      "Production Add-Ons",
-      "Add-On"
-    ],
-    status: "active",
-    stripeSynced: false,
-    category: "podcast"
-  },
-  {
-    id: "podcast-additional-recording-time-15-min",
-    brand: "GFAM Media Studios",
-    name: "Additional Recording Time (15 min)",
-    description: "Production Add-Ons add-on for podcast production.",
-    price: "+$25",
-    priceValue: 25,
-    tags: [
-      "Production Add-Ons",
-      "Add-On"
-    ],
-    status: "active",
-    stripeSynced: false,
-    category: "podcast"
-  },
-  {
-    id: "podcast-virtual-guest-setup",
-    brand: "GFAM Media Studios",
-    name: "Virtual Guest Setup",
-    description: "Production Add-Ons add-on for podcast production.",
-    price: "+$20 each",
-    priceValue: 20,
-    priceSuffix: "/each",
-    tags: [
-      "Production Add-Ons",
-      "Add-On"
-    ],
-    status: "active",
-    stripeSynced: false,
-    category: "podcast"
-  },
-  {
-    id: "podcast-bts-photography-30-min",
-    brand: "GFAM Media Studios",
-    name: "BTS Photography (30 min)",
-    description: "Production Add-Ons add-on for podcast production.",
-    price: "+$60",
-    priceValue: 60,
-    tags: [
-      "Production Add-Ons",
-      "Add-On"
-    ],
-    status: "active",
-    stripeSynced: false,
-    category: "photography"
-  },
-  {
-    id: "podcast-bts-photography-1-hour",
-    brand: "GFAM Media Studios",
-    name: "BTS Photography (1 hour)",
-    description: "Production Add-Ons add-on for podcast production.",
-    price: "+$120",
-    priceValue: 120,
-    tags: [
-      "Production Add-Ons",
-      "Add-On"
-    ],
-    status: "active",
-    stripeSynced: false,
-    category: "photography"
-  },
-  {
-    id: "podcast-guest-photo-capture",
-    brand: "GFAM Media Studios",
-    name: "Guest Photo Capture",
-    description: "Production Add-Ons add-on for podcast production.",
-    price: "+$25",
-    priceValue: 25,
-    tags: [
-      "Production Add-Ons",
-      "Add-On"
-    ],
-    status: "active",
-    stripeSynced: false,
-    category: "photography"
-  },
-  {
-    id: "podcast-iso-video-recordings",
-    brand: "GFAM Media Studios",
-    name: "ISO Video Recordings",
-    description: "Production Add-Ons add-on for podcast production.",
-    price: "+$50",
-    priceValue: 50,
-    tags: [
-      "Production Add-Ons",
-      "Add-On"
-    ],
-    status: "active",
-    stripeSynced: false,
-    category: "podcast"
-  },
-  {
-    id: "podcast-same-day-booking",
-    brand: "GFAM Media Studios",
-    name: "Same-Day Booking",
-    description: "Production Add-Ons add-on for podcast production.",
-    price: "+$40",
-    priceValue: 40,
-    tags: [
-      "Production Add-Ons",
-      "Add-On"
-    ],
-    status: "active",
-    stripeSynced: false,
-    category: "podcast"
-  },
-  {
-    id: "podcast-social-media-clip-package",
-    brand: "GFAM Media Studios",
-    name: "Social Media Clip Package",
-    description: "Content Creation Add-Ons add-on for podcast production.",
-    price: "+$50",
-    priceValue: 50,
-    tags: [
-      "Content Creation Add-Ons",
-      "Add-On"
-    ],
-    status: "active",
-    stripeSynced: false,
-    category: "podcast"
-  },
-  {
-    id: "podcast-highlight-reel",
-    brand: "GFAM Media Studios",
-    name: "Highlight Reel",
-    description: "Content Creation Add-Ons add-on for podcast production.",
-    price: "+$75",
+    name: "Photo Room Hourly Rental",
+    description: "Self-serve or space-only photo room access with a 2-hour minimum. Includes standard backdrops, seamless paper or cyclorama access, and basic studio strobe or continuous lighting setups.",
+    price: "$75/hour",
     priceValue: 75,
     tags: [
-      "Content Creation Add-Ons",
-      "Add-On"
+      "Photo Room",
+      "Rental",
+      "Self-Serve"
     ],
     status: "active",
     stripeSynced: false,
-    category: "podcast"
+    category: "photo-room"
   },
   {
-    id: "podcast-custom-thumbnails",
+    id: "photo-room-half-day-pass",
     brand: "GFAM Media Studios",
-    name: "Custom Thumbnails",
-    description: "Content Creation Add-Ons add-on for podcast production.",
-    price: "+$18 each",
-    priceValue: 18,
-    priceSuffix: "/each",
+    name: "Photo Room Half-Day Pass (4 Hours)",
+    description: "Four-hour photo room block for creators, photographers, or agencies who want a more efficient daylight booking window while keeping the room self-directed.",
+    price: "$250",
+    priceValue: 250,
     tags: [
-      "Content Creation Add-Ons",
-      "Add-On"
+      "Photo Room",
+      "Rental"
     ],
     status: "active",
     stripeSynced: false,
-    category: "podcast"
+    category: "photo-room"
   },
   {
-    id: "podcast-multi-platform-upload",
+    id: "photo-room-full-day-takeover",
     brand: "GFAM Media Studios",
-    name: "Multi-Platform Upload",
-    description: "Content Creation Add-Ons add-on for podcast production.",
-    price: "+$40",
-    priceValue: 40,
+    name: "Photo Room Full-Day Takeover (8 Hours)",
+    description: "Eight-hour commercial booking for lookbooks, product campaigns, seasonal brand shoots, or all-day production blocks that need uninterrupted access to the photo suite.",
+    price: "$450",
+    priceValue: 450,
     tags: [
-      "Content Creation Add-Ons",
+      "Photo Room",
+      "Rental"
+    ],
+    status: "active",
+    stripeSynced: false,
+    category: "photo-room"
+  },
+  {
+    id: "photo-room-premium-headshot-session",
+    brand: "GFAM Media Studios",
+    name: "Premium Headshot Session",
+    description: "Fifteen-minute photo room add-on captured before or after a recording session. Includes 2 fully retouched high-resolution headshots for LinkedIn, websites, podcast art, or speaker bios.",
+    price: "$99/person",
+    priceValue: 99,
+    tags: [
+      "Photo Room",
+      "Add-On",
+      "Headshots"
+    ],
+    status: "active",
+    stripeSynced: false,
+    category: "photo-room"
+  },
+  {
+    id: "photo-room-show-promo-thumbnail-pack",
+    brand: "GFAM Media Studios",
+    name: "Show Promo & Thumbnail Pack",
+    description: "Thirty-minute photo room mini-session built for YouTube thumbnails, Spotify covers, and quote graphics. Yields 5 to 7 clean cutout images with expressive poses and strong click-through framing.",
+    price: "$149/session",
+    priceValue: 149,
+    tags: [
+      "Photo Room",
+      "Add-On",
+      "Thumbnails"
+    ],
+    status: "active",
+    stripeSynced: false,
+    category: "photo-room"
+  },
+  {
+    id: "photo-room-b-roll-lifestyle-video-shoot",
+    brand: "GFAM Media Studios",
+    name: "B-Roll / Lifestyle Video Shoot",
+    description: "Dedicated 4K lifestyle footage shoot in the photo room for sleek walk-and-talk, laptop, planning, or behind-the-scenes brand visuals that can power reels, ads, and video overlays.",
+    price: "$199/hour",
+    priceValue: 199,
+    tags: [
+      "Photo Room",
+      "Add-On",
+      "4K"
+    ],
+    status: "active",
+    stripeSynced: false,
+    category: "photo-room"
+  },
+  {
+    id: "membership-visual-refresh-upgrade",
+    brand: "GFAM Media Studios",
+    name: "Visual Refresh Upgrade",
+    description: "Recurring membership upgrade that adds a 45-minute monthly photo room slot and 10 fresh brand photos every month so client feeds, promos, and thumbnails never feel stale.",
+    price: "+$199/month",
+    priceValue: 199,
+    billingType: "recurring",
+    recurringInterval: "month",
+    recurringIntervalCount: 1,
+    tags: [
+      "Membership Upgrade",
+      "Photo Room",
       "Add-On"
     ],
     status: "active",
     stripeSynced: false,
-    category: "podcast"
+    category: "membership-upgrade"
   },
   {
-    id: "podcast-same-day-delivery",
+    id: "operations-late-reschedule-fee",
     brand: "GFAM Media Studios",
-    name: "Same-Day Delivery",
-    description: "Technical Upgrades add-on for podcast production.",
-    price: "+50% Rush Fee",
+    name: "Late Reschedule Fee",
+    description: "Applied when a member changes a booked recording block inside the 48-hour lock-in window after crew time has already been committed.",
+    price: "$50",
     priceValue: 50,
     tags: [
-      "Technical Upgrades",
+      "Policy",
+      "Fee",
       "Add-On"
     ],
     status: "active",
     stripeSynced: false,
-    category: "podcast"
+    category: "fees"
   },
   {
-    id: "podcast-animated-intro-outro",
+    id: "operations-session-overage-30-min",
     brand: "GFAM Media Studios",
-    name: "Animated Intro/Outro",
-    description: "Technical Upgrades add-on for podcast production.",
-    price: "+$100",
-    priceValue: 100,
+    name: "Session Overage (30 min)",
+    description: "Automatic 30-minute overage billing for recording blocks that run past their included package time, protecting engineer and studio labor margins.",
+    price: "$50",
+    priceValue: 50,
     tags: [
-      "Technical Upgrades",
+      "Policy",
+      "Overage",
+      "Fee",
       "Add-On"
     ],
     status: "active",
     stripeSynced: false,
-    category: "podcast"
+    category: "fees"
   },
   {
-    id: "podcast-4k-editing",
+    id: "operations-photo-room-cleaning-reset-fee",
     brand: "GFAM Media Studios",
-    name: "4K Editing",
-    description: "Technical Upgrades add-on for podcast production.",
-    price: "+$40",
-    priceValue: 40,
+    name: "Photo Room Cleaning / Reset Fee",
+    description: "Applies to self-serve photo room rentals when seamless paper backdrops need cleanup, reset, or replacement after use.",
+    price: "$50",
+    priceValue: 50,
     tags: [
-      "Technical Upgrades",
+      "Policy",
+      "Fee",
+      "Photo Room",
       "Add-On"
     ],
     status: "active",
     stripeSynced: false,
-    category: "podcast"
-  },
-  {
-    id: "podcast-color-correction-grading",
-    brand: "GFAM Media Studios",
-    name: "Color Correction/Grading",
-    description: "Technical Upgrades add-on for podcast production.",
-    price: "+$55",
-    priceValue: 55,
-    tags: [
-      "Technical Upgrades",
-      "Add-On"
-    ],
-    status: "active",
-    stripeSynced: false,
-    category: "podcast"
-  },
-  {
-    id: "podcast-advanced-color-grading",
-    brand: "GFAM Media Studios",
-    name: "Advanced Color Grading",
-    description: "Technical Upgrades add-on for podcast production.",
-    price: "+$135",
-    priceValue: 135,
-    tags: [
-      "Technical Upgrades",
-      "Add-On"
-    ],
-    status: "active",
-    stripeSynced: false,
-    category: "podcast"
-  },
-  {
-    id: "podcast-audio-enhancement",
-    brand: "GFAM Media Studios",
-    name: "Audio Enhancement",
-    description: "Technical Upgrades add-on for podcast production.",
-    price: "+$40",
-    priceValue: 40,
-    tags: [
-      "Technical Upgrades",
-      "Add-On"
-    ],
-    status: "active",
-    stripeSynced: false,
-    category: "podcast"
-  },
-  {
-    id: "podcast-monthly-retainer",
-    brand: "GFAM Media Studios",
-    name: "Monthly Retainer",
-    description: "Includes: 4 episodes per month, Priority scheduling, Consistent delivery dates, Dedicated project manager.",
-    price: "15% OFF",
-    priceValue: 15,
-    priceSuffix: "/month",
-    tags: [
-      "Package Deal"
-    ],
-    status: "active",
-    stripeSynced: false,
-    category: "podcast"
-  },
-  {
-    id: "podcast-season-package",
-    brand: "GFAM Media Studios",
-    name: "Season Package",
-    description: "Includes: 10+ episodes, Brand consistency, Bulk delivery options, Free revisions included.",
-    price: "20% OFF",
-    priceValue: 20,
-    tags: [
-      "Package Deal"
-    ],
-    status: "active",
-    stripeSynced: false,
-    category: "podcast"
-  },
-  {
-    id: "podcast-full-service-bundle",
-    brand: "GFAM Media Studios",
-    name: "Full-Service Bundle",
-    description: "Includes: Multi-angle editing + live switching, Social media clip package, Custom thumbnails, Guest photo capture, Multi-platform distribution, Audio enhancement. $438 value - Save $73 with bundle.",
-    price: "$365",
-    priceValue: 365,
-    tags: [
-      "Package Deal"
-    ],
-    status: "active",
-    stripeSynced: false,
-    category: "podcast"
+    category: "fees"
   }
 ];

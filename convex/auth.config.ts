@@ -1,6 +1,5 @@
 const defaultClerkIssuers = [
   "https://premium-parakeet-79.clerk.accounts.dev",
-  "https://clerk.gfamagency.com",
 ];
 
 const envIssuers = (process.env.CLERK_JWT_ISSUER_DOMAIN ?? "")

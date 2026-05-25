@@ -1,7 +1,32 @@
 import { v } from "convex/values";
-import { query } from "./_generated/server";
-import { brandUnion } from "./schema";
-import { withOrg } from "./lib/org";
+import { mutation, query } from "./_generated/server";
+import { brandUnion, serviceStatusUnion } from "./schema";
+import { ensureOrgAccess, withOrg } from "./lib/org";
+
+function requireNonEmpty(value: string, fieldName: string): string {
+  const normalized = value.trim();
+  if (!normalized) {
+    throw new Error(`${fieldName} is required`);
+  }
+  return normalized;
+}
+
+function normalizeTags(tags: string[]): string[] {
+  const normalized: string[] = [];
+  const seen = new Set<string>();
+
+  for (const rawTag of tags) {
+    const tag = rawTag.trim();
+    const key = tag.toLowerCase();
+    if (!tag || seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    normalized.push(tag);
+  }
+
+  return normalized;
+}
 
 /**
  * List services for the active org.
@@ -64,6 +89,100 @@ export const get = query({
 });
 
 /**
+ * Update an existing service for the active org.
+ */
+export const update = mutation({
+  args: {
+    serviceId: v.id("services"),
+    brand: v.optional(brandUnion),
+    name: v.optional(v.string()),
+    description: v.optional(v.string()),
+    category: v.optional(v.string()),
+    price: v.optional(v.string()),
+    priceValue: v.optional(v.number()),
+    priceSuffix: v.optional(v.string()),
+    status: v.optional(serviceStatusUnion),
+    stripeSynced: v.optional(v.boolean()),
+    tags: v.optional(v.array(v.string())),
+  },
+  handler: async (ctx, args) => withOrg(ctx, async (orgId) => {
+    const { serviceId, ...input } = args;
+    ensureOrgAccess(await ctx.db.get(serviceId), orgId, "Service not found");
+
+    const updates: Partial<{
+      brand: string;
+      name: string;
+      description: string;
+      category: string;
+      price: string;
+      priceValue: number;
+      priceSuffix: string;
+      status: "active" | "inactive";
+      stripeSynced: boolean;
+      tags: string[];
+    }> = {};
+
+    if (input.brand !== undefined) {
+      updates.brand = requireNonEmpty(input.brand, "Brand");
+    }
+    if (input.name !== undefined) {
+      updates.name = requireNonEmpty(input.name, "Service name");
+    }
+    if (input.description !== undefined) {
+      updates.description = requireNonEmpty(input.description, "Description");
+    }
+    if (input.category !== undefined) {
+      updates.category = requireNonEmpty(input.category, "Category");
+    }
+    if (input.price !== undefined) {
+      updates.price = requireNonEmpty(input.price, "Display price");
+    }
+    if (input.priceValue !== undefined) {
+      if (!Number.isFinite(input.priceValue) || input.priceValue < 0) {
+        throw new Error("Base price must be a non-negative number");
+      }
+      updates.priceValue = Math.round(input.priceValue * 100) / 100;
+    }
+    if (input.priceSuffix !== undefined) {
+      updates.priceSuffix = input.priceSuffix.trim();
+    }
+    if (input.status !== undefined) {
+      updates.status = input.status;
+    }
+    if (input.stripeSynced !== undefined) {
+      updates.stripeSynced = input.stripeSynced;
+    }
+    if (input.tags !== undefined) {
+      updates.tags = normalizeTags(input.tags);
+    }
+
+    if (Object.keys(updates).length === 0) {
+      throw new Error("No updates provided");
+    }
+
+    await ctx.db.patch(serviceId, updates);
+    return await ctx.db.get(serviceId);
+  }),
+});
+
+/**
+ * Remove a service from active catalogs (soft delete).
+ */
+export const remove = mutation({
+  args: { serviceId: v.id("services") },
+  handler: async (ctx, args) => withOrg(ctx, async (orgId) => {
+    const service = ensureOrgAccess(await ctx.db.get(args.serviceId), orgId, "Service not found");
+
+    if (service.status === "inactive") {
+      return { success: true, alreadyInactive: true };
+    }
+
+    await ctx.db.patch(args.serviceId, { status: "inactive" });
+    return { success: true, alreadyInactive: false };
+  }),
+});
+
+/**
  * Get services grouped by brand
  */
 export const listByBrand = query({
@@ -78,29 +197,20 @@ export const listByBrand = query({
       const activeServices = services.filter((service) => service.status !== "inactive");
 
       // Group by brand
-      const grouped: Record<string, typeof activeServices> = {
-        Sankofa: [],
-        Lighthouse: [],
-        Centex: [],
-        "GFAM Media Studios": [],
-      };
+      const grouped: Record<string, typeof activeServices> = {};
 
       for (const service of activeServices) {
-        if (grouped[service.brand]) {
-          grouped[service.brand].push(service);
+        if (!grouped[service.brand]) {
+          grouped[service.brand] = [];
         }
+        grouped[service.brand].push(service);
       }
 
       return grouped;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       console.error(`❌ services.listByBrand failed for org ${orgId}: ${message}`);
-      return {
-        Sankofa: [],
-        Lighthouse: [],
-        Centex: [],
-        "GFAM Media Studios": [],
-      };
+      return {};
     }
   }),
 });

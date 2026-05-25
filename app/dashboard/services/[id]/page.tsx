@@ -1,120 +1,311 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import { useMutation } from "convex/react";
 import {
+  AlertCircle,
   ArrowLeft,
+  CheckCircle2,
+  Loader2,
   Save,
-  MoreHorizontal,
   Trash2,
-  Copy,
-  Eye,
-  EyeOff,
   Zap,
-  ExternalLink,
-  Tag,
-  X,
-  Plus,
 } from "lucide-react";
 import { ThemeSwitch } from "@/components/ThemeSwitch";
 import { BrandBadge, type BrandType } from "@/components/BrandBadge";
-import { allServices, serviceBrandFilters, type ServiceData } from "@/data/services-sample";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
+import { useAuthQuery } from "@/hooks/useAuthQuery";
 
-const brandOptions: { value: BrandType; label: string; color: string }[] = [
-  { value: "Sankofa", label: "Sankofa", color: "#10B981" },
-  { value: "Lighthouse", label: "Lighthouse", color: "#8B5CF6" },
-  { value: "Centex", label: "Centex", color: "#F59E0B" },
-  { value: "GFAM Media Studios", label: "GFAM Media Studios", color: "#3B82F6" },
+const fallbackCategoryOptions = [
+  "website",
+  "social-media",
+  "branding",
+  "marketing",
+  "seo",
+  "video",
+  "photography",
+  "streaming",
+  "podcast",
+  "studio-rental",
+  "membership",
+  "membership-upgrade",
+  "photo-room",
+  "fees",
+  "custom",
 ];
 
-const categoryOptions = [
-  { value: "website", label: "Website" },
-  { value: "social-media", label: "Social Media" },
-  { value: "branding", label: "Branding" },
-  { value: "marketing", label: "Marketing" },
-  { value: "video", label: "Video" },
-  { value: "photography", label: "Photography" },
-  { value: "streaming", label: "Streaming" },
-  { value: "podcast", label: "Podcast" },
-  { value: "studio-rental", label: "Studio Rental" },
-];
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (!(error instanceof Error)) {
+    return fallback;
+  }
+
+  const message = error.message.trim();
+  const uncaughtPrefix = "Uncaught Error:";
+  const uncaughtIndex = message.lastIndexOf(uncaughtPrefix);
+
+  if (uncaughtIndex >= 0) {
+    const extracted = message.slice(uncaughtIndex + uncaughtPrefix.length).trim();
+    return extracted || fallback;
+  }
+
+  return message || fallback;
+}
 
 export default function ServiceDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const serviceId = params.id as string;
+  const serviceIdParam = params.id;
+  const serviceId = Array.isArray(serviceIdParam) ? serviceIdParam[0] : serviceIdParam;
+  const hasValidServiceId = typeof serviceId === "string" && serviceId.length > 10;
+  const updateService = useMutation(api.services.update);
+  const removeService = useMutation(api.services.remove);
 
-  // Find the service
-  const originalService = allServices.find((s) => s.id === serviceId);
+  const service = useAuthQuery(
+    api.services.get,
+    hasValidServiceId ? { serviceId: serviceId as Id<"services"> } : "skip",
+  );
+  const allServices = useAuthQuery(api.services.list, {
+    includeInactive: true,
+    limit: 5000,
+  });
 
-  // Form state
-  const [name, setName] = useState(originalService?.name || "");
-  const [description, setDescription] = useState(originalService?.description || "");
-  const [brand, setBrand] = useState<BrandType>(originalService?.brand || "Sankofa");
-  const [category, setCategory] = useState(originalService?.category || "website");
-  const [price, setPrice] = useState(originalService?.price || "");
-  const [priceValue, setPriceValue] = useState(originalService?.priceValue || 0);
-  const [priceSuffix, setPriceSuffix] = useState(originalService?.priceSuffix || "");
-  const [status, setStatus] = useState<"active" | "inactive">(originalService?.status || "active");
-  const [stripeSynced, setStripeSynced] = useState(originalService?.stripeSynced || false);
-  const [tags, setTags] = useState<string[]>(originalService?.tags || []);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [brand, setBrand] = useState<BrandType>("");
+  const [category, setCategory] = useState("");
+  const [price, setPrice] = useState("");
+  const [priceValue, setPriceValue] = useState(0);
+  const [priceSuffix, setPriceSuffix] = useState("");
+  const [status, setStatus] = useState<"active" | "inactive">("active");
+  const [stripeSynced, setStripeSynced] = useState(false);
+  const [tags, setTags] = useState<string[]>([]);
   const [newTag, setNewTag] = useState("");
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
 
-  const [actionsOpen, setActionsOpen] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  // Track changes
   useEffect(() => {
-    if (!originalService) return;
-    const changed =
-      name !== originalService.name ||
-      description !== originalService.description ||
-      brand !== originalService.brand ||
-      category !== originalService.category ||
-      price !== originalService.price ||
-      priceValue !== originalService.priceValue ||
-      priceSuffix !== (originalService.priceSuffix || "") ||
-      status !== originalService.status ||
-      stripeSynced !== originalService.stripeSynced ||
-      JSON.stringify(tags) !== JSON.stringify(originalService.tags);
-    setHasChanges(changed);
-  }, [name, description, brand, category, price, priceValue, priceSuffix, status, stripeSynced, tags, originalService]);
+    if (!service) {
+      return;
+    }
+
+    setName(service.name);
+    setDescription(service.description);
+    setBrand(service.brand);
+    setCategory(service.category);
+    setPrice(service.price);
+    setPriceValue(service.priceValue);
+    setPriceSuffix(service.priceSuffix ?? "");
+    setStatus(service.status);
+    setStripeSynced(Boolean(service.stripeSynced));
+    setTags(Array.isArray(service.tags) ? service.tags : []);
+  }, [service]);
+
+  const brandOptions = useMemo(() => {
+    const brands = new Set<string>();
+
+    for (const row of allServices ?? []) {
+      if (row.brand) {
+        brands.add(row.brand);
+      }
+    }
+
+    if (service?.brand) {
+      brands.add(service.brand);
+    }
+
+    return Array.from(brands).sort((a, b) => a.localeCompare(b));
+  }, [allServices, service?.brand]);
+
+  const categoryOptions = useMemo(() => {
+    const categories = new Set<string>();
+
+    for (const row of allServices ?? []) {
+      if (row.category) {
+        categories.add(row.category);
+      }
+    }
+
+    for (const categoryName of fallbackCategoryOptions) {
+      categories.add(categoryName);
+    }
+
+    if (service?.category) {
+      categories.add(service.category);
+    }
+
+    return Array.from(categories).sort((a, b) => a.localeCompare(b));
+  }, [allServices, service?.category]);
+
+  const hasChanges = useMemo(() => {
+    if (!service) {
+      return false;
+    }
+
+    return (
+      name !== service.name ||
+      description !== service.description ||
+      brand !== service.brand ||
+      category !== service.category ||
+      price !== service.price ||
+      priceValue !== service.priceValue ||
+      priceSuffix !== (service.priceSuffix ?? "") ||
+      status !== service.status ||
+      stripeSynced !== Boolean(service.stripeSynced) ||
+      JSON.stringify(tags) !== JSON.stringify(service.tags ?? [])
+    );
+  }, [
+    brand,
+    category,
+    description,
+    name,
+    price,
+    priceSuffix,
+    priceValue,
+    service,
+    status,
+    stripeSynced,
+    tags,
+  ]);
+
+  useEffect(() => {
+    if (hasChanges) {
+      setActionSuccess(null);
+    }
+  }, [hasChanges]);
 
   const handleAddTag = () => {
-    if (newTag.trim() && !tags.includes(newTag.trim())) {
-      setTags([...tags, newTag.trim()]);
-      setNewTag("");
+    const trimmed = newTag.trim();
+    if (!trimmed || tags.includes(trimmed)) {
+      return;
     }
+    setTags([...tags, trimmed]);
+    setNewTag("");
   };
 
   const handleRemoveTag = (tagToRemove: string) => {
-    setTags(tags.filter((t) => t !== tagToRemove));
+    setTags(tags.filter((tag) => tag !== tagToRemove));
   };
 
   const handleSave = async () => {
-    setSaving(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setSaving(false);
-    setHasChanges(false);
-    // In real app, would save to Convex here
-  };
+    setActionError(null);
+    setActionSuccess(null);
 
-  const handleDelete = () => {
-    if (confirm("Are you sure you want to delete this service? This action cannot be undone.")) {
-      // In real app, would delete from Convex here
-      router.push("/dashboard/services");
+    if (!service) {
+      setActionError("Service not found.");
+      return;
+    }
+
+    const normalizedName = name.trim();
+    const normalizedDescription = description.trim();
+    const normalizedBrand = brand.trim();
+    const normalizedCategory = category.trim();
+    const normalizedPrice = price.trim();
+    const normalizedPriceSuffix = priceSuffix.trim();
+    const normalizedTags = tags.map((tag) => tag.trim()).filter(Boolean);
+
+    if (
+      !normalizedName ||
+      !normalizedDescription ||
+      !normalizedBrand ||
+      !normalizedCategory ||
+      !normalizedPrice
+    ) {
+      setActionError("Name, description, brand, category, and display price are required.");
+      return;
+    }
+
+    if (!Number.isFinite(priceValue) || priceValue < 0) {
+      setActionError("Base price must be a non-negative number.");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await updateService({
+        serviceId: service._id,
+        name: normalizedName,
+        description: normalizedDescription,
+        brand: normalizedBrand,
+        category: normalizedCategory,
+        price: normalizedPrice,
+        priceValue: Math.round(priceValue * 100) / 100,
+        priceSuffix: normalizedPriceSuffix,
+        status,
+        stripeSynced,
+        tags: normalizedTags,
+      });
+      setActionSuccess("Service updated.");
+    } catch (error) {
+      setActionError(getErrorMessage(error, "Failed to update service."));
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  if (!originalService) {
+  const handleRemove = async () => {
+    setActionError(null);
+    setActionSuccess(null);
+
+    if (!service) {
+      setActionError("Service not found.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Remove "${service.name}" from active catalogs? This sets the service status to inactive.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsRemoving(true);
+    try {
+      await removeService({ serviceId: service._id });
+      router.push("/dashboard/services");
+      router.refresh();
+    } catch (error) {
+      setActionError(getErrorMessage(error, "Failed to remove service."));
+    } finally {
+      setIsRemoving(false);
+    }
+  };
+
+  if (!hasValidServiceId) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
+        <h2 className="text-xl font-semibold text-content mb-2">Invalid service ID</h2>
+        <p className="text-content-muted mb-6">
+          The selected service ID is not valid.
+        </p>
+        <Link href="/dashboard/services" className="btn-primary">
+          <ArrowLeft className="w-4 h-4" />
+          Back to Services
+        </Link>
+      </div>
+    );
+  }
+
+  if (service === undefined) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
+        <h2 className="text-xl font-semibold text-content mb-2">Loading service…</h2>
+        <p className="text-content-muted">Fetching latest service details for this org.</p>
+      </div>
+    );
+  }
+
+  if (service === null) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
         <h2 className="text-xl font-semibold text-content mb-2">Service Not Found</h2>
         <p className="text-content-muted mb-6">
-          The service you&apos;re looking for doesn&apos;t exist.
+          This service does not exist in your active organization.
         </p>
         <Link href="/dashboard/services" className="btn-primary">
           <ArrowLeft className="w-4 h-4" />
@@ -126,10 +317,8 @@ export default function ServiceDetailPage() {
 
   return (
     <>
-      {/* Header */}
       <header className="mb-6 md:mb-8 animate-fade-in-up">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          {/* Back & Title */}
           <div className="flex items-center gap-4">
             <Link
               href="/dashboard/services"
@@ -138,106 +327,68 @@ export default function ServiceDetailPage() {
               <ArrowLeft className="w-5 h-5 text-content-muted" />
             </Link>
             <div>
-              <h1 className="text-xl sm:text-2xl font-semibold text-content">
-                Edit Service
-              </h1>
-              <p className="text-content-muted text-sm mt-0.5">
-                {originalService.name}
-              </p>
+              <h1 className="text-xl sm:text-2xl font-semibold text-content">Service Details</h1>
+              <p className="text-content-muted text-sm mt-0.5">{service.name}</p>
             </div>
           </div>
 
-          {/* Actions */}
           <div className="flex items-center gap-3">
             <ThemeSwitch />
-
-            {hasChanges && (
-              <span className="text-sm text-warning">Unsaved changes</span>
-            )}
-
-            <button
-              className="btn-primary"
-              onClick={handleSave}
-              disabled={!hasChanges || saving}
-            >
-              <Save className="w-4 h-4" />
-              <span>{saving ? "Saving..." : "Save Changes"}</span>
-            </button>
-
-            {/* More Actions Dropdown */}
-            <div className="dropdown relative">
-              <button
-                className="btn-secondary !px-2.5"
-                onClick={() => setActionsOpen(!actionsOpen)}
-              >
-                <MoreHorizontal className="w-4 h-4" />
-              </button>
-              {actionsOpen && (
-                <div className="dropdown-menu right-0 left-auto">
-                  <button className="dropdown-item">
-                    <Copy className="w-4 h-4" />
-                    Duplicate Service
-                  </button>
-                  <button className="dropdown-item">
-                    <ExternalLink className="w-4 h-4" />
-                    View in Stripe
-                  </button>
-                  <button className="dropdown-item text-error" onClick={handleDelete}>
-                    <Trash2 className="w-4 h-4" />
-                    Delete Service
-                  </button>
-                </div>
-              )}
-            </div>
+            {hasChanges && <span className="text-sm text-warning">Unsaved local edits</span>}
           </div>
         </div>
       </header>
 
-      {/* Form Content */}
+      {actionError && (
+        <div className="mb-6 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-content flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-error" />
+          {actionError}
+        </div>
+      )}
+
+      {actionSuccess && (
+        <div className="mb-6 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-content flex items-start gap-2">
+          <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-success" />
+          {actionSuccess}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Form */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Basic Info Card */}
           <div className="card p-6 animate-fade-in-up" style={{ animationDelay: "50ms" }}>
             <h2 className="text-lg font-semibold text-content mb-6">Basic Information</h2>
-
             <div className="space-y-5">
-              {/* Service Name */}
               <div className="form-group">
                 <label className="form-label">Service Name</label>
                 <input
                   type="text"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(event) => setName(event.target.value)}
                   className="input-field"
-                  placeholder="Enter service name"
                 />
               </div>
 
-              {/* Description */}
               <div className="form-group">
                 <label className="form-label">Description</label>
                 <textarea
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  onChange={(event) => setDescription(event.target.value)}
                   className="input-field min-h-[100px] resize-y"
-                  placeholder="Describe this service..."
                   rows={3}
                 />
               </div>
 
-              {/* Brand & Category */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="form-group">
                   <label className="form-label">Brand</label>
                   <select
                     value={brand}
-                    onChange={(e) => setBrand(e.target.value as BrandType)}
+                    onChange={(event) => setBrand(event.target.value as BrandType)}
                     className="input-field"
                   >
-                    {brandOptions.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
+                    {brandOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
                       </option>
                     ))}
                   </select>
@@ -247,31 +398,30 @@ export default function ServiceDetailPage() {
                   <label className="form-label">Category</label>
                   <select
                     value={category}
-                    onChange={(e) => setCategory(e.target.value)}
+                    onChange={(event) => setCategory(event.target.value)}
                     className="input-field"
                   >
-                    {categoryOptions.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
+                    {categoryOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
                       </option>
                     ))}
                   </select>
                 </div>
               </div>
 
-              {/* Tags */}
               <div className="form-group">
                 <label className="form-label">Tags</label>
                 <div className="flex flex-wrap gap-2 mb-3">
                   {tags.map((tag) => (
                     <span key={tag} className="service-tag-editable">
-                      <Tag className="w-3 h-3" />
                       {tag}
                       <button
+                        type="button"
                         onClick={() => handleRemoveTag(tag)}
                         className="tag-remove-btn"
                       >
-                        <X className="w-3 h-3" />
+                        x
                       </button>
                     </span>
                   ))}
@@ -280,17 +430,19 @@ export default function ServiceDetailPage() {
                   <input
                     type="text"
                     value={newTag}
-                    onChange={(e) => setNewTag(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddTag())}
+                    onChange={(event) => setNewTag(event.target.value)}
+                    onKeyDown={(event) =>
+                      event.key === "Enter" && (event.preventDefault(), handleAddTag())
+                    }
                     className="input-field flex-1"
                     placeholder="Add a tag..."
                   />
                   <button
+                    type="button"
                     onClick={handleAddTag}
                     className="btn-secondary"
                     disabled={!newTag.trim()}
                   >
-                    <Plus className="w-4 h-4" />
                     Add
                   </button>
                 </div>
@@ -298,125 +450,107 @@ export default function ServiceDetailPage() {
             </div>
           </div>
 
-          {/* Pricing Card */}
           <div className="card p-6 animate-fade-in-up" style={{ animationDelay: "100ms" }}>
             <h2 className="text-lg font-semibold text-content mb-6">Pricing</h2>
-
             <div className="space-y-5">
-              {/* Display Price */}
               <div className="form-group">
                 <label className="form-label">Display Price</label>
                 <input
                   type="text"
                   value={price}
-                  onChange={(e) => setPrice(e.target.value)}
+                  onChange={(event) => setPrice(event.target.value)}
                   className="input-field"
-                  placeholder="e.g., $500 - $1,000 or $150"
                 />
-                <p className="form-hint">This is what clients see (can be a range)</p>
               </div>
 
-              {/* Base Price Value & Suffix */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="form-group">
                   <label className="form-label">Base Price (USD)</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-content-muted">$</span>
-                    <input
-                      type="number"
-                      value={priceValue}
-                      onChange={(e) => setPriceValue(Number(e.target.value))}
-                      className="input-field pl-8"
-                      placeholder="0.00"
-                      min={0}
-                      step={0.01}
-                    />
-                  </div>
-                  <p className="form-hint">Used for invoicing & Stripe</p>
+                  <input
+                    type="number"
+                    value={priceValue}
+                    onChange={(event) => setPriceValue(Number(event.target.value))}
+                    className="input-field"
+                    min={0}
+                    step={0.01}
+                  />
                 </div>
 
                 <div className="form-group">
                   <label className="form-label">Price Suffix</label>
-                  <select
+                  <input
+                    type="text"
                     value={priceSuffix}
-                    onChange={(e) => setPriceSuffix(e.target.value)}
+                    onChange={(event) => setPriceSuffix(event.target.value)}
                     className="input-field"
-                  >
-                    <option value="">One-time (no suffix)</option>
-                    <option value="/hour">/hour</option>
-                    <option value="/day">/day</option>
-                    <option value="/month">/month</option>
-                    <option value="/episode">/episode</option>
-                    <option value="/event">/event</option>
-                  </select>
+                    placeholder="/month"
+                  />
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Sidebar */}
         <div className="space-y-6">
-          {/* Status Card */}
           <div className="card p-6 animate-fade-in-up" style={{ animationDelay: "150ms" }}>
             <h2 className="text-lg font-semibold text-content mb-6">Status</h2>
-
             <div className="space-y-4">
-              {/* Active/Inactive Toggle */}
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {status === "active" ? (
-                    <Eye className="w-5 h-5 text-success" />
-                  ) : (
-                    <EyeOff className="w-5 h-5 text-content-muted" />
-                  )}
-                  <div>
-                    <p className="text-sm font-medium text-content">
-                      {status === "active" ? "Active" : "Inactive"}
-                    </p>
-                    <p className="text-meta text-content-muted">
-                      {status === "active" ? "Visible to clients" : "Hidden from clients"}
-                    </p>
-                  </div>
-                </div>
+                <p className="text-sm text-content-secondary">Service Status</p>
+                <select
+                  value={status}
+                  onChange={(event) => setStatus(event.target.value as "active" | "inactive")}
+                  className="input-field !py-1.5 !px-2 text-sm"
+                >
+                  <option value="active">active</option>
+                  <option value="inactive">inactive</option>
+                </select>
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-content-secondary">Stripe Sync</p>
                 <button
-                  onClick={() => setStatus(status === "active" ? "inactive" : "active")}
-                  className={`toggle-switch ${status === "active" ? "active" : ""}`}
+                  onClick={() => setStripeSynced((value) => !value)}
+                  className={`toggle-switch ${stripeSynced ? "active stripe" : ""}`}
                 >
                   <span className="toggle-knob" />
                 </button>
               </div>
-
-              <div className="border-t border-border pt-4">
-                {/* Stripe Sync Status */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Zap className={`w-5 h-5 ${stripeSynced ? "text-[#635bff]" : "text-content-muted"}`} />
-                    <div>
-                      <p className="text-sm font-medium text-content">Stripe Sync</p>
-                      <p className="text-meta text-content-muted">
-                        {stripeSynced ? "Synced with Stripe" : "Not synced"}
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setStripeSynced(!stripeSynced)}
-                    className={`toggle-switch ${stripeSynced ? "active stripe" : ""}`}
-                  >
-                    <span className="toggle-knob" />
-                  </button>
-                </div>
-              </div>
             </div>
           </div>
 
-          {/* Preview Card */}
+          <div className="card p-6 animate-fade-in-up" style={{ animationDelay: "175ms" }}>
+            <h2 className="text-lg font-semibold text-content mb-4">Actions</h2>
+            <p className="text-sm text-content-muted mb-4">
+              Save edits or remove this service from active catalogs.
+            </p>
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={!hasChanges || isSaving || isRemoving}
+                className="btn-primary w-full justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                {isSaving ? "Saving..." : "Save changes"}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleRemove}
+                disabled={isSaving || isRemoving}
+                className="btn-secondary w-full justify-center border-red-500/40 text-error hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isRemoving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                {isRemoving ? "Removing..." : "Remove service"}
+              </button>
+            </div>
+          </div>
+
           <div className="card p-6 animate-fade-in-up" style={{ animationDelay: "200ms" }}>
             <h2 className="text-lg font-semibold text-content mb-4">Preview</h2>
-
             <div className="service-preview-card">
               <div className="flex items-start justify-between mb-3">
-                <BrandBadge brand={brand} variant="pill" />
+                <BrandBadge brand={brand || service.brand} variant="pill" />
                 {stripeSynced && (
                   <span className="stripe-synced">
                     <Zap className="w-3 h-3" />
@@ -424,39 +558,13 @@ export default function ServiceDetailPage() {
                   </span>
                 )}
               </div>
-
-              <h3 className="text-base font-semibold text-content mb-1">
-                {name || "Service Name"}
-              </h3>
+              <h3 className="text-base font-semibold text-content mb-1">{name || service.name}</h3>
               <p className="text-sm text-content-muted mb-3 line-clamp-2">
-                {description || "Service description will appear here..."}
+                {description || service.description}
               </p>
-
-              <div className="flex flex-wrap gap-1.5 mb-3">
-                {tags.slice(0, 3).map((tag) => (
-                  <span key={tag} className="service-tag text-[11px] px-2 py-0.5">
-                    {tag}
-                  </span>
-                ))}
-                {tags.length > 3 && (
-                  <span className="text-meta text-content-muted">+{tags.length - 3}</span>
-                )}
-              </div>
-
               <div className="service-price text-base">
-                {price || "$0"}
-                {priceSuffix && (
-                  <span className="service-price-suffix">{priceSuffix}</span>
-                )}
-              </div>
-
-              <div className="mt-3 pt-3 border-t border-border">
-                <div className={`status-indicator ${status === "active" ? "status-active" : "status-inactive"}`}>
-                  <span className="status-dot" />
-                  <span className={status === "active" ? "text-success" : "text-content-muted"}>
-                    {status === "active" ? "Active" : "Inactive"}
-                  </span>
-                </div>
+                {price || service.price}
+                {priceSuffix && <span className="service-price-suffix">{priceSuffix}</span>}
               </div>
             </div>
           </div>

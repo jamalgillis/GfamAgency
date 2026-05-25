@@ -1,40 +1,51 @@
 "use client";
 
-export type BrandType = "Sankofa" | "Lighthouse" | "Centex" | "GFAM Media Studios";
+export type BrandType = string;
 
 interface BrandBadgeProps {
-  brand: BrandType;
+  brand: string;
   variant?: "pill" | "dot";
   showLabel?: boolean;
   className?: string;
 }
 
-const brandConfig: Record<BrandType, { color: string; dotColor: string }> = {
-  Sankofa: {
-    color: "brand-pill-sankofa",
-    dotColor: "bg-brand-sankofa",
-  },
-  Lighthouse: {
-    color: "brand-pill-lighthouse",
-    dotColor: "bg-brand-lighthouse",
-  },
-  Centex: {
-    color: "brand-pill-centex",
-    dotColor: "bg-brand-centex",
-  },
-  "GFAM Media Studios": {
-    color: "brand-pill-gfam",
-    dotColor: "bg-brand-gfam",
-  },
-};
+const fallbackPalette = [
+  "#0EA5E9",
+  "#14B8A6",
+  "#22C55E",
+  "#F59E0B",
+  "#F97316",
+  "#EF4444",
+  "#EC4899",
+  "#8B5CF6",
+] as const;
 
-// Short labels for display
-const brandLabels: Record<BrandType, string> = {
-  Sankofa: "Sankofa",
-  Lighthouse: "Lighthouse",
-  Centex: "Centex",
-  "GFAM Media Studios": "GFAM Media",
-};
+function hashBrand(value: string): number {
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = ((hash << 5) - hash + value.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash);
+}
+
+export function getBrandDisplayName(brand: string): string {
+  const trimmed = brand.trim();
+  if (!trimmed) {
+    return "Brand";
+  }
+
+  return trimmed;
+}
+
+export function getBrandColor(brand: string): string {
+  const trimmed = brand.trim();
+  if (!trimmed) {
+    return "#64748B";
+  }
+
+  const index = hashBrand(trimmed) % fallbackPalette.length;
+  return fallbackPalette[index];
+}
 
 export function BrandBadge({
   brand,
@@ -42,12 +53,20 @@ export function BrandBadge({
   showLabel = true,
   className = "",
 }: BrandBadgeProps) {
-  const config = brandConfig[brand];
-  const label = brandLabels[brand];
+  const normalizedBrand = brand.trim();
+  const label = getBrandDisplayName(normalizedBrand);
+  const color = getBrandColor(normalizedBrand);
 
   if (variant === "pill") {
     return (
-      <span className={`brand-pill ${config.color} ${className}`}>
+      <span
+        className={`brand-pill ${className}`}
+        style={{
+          background: `${color}1A`,
+          borderColor: `${color}40`,
+          color,
+        }}
+      >
         {label}
       </span>
     );
@@ -56,7 +75,7 @@ export function BrandBadge({
   // Dot variant
   return (
     <div className={`flex items-center gap-2 ${className}`}>
-      <div className={`w-2 h-2 rounded-full ${config.dotColor}`} />
+      <div className="w-2 h-2 rounded-full" style={{ background: color }} />
       {showLabel && (
         <span className="text-content-secondary text-sm">{label}</span>
       )}

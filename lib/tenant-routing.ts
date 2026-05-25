@@ -9,6 +9,50 @@ const RESERVED_ROOT_SEGMENTS = new Set([
   "_next",
 ]);
 
+function normalizeHostname(hostname: string): string {
+  return hostname.trim().toLowerCase();
+}
+
+function getBaseDomainSuffix(baseDomain: string): string {
+  return `.${normalizeHostname(baseDomain)}`;
+}
+
+export function getTenantSlugFromHost(
+  hostname: string,
+  options?: {
+    baseDomain?: string | null;
+    canonicalHost?: string | null;
+  },
+): string | null {
+  const normalizedHostname = normalizeHostname(hostname);
+  const normalizedCanonicalHost = options?.canonicalHost
+    ? normalizeHostname(options.canonicalHost)
+    : null;
+  const normalizedBaseDomain = options?.baseDomain
+    ? normalizeHostname(options.baseDomain)
+    : null;
+
+  if (!normalizedBaseDomain || !normalizedHostname || normalizedHostname === normalizedCanonicalHost) {
+    return null;
+  }
+
+  if (normalizedHostname === normalizedBaseDomain) {
+    return null;
+  }
+
+  const suffix = getBaseDomainSuffix(normalizedBaseDomain);
+  if (!normalizedHostname.endsWith(suffix)) {
+    return null;
+  }
+
+  const subdomain = normalizedHostname.slice(0, -suffix.length);
+  if (!subdomain || subdomain.includes(".")) {
+    return null;
+  }
+
+  return subdomain;
+}
+
 export function getTenantSlugFromPath(pathname: string): string | null {
   const segments = pathname.split("/").filter(Boolean);
   const first = segments[0] ?? "";
@@ -43,6 +87,25 @@ export function tenantPathToDashboardPath(pathname: string): string | null {
   return `/dashboard/${remainderSegments.join("/")}`;
 }
 
+export function tenantHostPathToDashboardPath(pathname: string): string | null {
+  const segments = pathname.split("/").filter(Boolean);
+  const first = segments[0] ?? "";
+
+  if (!first) {
+    return "/dashboard";
+  }
+
+  if (first === "dashboard") {
+    return pathname;
+  }
+
+  if (RESERVED_ROOT_SEGMENTS.has(first) || first.includes(".")) {
+    return null;
+  }
+
+  return `/dashboard${pathname}`;
+}
+
 export function dashboardPathToTenantPath(pathname: string, tenantSlug: string): string {
   if (pathname === "/dashboard") {
     return `/${tenantSlug}`;
@@ -53,6 +116,34 @@ export function dashboardPathToTenantPath(pathname: string, tenantSlug: string):
   }
 
   return pathname;
+}
+
+export function dashboardPathToTenantHostPath(pathname: string): string {
+  if (pathname === "/dashboard") {
+    return "/";
+  }
+
+  if (pathname.startsWith("/dashboard/")) {
+    return pathname.slice("/dashboard".length);
+  }
+
+  return pathname;
+}
+
+export function dashboardPathToTenantSyncPath(pathname: string, tenantSlug: string): string {
+  if (pathname === "/dashboard") {
+    return `/${tenantSlug}`;
+  }
+
+  if (pathname.startsWith("/dashboard/")) {
+    return `/${tenantSlug}${pathname.slice("/dashboard".length)}`;
+  }
+
+  if (pathname === "/") {
+    return `/${tenantSlug}`;
+  }
+
+  return `/${tenantSlug}${pathname}`;
 }
 
 export function isTenantScopedPath(pathname: string): boolean {

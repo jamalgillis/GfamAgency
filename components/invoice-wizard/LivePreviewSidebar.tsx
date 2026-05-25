@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { X, ChevronUp, ChevronDown, ShoppingCart, Tag } from "lucide-react";
 import type { WizardClient, SelectedServiceItem } from "@/data/wizard-sample";
+import { getBrandColor } from "@/components/BrandBadge";
 
 interface LivePreviewSidebarProps {
   client: WizardClient | null;
@@ -10,14 +11,6 @@ interface LivePreviewSidebarProps {
   discountPercent?: number;
   onRemoveService: (serviceId: string) => void;
 }
-
-// Brand color mapping
-const brandColors: Record<string, string> = {
-  Sankofa: "#10B981",
-  Lighthouse: "#8B5CF6",
-  Centex: "#F59E0B",
-  "GFAM Media Studios": "#3B82F6",
-};
 
 export function LivePreviewSidebar({
   client,
@@ -106,7 +99,7 @@ export function LivePreviewSidebar({
               const effectiveRate = getEffectiveRate(item);
               const hasCustomRate = customRate !== undefined && customRate !== service.baseRate;
               const isCustomItem = service.isCustom;
-              const brandColor = brandColors[service.brand] || brandColors["GFAM Media Studios"];
+              const brandColor = getBrandColor(service.brand);
 
               return (
                 <div
@@ -158,7 +151,7 @@ export function LivePreviewSidebar({
           <div className="space-y-2">
             {Object.entries(brandTotals).map(([brand, amount]) => {
               const percentage = subtotal > 0 ? (amount / subtotal) * 100 : 0;
-              const brandColor = brandColors[brand] || brandColors["GFAM Media Studios"];
+              const brandColor = getBrandColor(brand);
 
               return (
                 <div key={brand} className="flex items-center justify-between text-sm">
@@ -189,7 +182,10 @@ export function LivePreviewSidebar({
           <span>{formatCurrency(subtotal)}</span>
         </div>
         {discountAmount > 0 && (
-          <div className="flex justify-between items-center text-sm text-brand-sankofa mb-1">
+          <div
+            className="flex justify-between items-center text-sm mb-1"
+            style={{ color: "var(--tenant-primary, #10B981)" }}
+          >
             <span>
               Discount ({normalizedDiscountPercent.toFixed(2).replace(/\.00$/, "")}%)
             </span>

@@ -1,0 +1,410 @@
+{
+  "brand": "GFAM Media Studios",
+  "count": 27,
+  "services": [
+    {
+      "id": "podcast-single-angle-basic",
+      "brand": "GFAM Media Studios",
+      "name": "Single Angle Basic",
+      "description": "Includes 60-minute studio recording session with single camera angle and basic editing. Ideal for 30-45 minute finished episodes. Perfect for solo creators and entry-level podcasters. Includes: 60min Recording | Studio | Engineer | Equipment | Editing.",
+      "price": "$150",
+      "priceValue": 150,
+      "priceSuffix": "/episode",
+      "tags": [
+        "Full-Service Podcast Production"
+      ],
+      "status": "active",
+      "stripeSynced": false,
+      "category": "podcast"
+    },
+    {
+      "id": "podcast-multi-angle-plus-producer-plus-live-switching",
+      "brand": "GFAM Media Studios",
+      "name": "Multi-Angle + Producer + Live Switching",
+      "description": "Includes 90-minute studio recording session with multiple camera angles, professional audio production, and real-time camera switching during recording. Ideal for 45-60 minute finished episodes. Our most popular choice for interview-style shows. Includes: 90min Recording | Studio | Engineer | Multi-Cam | Editing.",
+      "price": "$225",
+      "priceValue": 225,
+      "priceSuffix": "/episode",
+      "tags": [
+        "Full-Service Podcast Production",
+        "Featured"
+      ],
+      "status": "active",
+      "stripeSynced": false,
+      "category": "podcast"
+    },
+    {
+      "id": "podcast-premium-multi-angle",
+      "brand": "GFAM Media Studios",
+      "name": "Premium Multi-Angle",
+      "description": "Includes 90-minute studio recording session with multi-angle + live switching, advanced editing, motion graphics, captions, guest photos, and priority 48-hour delivery. Ideal for 45-60+ minute finished episodes with maximum polish. Includes: 90min Recording | Studio | Multi-Cam | Premium Edit.",
+      "price": "$300",
+      "priceValue": 300,
+      "priceSuffix": "/episode",
+      "tags": [
+        "Full-Service Podcast Production"
+      ],
+      "status": "active",
+      "stripeSynced": false,
+      "category": "podcast"
+    },
+    {
+      "id": "podcast-live-event-streaming",
+      "brand": "GFAM Media Studios",
+      "name": "Live Event Streaming",
+      "description": "Professional live streaming for events, conferences, and special broadcasts. Includes travel within 50 miles, setup, and multi-platform streaming. Includes: Equipment | Engineer | Travel | Streaming Setup.",
+      "price": "$450",
+      "priceValue": 450,
+      "priceSuffix": "/episode",
+      "tags": [
+        "Full-Service Podcast Production"
+      ],
+      "status": "active",
+      "stripeSynced": false,
+      "category": "podcast"
+    },
+    {
+      "id": "podcast-2-hour-studio-session",
+      "brand": "GFAM Media Studios",
+      "name": "2-Hour Studio Session",
+      "description": "Perfect for standard podcast episodes. Includes 90 minutes recording time (plus 30 minutes setup/breakdown), engineer/producer, multi-camera setup, and basic post-production editing. Ideal for 45-60 minute finished episodes. Includes: 90min Recording | Engineer | Multi-Cam | Basic Edit.",
+      "price": "$225",
+      "priceValue": 225,
+      "tags": [
+        "Studio Session Rentals"
+      ],
+      "status": "active",
+      "stripeSynced": false,
+      "category": "studio-rental"
+    },
+    {
+      "id": "podcast-4-hour-studio-session",
+      "brand": "GFAM Media Studios",
+      "name": "4-Hour Studio Session",
+      "description": "Extended sessions for longer content (60-90+ min episodes), multiple guests, back-to-back recordings, or special productions. Includes up to 3.5 hours recording time (plus 30 minutes setup), engineer/producer, multi-camera setup, and premium post-production. Includes: 3.5hr Recording | Engineer | Multi-Cam | Premium Edit.",
+      "price": "$400",
+      "priceValue": 400,
+      "tags": [
+        "Studio Session Rentals"
+      ],
+      "status": "active",
+      "stripeSynced": false,
+      "category": "studio-rental"
+    },
+    {
+      "id": "podcast-additional-recording-time-30-min",
+      "brand": "GFAM Media Studios",
+      "name": "Additional Recording Time (30 min)",
+      "description": "Production Add-Ons add-on for podcast production.",
+      "price": "+$50",
+      "priceValue": 50,
+      "tags": [
+        "Production Add-Ons",
+        "Add-On"
+      ],
+      "status": "active",
+      "stripeSynced": false,
+      "category": "podcast"
+    },
+    {
+      "id": "podcast-additional-recording-time-15-min",
+      "brand": "GFAM Media Studios",
+      "name": "Additional Recording Time (15 min)",
+      "description": "Production Add-Ons add-on for podcast production.",
+      "price": "+$25",
+      "priceValue": 25,
+      "tags": [
+        "Production Add-Ons",
+        "Add-On"
+      ],
+      "status": "active",
+      "stripeSynced": false,
+      "category": "podcast"
+    },
+    {
+      "id": "podcast-virtual-guest-setup",
+      "brand": "GFAM Media Studios",
+      "name": "Virtual Guest Setup",
+      "description": "Production Add-Ons add-on for podcast production.",
+      "price": "+$20 each",
+      "priceValue": 20,
+      "priceSuffix": "/each",
+      "tags": [
+        "Production Add-Ons",
+        "Add-On"
+      ],
+      "status": "active",
+      "stripeSynced": false,
+      "category": "podcast"
+    },
+    {
+      "id": "podcast-bts-photography-30-min",
+      "brand": "GFAM Media Studios",
+      "name": "BTS Photography (30 min)",
+      "description": "Production Add-Ons add-on for podcast production.",
+      "price": "+$60",
+      "priceValue": 60,
+      "tags": [
+        "Production Add-Ons",
+        "Add-On"
+      ],
+      "status": "active",
+      "stripeSynced": false,
+      "category": "photography"
+    },
+    {
+      "id": "podcast-bts-photography-1-hour",
+      "brand": "GFAM Media Studios",
+      "name": "BTS Photography (1 hour)",
+      "description": "Production Add-Ons add-on for podcast production.",
+      "price": "+$120",
+      "priceValue": 120,
+      "tags": [
+        "Production Add-Ons",
+        "Add-On"
+      ],
+      "status": "active",
+      "stripeSynced": false,
+      "category": "photography"
+    },
+    {
+      "id": "podcast-guest-photo-capture",
+      "brand": "GFAM Media Studios",
+      "name": "Guest Photo Capture",
+      "description": "Production Add-Ons add-on for podcast production.",
+      "price": "+$25",
+      "priceValue": 25,
+      "tags": [
+        "Production Add-Ons",
+        "Add-On"
+      ],
+      "status": "active",
+      "stripeSynced": false,
+      "category": "photography"
+    },
+    {
+      "id": "podcast-iso-video-recordings",
+      "brand": "GFAM Media Studios",
+      "name": "ISO Video Recordings",
+      "description": "Production Add-Ons add-on for podcast production.",
+      "price": "+$50",
+      "priceValue": 50,
+      "tags": [
+        "Production Add-Ons",
+        "Add-On"
+      ],
+      "status": "active",
+      "stripeSynced": false,
+      "category": "podcast"
+    },
+    {
+      "id": "podcast-same-day-booking",
+      "brand": "GFAM Media Studios",
+      "name": "Same-Day Booking",
+      "description": "Production Add-Ons add-on for podcast production.",
+      "price": "+$40",
+      "priceValue": 40,
+      "tags": [
+        "Production Add-Ons",
+        "Add-On"
+      ],
+      "status": "active",
+      "stripeSynced": false,
+      "category": "podcast"
+    },
+    {
+      "id": "podcast-social-media-clip-package",
+      "brand": "GFAM Media Studios",
+      "name": "Social Media Clip Package",
+      "description": "Content Creation Add-Ons add-on for podcast production.",
+      "price": "+$50",
+      "priceValue": 50,
+      "tags": [
+        "Content Creation Add-Ons",
+        "Add-On"
+      ],
+      "status": "active",
+      "stripeSynced": false,
+      "category": "podcast"
+    },
+    {
+      "id": "podcast-highlight-reel",
+      "brand": "GFAM Media Studios",
+      "name": "Highlight Reel",
+      "description": "Content Creation Add-Ons add-on for podcast production.",
+      "price": "+$75",
+      "priceValue": 75,
+      "tags": [
+        "Content Creation Add-Ons",
+        "Add-On"
+      ],
+      "status": "active",
+      "stripeSynced": false,
+      "category": "podcast"
+    },
+    {
+      "id": "podcast-custom-thumbnails",
+      "brand": "GFAM Media Studios",
+      "name": "Custom Thumbnails",
+      "description": "Content Creation Add-Ons add-on for podcast production.",
+      "price": "+$18 each",
+      "priceValue": 18,
+      "priceSuffix": "/each",
+      "tags": [
+        "Content Creation Add-Ons",
+        "Add-On"
+      ],
+      "status": "active",
+      "stripeSynced": false,
+      "category": "podcast"
+    },
+    {
+      "id": "podcast-multi-platform-upload",
+      "brand": "GFAM Media Studios",
+      "name": "Multi-Platform Upload",
+      "description": "Content Creation Add-Ons add-on for podcast production.",
+      "price": "+$40",
+      "priceValue": 40,
+      "tags": [
+        "Content Creation Add-Ons",
+        "Add-On"
+      ],
+      "status": "active",
+      "stripeSynced": false,
+      "category": "podcast"
+    },
+    {
+      "id": "podcast-same-day-delivery",
+      "brand": "GFAM Media Studios",
+      "name": "Same-Day Delivery",
+      "description": "Technical Upgrades add-on for podcast production.",
+      "price": "+50% Rush Fee",
+      "priceValue": 50,
+      "tags": [
+        "Technical Upgrades",
+        "Add-On"
+      ],
+      "status": "active",
+      "stripeSynced": false,
+      "category": "podcast"
+    },
+    {
+      "id": "podcast-animated-intro-outro",
+      "brand": "GFAM Media Studios",
+      "name": "Animated Intro/Outro",
+      "description": "Technical Upgrades add-on for podcast production.",
+      "price": "+$100",
+      "priceValue": 100,
+      "tags": [
+        "Technical Upgrades",
+        "Add-On"
+      ],
+      "status": "active",
+      "stripeSynced": false,
+      "category": "podcast"
+    },
+    {
+      "id": "podcast-4k-editing",
+      "brand": "GFAM Media Studios",
+      "name": "4K Editing",
+      "description": "Technical Upgrades add-on for podcast production.",
+      "price": "+$40",
+      "priceValue": 40,
+      "tags": [
+        "Technical Upgrades",
+        "Add-On"
+      ],
+      "status": "active",
+      "stripeSynced": false,
+      "category": "podcast"
+    },
+    {
+      "id": "podcast-color-correction-grading",
+      "brand": "GFAM Media Studios",
+      "name": "Color Correction/Grading",
+      "description": "Technical Upgrades add-on for podcast production.",
+      "price": "+$55",
+      "priceValue": 55,
+      "tags": [
+        "Technical Upgrades",
+        "Add-On"
+      ],
+      "status": "active",
+      "stripeSynced": false,
+      "category": "podcast"
+    },
+    {
+      "id": "podcast-advanced-color-grading",
+      "brand": "GFAM Media Studios",
+      "name": "Advanced Color Grading",
+      "description": "Technical Upgrades add-on for podcast production.",
+      "price": "+$135",
+      "priceValue": 135,
+      "tags": [
+        "Technical Upgrades",
+        "Add-On"
+      ],
+      "status": "active",
+      "stripeSynced": false,
+      "category": "podcast"
+    },
+    {
+      "id": "podcast-audio-enhancement",
+      "brand": "GFAM Media Studios",
+      "name": "Audio Enhancement",
+      "description": "Technical Upgrades add-on for podcast production.",
+      "price": "+$40",
+      "priceValue": 40,
+      "tags": [
+        "Technical Upgrades",
+        "Add-On"
+      ],
+      "status": "active",
+      "stripeSynced": false,
+      "category": "podcast"
+    },
+    {
+      "id": "podcast-monthly-retainer",
+      "brand": "GFAM Media Studios",
+      "name": "Monthly Retainer",
+      "description": "Includes: 4 episodes per month, Priority scheduling, Consistent delivery dates, Dedicated project manager.",
+      "price": "15% OFF",
+      "priceValue": 15,
+      "priceSuffix": "/month",
+      "tags": [
+        "Package Deal"
+      ],
+      "status": "active",
+      "stripeSynced": false,
+      "category": "podcast"
+    },
+    {
+      "id": "podcast-season-package",
+      "brand": "GFAM Media Studios",
+      "name": "Season Package",
+      "description": "Includes: 10+ episodes, Brand consistency, Bulk delivery options, Free revisions included.",
+      "price": "20% OFF",
+      "priceValue": 20,
+      "tags": [
+        "Package Deal"
+      ],
+      "status": "active",
+      "stripeSynced": false,
+      "category": "podcast"
+    },
+    {
+      "id": "podcast-full-service-bundle",
+      "brand": "GFAM Media Studios",
+      "name": "Full-Service Bundle",
+      "description": "Includes: Multi-angle editing + live switching, Social media clip package, Custom thumbnails, Guest photo capture, Multi-platform distribution, Audio enhancement. $438 value - Save $73 with bundle.",
+      "price": "$365",
+      "priceValue": 365,
+      "tags": [
+        "Package Deal"
+      ],
+      "status": "active",
+      "stripeSynced": false,
+      "category": "podcast"
+    }
+  ]
+}

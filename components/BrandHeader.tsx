@@ -2,11 +2,12 @@
 
 import { useMemo } from "react";
 import {
-  BRAND_THEMES,
   AGENCY_THEME,
   PARENT_ORGANIZATION,
+  getBrandTheme,
   type BrandType,
 } from "@/lib/brand-theme";
+import { getBrandDisplayName } from "@/components/BrandBadge";
 
 interface BrandHeaderProps {
   participatingBrands: BrandType[];
@@ -18,7 +19,7 @@ interface BrandHeaderProps {
 /**
  * Dynamic brand header that changes based on selected services
  * - Single brand: Shows that brand's logo, colors, and tagline
- * - Multiple brands: Shows GFAM Agency with all participating brand icons
+ * - Multiple brands: Shows parent org context with all participating brand icons
  */
 export function BrandHeader({
   participatingBrands,
@@ -34,7 +35,7 @@ export function BrandHeader({
     }
     if (participatingBrands.length === 1) {
       const brand = participatingBrands[0];
-      return { theme: BRAND_THEMES[brand], primaryBrand: brand };
+      return { theme: getBrandTheme(brand), primaryBrand: getBrandDisplayName(brand) };
     }
     return { theme: AGENCY_THEME, primaryBrand: PARENT_ORGANIZATION };
   }, [participatingBrands]);
@@ -99,15 +100,18 @@ export function BrandHeader({
                   Services by
                 </p>
                 <div className="flex flex-wrap gap-1 justify-end">
-                  {participatingBrands.map((brand) => (
-                    <span
-                      key={brand}
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-white/20 backdrop-blur-sm"
-                    >
-                      <span>{BRAND_THEMES[brand].icon}</span>
-                      <span>{BRAND_THEMES[brand].shortName}</span>
-                    </span>
-                  ))}
+                  {participatingBrands.map((brand) => {
+                    const brandTheme = getBrandTheme(brand);
+                    return (
+                      <span
+                        key={brand}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-white/20 backdrop-blur-sm"
+                      >
+                        <span>{brandTheme.icon}</span>
+                        <span>{brandTheme.shortName}</span>
+                      </span>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -147,15 +151,18 @@ export function BrandHeader({
                 Featuring
               </span>
               <div className="flex gap-1">
-                {participatingBrands.map((brand) => (
-                  <span
-                    key={brand}
-                    className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center"
-                    title={brand}
-                  >
-                    {BRAND_THEMES[brand].icon}
-                  </span>
-                ))}
+                {participatingBrands.map((brand) => {
+                  const brandTheme = getBrandTheme(brand);
+                  return (
+                    <span
+                      key={brand}
+                      className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center"
+                      title={brand}
+                    >
+                      {brandTheme.icon}
+                    </span>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -181,7 +188,7 @@ export function BrandIcon({
   showLabel = false,
   className = "",
 }: BrandIconProps) {
-  const theme = BRAND_THEMES[brand];
+  const theme = getBrandTheme(brand);
 
   const sizeClasses = {
     sm: "w-6 h-6 text-sm",
@@ -198,7 +205,7 @@ export function BrandIcon({
         <span className="filter drop-shadow-sm text-white">{theme.icon}</span>
       </div>
       {showLabel && (
-        <span className="font-medium text-content">{theme.shortName}</span>
+        <span className="font-medium text-content">{getBrandDisplayName(brand)}</span>
       )}
     </div>
   );
@@ -227,7 +234,7 @@ export function BrandColorBar({
     .map(([brand, amount]) => ({
       brand: brand as BrandType,
       percentage: (amount / total) * 100,
-      color: BRAND_THEMES[brand as BrandType].colors.primary,
+      color: getBrandTheme(brand).colors.primary,
     }));
 
   return (

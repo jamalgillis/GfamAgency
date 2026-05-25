@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Check, Minus, Plus, Tag, Edit2 } from "lucide-react";
 import type { WizardService } from "@/data/wizard-sample";
+import { getBrandColor } from "@/components/BrandBadge";
 
 interface ServiceCardProps {
   service: WizardService;
@@ -13,14 +14,6 @@ interface ServiceCardProps {
   onQuantityChange: (qty: number) => void;
   onCustomRateChange?: (rate: number) => void;
 }
-
-// Map brand to CSS color class
-const brandColorMap: Record<string, string> = {
-  Sankofa: "brand-sankofa",
-  Lighthouse: "brand-lighthouse",
-  Centex: "brand-centex",
-  "GFAM Media Studios": "brand-gfam",
-};
 
 export function ServiceCard({
   service,
@@ -33,8 +26,7 @@ export function ServiceCard({
 }: ServiceCardProps) {
   const [showRateEditor, setShowRateEditor] = useState(false);
   const [editingRate, setEditingRate] = useState("");
-
-  const brandClass = brandColorMap[service.brand] || "brand-gfam";
+  const brandColor = getBrandColor(service.brand);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -72,18 +64,20 @@ export function ServiceCard({
   return (
     <div
       className={`service-card transition-all duration-200 ${
-        selected ? "selected ring-2 ring-current" : ""
+        selected ? "selected ring-2" : ""
       } ${service.isCustom ? "custom-item" : ""}`}
       onClick={onToggle}
+      style={selected ? { boxShadow: `0 0 0 2px ${brandColor}66` } : undefined}
     >
       <div className="flex items-start gap-4">
         {/* Checkbox */}
         <div
           className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 mt-0.5 transition-all duration-200 border-2 ${
             selected
-              ? "bg-brand-primary border-brand-primary"
+              ? ""
               : "bg-transparent border-border"
           }`}
+          style={selected ? { backgroundColor: brandColor, borderColor: brandColor } : undefined}
         >
           {selected && <Check className="w-3.5 h-3.5 text-white" />}
         </div>
@@ -95,7 +89,13 @@ export function ServiceCard({
               <div className="flex items-center gap-2">
                 <h4 className="font-medium text-content">{service.name}</h4>
                 {service.isCustom && (
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-brand-primary/10 text-brand-primary">
+                  <span
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium"
+                    style={{
+                      backgroundColor: `${brandColor}1A`,
+                      color: brandColor,
+                    }}
+                  >
                     <Tag className="w-2.5 h-2.5" />
                     Custom
                   </span>
@@ -105,7 +105,13 @@ export function ServiceCard({
                 {service.description}
               </p>
               {/* Brand label */}
-              <span className={`inline-block mt-1 text-xs font-medium px-2 py-0.5 rounded-full ${brandClass}-pill`}>
+              <span
+                className="inline-block mt-1 text-xs font-medium px-2 py-0.5 rounded-full"
+                style={{
+                  backgroundColor: `${brandColor}1A`,
+                  color: brandColor,
+                }}
+              >
                 {service.brand}
               </span>
             </div>
@@ -122,7 +128,11 @@ export function ServiceCard({
                     onChange={(e) => setEditingRate(e.target.value)}
                     onBlur={handleRateSave}
                     onKeyDown={handleRateKeyDown}
-                    className="w-20 px-2 py-1 text-right font-semibold rounded border border-brand-primary bg-surface text-content focus:outline-none focus:ring-2 focus:ring-brand-primary transition-colors"
+                    className="w-20 px-2 py-1 text-right font-semibold rounded border bg-surface text-content focus:outline-none focus:ring-2 transition-colors"
+                    style={{
+                      borderColor: brandColor,
+                      outlineColor: brandColor,
+                    }}
                     autoFocus
                     min="0"
                     step="0.01"
@@ -130,7 +140,10 @@ export function ServiceCard({
                 </div>
               ) : (
                 <div className="flex items-center gap-1">
-                  <span className={`font-semibold ${hasCustomRate ? "text-brand-primary" : ""}`}>
+                  <span
+                    className="font-semibold"
+                    style={hasCustomRate ? { color: brandColor } : undefined}
+                  >
                     {formatCurrency(effectiveRate)}
                     <span className="text-content-muted font-normal text-sm">/ea</span>
                   </span>
@@ -183,7 +196,10 @@ export function ServiceCard({
               </div>
               <span className="text-sm text-content-muted ml-auto">
                 Subtotal:{" "}
-                <span className={`font-medium ${hasCustomRate ? "text-brand-primary" : ""}`}>
+                <span
+                  className="font-medium"
+                  style={hasCustomRate ? { color: brandColor } : undefined}
+                >
                   {formatCurrency(effectiveRate * quantity)}
                 </span>
               </span>

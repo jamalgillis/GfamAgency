@@ -21,6 +21,10 @@ import {
 } from "./lib/stripe";
 import type { Id } from "./_generated/dataModel";
 import { ensureOrgAccess, withOrg } from "./lib/org";
+import {
+  buildTenantInvoicePdfProxyUrl,
+  getConvexSiteBaseUrl,
+} from "../lib/invoice-pdf-url";
 
 // Line item input type for invoice creation
 const lineItemValidator = v.object({
@@ -81,7 +85,7 @@ const subscriptionPlanUpdateItemValidator = v.object({
   unitPriceCents: v.optional(v.number()),
 });
 
-type InvoiceBrand = Exclude<StripeBrand, typeof PARENT_ORGANIZATION>;
+type InvoiceBrand = string;
 
 type InvoiceLineItemInput = {
   serviceId?: Id<"services">;
@@ -251,15 +255,12 @@ function normalizeDunningSettings(value: {
 }
 
 function toInvoiceBrand(value: string | undefined, fallback: InvoiceBrand): InvoiceBrand {
-  switch (value) {
-    case "Sankofa":
-    case "Lighthouse":
-    case "Centex":
-    case "GFAM Media Studios":
-      return value;
-    default:
-      return fallback;
+  const normalized = value?.trim();
+  if (!normalized) {
+    return fallback;
   }
+
+  return normalized;
 }
 
 function calculateInvoiceTotals(
@@ -294,25 +295,29 @@ function calculateInvoiceTotals(
   };
 }
 
-function resolveStatementDescriptorSuffix(participatingBrands: string[]): string {
-  if (participatingBrands.length === 1) {
-    const singleBrand = participatingBrands[0];
-    switch (singleBrand) {
-      case "Sankofa":
-        return "SANKOFA";
-      case "Lighthouse":
-        return "LIGHTHOUSE";
-      case "Centex":
-        return "CENTEX";
-      case "GFAM Media Studios":
-        return "GFAMSTUDIOS";
-      default:
-        return "GFAM";
-    }
+function resolveStatementDescriptorToken(input?: string): string {
+  const normalized = (input ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+
+  if (!normalized) {
+    return "AGENCY";
   }
 
-  // Requirement: mixed-brand invoices should still display Sankofa on statements.
-  return "SANKOFA";
+  return normalized.slice(0, 22);
+}
+
+function resolveStatementDescriptorSuffix(
+  participatingBrands: string[],
+  defaultDescriptor: string
+): string {
+  if (participatingBrands.length === 1) {
+    const singleBrand = participatingBrands[0];
+    return resolveStatementDescriptorToken(singleBrand);
+  }
+
+  return defaultDescriptor;
 }
 
 async function createCheckoutSessionForInvoiceRecord(
@@ -330,9 +335,11 @@ async function createCheckoutSessionForInvoiceRecord(
   totalCents: number,
   successUrl: string,
   cancelUrl: string,
+  defaultDescriptor: string,
 ) {
   const statementDescriptorSuffix = resolveStatementDescriptorSuffix(
-    invoice.participatingBrands
+    invoice.participatingBrands,
+    defaultDescriptor,
   );
 
   return await stripe.checkout.sessions.create(
@@ -949,43 +956,22 @@ function formatDateValue(date: Date): string {
   }).format(date);
 }
 
-function normalizeBaseUrl(value: string): string {
-  return value.replace(/\/+$/, "");
-}
-
-function getInvoiceDownloadBaseUrl(): string | null {
-  const explicitSiteUrl =
-    process.env.NEXT_PUBLIC_CONVEX_SITE_URL ?? process.env.CONVEX_SITE_URL;
-  if (explicitSiteUrl) {
-    return normalizeBaseUrl(explicitSiteUrl);
-  }
-
-  const convexCloudUrl = process.env.NEXT_PUBLIC_CONVEX_URL ?? process.env.CONVEX_URL;
-  if (!convexCloudUrl) {
-    return null;
-  }
-
-  try {
-    const parsedUrl = new URL(convexCloudUrl);
-    if (parsedUrl.hostname.endsWith(".convex.cloud")) {
-      parsedUrl.hostname = `${parsedUrl.hostname.slice(0, -".convex.cloud".length)}.convex.site`;
-    }
-
-    parsedUrl.pathname = "";
-    parsedUrl.search = "";
-    parsedUrl.hash = "";
-    return normalizeBaseUrl(parsedUrl.toString());
-  } catch {
-    return null;
-  }
-}
-
 function buildInvoicePdfDownloadUrl(
   invoiceId: Id<"invoices">,
-  accessToken: string
+  accessToken: string,
+  tenantSlug?: string | null,
 ): string | undefined {
-  const baseUrl = getInvoiceDownloadBaseUrl();
-  if (!baseUrl) {
+  const tenantHostedUrl = buildTenantInvoicePdfProxyUrl({
+    invoiceId,
+    token: accessToken,
+    tenantSlug,
+  });
+  if (tenantHostedUrl) {
+    return tenantHostedUrl;
+  }
+
+  const convexBaseUrl = getConvexSiteBaseUrl();
+  if (!convexBaseUrl) {
     return undefined;
   }
 
@@ -994,16 +980,20 @@ function buildInvoicePdfDownloadUrl(
     token: accessToken,
   });
 
-  return `${baseUrl}/invoice-pdf?${params.toString()}`;
+  return `${convexBaseUrl}/invoice-pdf?${params.toString()}`;
 }
 
-function getInvoiceDisplayBrand(participatingBrands: string[]): string {
-  return participatingBrands.length === 1 ? participatingBrands[0] : "Sankofa";
+function getInvoiceDisplayBrand(
+  participatingBrands: string[],
+  defaultDisplayBrand: string
+): string {
+  return participatingBrands.length === 1 ? participatingBrands[0] : defaultDisplayBrand;
 }
 
 function renderInvoiceEmailHtml(params: {
   invoiceNumber: string;
   displayBrand: string;
+  senderDisplayName: string;
   participatingBrands: string[];
   clientName: string;
   clientCompany: string;
@@ -1208,7 +1198,10 @@ function renderInvoiceEmailHtml(params: {
 
             <tr>
               <td class="inner-pad" style="padding:18px 24px;border-top:1px solid #e5e7eb;background:#fafafa;text-align:center;">
-                <div style="font-size:14px;color:#111827;line-height:1.5;">Thank you for your business Sankofa Marketing Group</div>
+                <div style="font-size:14px;color:#111827;line-height:1.5;">Thank you for your business</div>
+                <div style="margin-top:4px;font-size:13px;color:#4b5563;line-height:1.4;">${escapeHtml(
+                  params.senderDisplayName
+                )}</div>
               </td>
             </tr>
           </table>
@@ -1222,6 +1215,11 @@ function renderInvoiceEmailHtml(params: {
 
 async function sendInvoiceEmailWithResend(params: {
   invoiceNumber: string;
+  senderDisplayName: string;
+  orgEmailMode?: "platform" | "org_sender";
+  orgSenderName?: string;
+  orgSenderEmail?: string;
+  orgSenderReplyTo?: string;
   participatingBrands: string[];
   client: {
     email: string;
@@ -1241,20 +1239,33 @@ async function sendInvoiceEmailWithResend(params: {
   dueAt?: number;
   checkoutUrl?: string;
   pdfDownloadUrl?: string;
-}) {
+}): Promise<
+  | { sent: true; usedPlatformFallback?: boolean }
+  | {
+      sent: false;
+      skipped: "missing_checkout_url" | "missing_resend_config";
+    }
+> {
   if (!params.checkoutUrl) {
     return { sent: false, skipped: "missing_checkout_url" as const };
   }
 
   const resendApiKey = process.env.RESEND_API_KEY;
-  const fromEmail = process.env.RESEND_FROM_EMAIL;
+  const platformFromEmail = process.env.RESEND_FROM_EMAIL?.trim();
 
-  if (!resendApiKey || !fromEmail) {
+  if (!resendApiKey || !platformFromEmail) {
     return {
       sent: false,
       skipped: "missing_resend_config" as const,
     };
   }
+
+  const isValidEmailAddress = (value?: string): value is string =>
+    typeof value === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+  const formatFromAddress = (name: string | undefined, email: string) => {
+    const trimmedName = name?.trim();
+    return trimmedName ? `${trimmedName} <${email}>` : email;
+  };
 
   const issueAtMs =
     typeof params.issueAt === "number" && Number.isFinite(params.issueAt)
@@ -1270,7 +1281,11 @@ async function sendInvoiceEmailWithResend(params: {
 
   const emailHtml = renderInvoiceEmailHtml({
     invoiceNumber: params.invoiceNumber,
-    displayBrand: getInvoiceDisplayBrand(params.participatingBrands),
+    displayBrand: getInvoiceDisplayBrand(
+      params.participatingBrands,
+      params.senderDisplayName
+    ),
+    senderDisplayName: params.senderDisplayName,
     participatingBrands: params.participatingBrands,
     clientName: params.client.name,
     clientCompany: params.client.company,
@@ -1287,14 +1302,47 @@ async function sendInvoiceEmailWithResend(params: {
   });
 
   const resend = new Resend(resendApiKey);
-  await resend.emails.send({
-    from: fromEmail,
-    to: params.client.email,
-    subject: `Invoice ${params.invoiceNumber} from ${getInvoiceDisplayBrand(
-      params.participatingBrands
-    )}`,
-    html: emailHtml,
-  });
+
+  const sendEmail = async (from: string, replyTo?: string) =>
+    await resend.emails.send({
+      from,
+      to: params.client.email,
+      subject: `Invoice ${params.invoiceNumber} from ${getInvoiceDisplayBrand(
+        params.participatingBrands,
+        params.senderDisplayName
+      )}`,
+      html: emailHtml,
+      ...(replyTo ? { replyTo } : {}),
+    });
+
+  const orgSenderEmail = params.orgSenderEmail?.trim().toLowerCase();
+  const orgSenderReplyTo = params.orgSenderReplyTo?.trim().toLowerCase();
+  const wantsOrgSender = params.orgEmailMode === "org_sender";
+  const canUseOrgSender = wantsOrgSender && isValidEmailAddress(orgSenderEmail);
+
+  if (canUseOrgSender && orgSenderEmail) {
+    const orgFromAddress = formatFromAddress(
+      params.orgSenderName || params.senderDisplayName,
+      orgSenderEmail
+    );
+    const orgReplyTo = isValidEmailAddress(orgSenderReplyTo)
+      ? orgSenderReplyTo
+      : undefined;
+
+    try {
+      await sendEmail(orgFromAddress, orgReplyTo);
+      return { sent: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      console.warn(
+        `⚠️ Failed to send invoice email with org sender "${orgFromAddress}", falling back to platform sender: ${message}`
+      );
+      await sendEmail(platformFromEmail);
+      return { sent: true, usedPlatformFallback: true };
+    }
+  }
+
+  await sendEmail(platformFromEmail);
 
   return { sent: true };
 }
@@ -3504,6 +3552,7 @@ export const createCheckoutSessionForInvoice = action({
     checkoutSessionId?: string;
     checkoutUrl?: string;
     emailSent?: boolean;
+    emailUsedPlatformFallback?: boolean;
     emailSkipped?: string;
     error?: string;
   }> => withOrg(ctx, async (orgId) => {
@@ -3529,6 +3578,12 @@ export const createCheckoutSessionForInvoice = action({
       if (!client) {
         return { success: false, error: "Client not found" };
       }
+      const orgBranding = await ctx.runQuery(api.orgBranding.getCurrent, {});
+      const senderDisplayName =
+        orgBranding?.displayName?.trim() || orgBranding?.shortName?.trim() || "Agency";
+      const defaultDescriptor = resolveStatementDescriptorToken(
+        orgBranding?.shortName || senderDisplayName
+      );
 
       const lineItems = await ctx.runQuery(
         internal.invoiceActions.getInvoiceLineItemsByInvoiceId,
@@ -3583,6 +3638,7 @@ export const createCheckoutSessionForInvoice = action({
         totalCents,
         args.successUrl,
         args.cancelUrl,
+        defaultDescriptor,
       );
 
       await ctx.runMutation(internal.invoiceActions.updateInvoiceCheckoutSession, {
@@ -3632,11 +3688,16 @@ export const createCheckoutSessionForInvoice = action({
       }
 
       let emailSent = false;
+      let emailUsedPlatformFallback = false;
       let emailSkipped: string | undefined;
       const dueAt = resolveStoredInvoiceDueAt(invoice);
       try {
         const emailResult = await sendInvoiceEmailWithResend({
           invoiceNumber: invoice.invoiceNumber,
+          orgEmailMode: orgBranding?.emailMode,
+          orgSenderName: orgBranding?.senderName,
+          orgSenderEmail: orgBranding?.senderEmail,
+          orgSenderReplyTo: orgBranding?.senderReplyTo,
           participatingBrands: invoice.participatingBrands,
           client: {
             email: client.email,
@@ -3648,10 +3709,18 @@ export const createCheckoutSessionForInvoice = action({
           issueAt: invoice.createdAt,
           dueAt,
           checkoutUrl: checkoutSession.url ?? undefined,
-          pdfDownloadUrl: buildInvoicePdfDownloadUrl(invoice._id, checkoutSession.id),
+          pdfDownloadUrl: buildInvoicePdfDownloadUrl(
+            invoice._id,
+            checkoutSession.id,
+            orgBranding?.slug,
+          ),
+          senderDisplayName,
         });
 
         emailSent = emailResult.sent;
+        if (emailResult.sent && emailResult.usedPlatformFallback) {
+          emailUsedPlatformFallback = true;
+        }
         if (!emailResult.sent && "skipped" in emailResult) {
           emailSkipped = emailResult.skipped;
         }
@@ -3674,6 +3743,7 @@ export const createCheckoutSessionForInvoice = action({
         checkoutSessionId: checkoutSession.id,
         checkoutUrl: checkoutSession.url ?? undefined,
         emailSent,
+        emailUsedPlatformFallback,
         emailSkipped,
       };
     } catch (error) {
@@ -3686,7 +3756,7 @@ export const createCheckoutSessionForInvoice = action({
 
 /**
  * Main action to create an invoice
- * Uses single GFAM Agency Stripe account with brand metadata tracking
+ * Uses a single Stripe account with brand metadata tracking
  */
 export const createInvoice = action({
   args: {
@@ -4267,6 +4337,7 @@ export const sendDraftInvoice = action({
     checkoutSessionId?: string;
     checkoutUrl?: string;
     emailSent?: boolean;
+    emailUsedPlatformFallback?: boolean;
     emailSkipped?: string;
     error?: string;
   }> => withOrg(ctx, async (orgId) => {
@@ -4302,6 +4373,12 @@ export const sendDraftInvoice = action({
         if (!client) {
           return { success: false, error: "Client not found" };
         }
+        const orgBranding = await ctx.runQuery(api.orgBranding.getCurrent, {});
+        const senderDisplayName =
+          orgBranding?.displayName?.trim() || orgBranding?.shortName?.trim() || "Agency";
+        const defaultDescriptor = resolveStatementDescriptorToken(
+          orgBranding?.shortName || senderDisplayName
+        );
 
         const lineItems = await ctx.runQuery(
           internal.invoiceActions.getInvoiceLineItemsByInvoiceId,
@@ -4334,6 +4411,7 @@ export const sendDraftInvoice = action({
           totalCents,
           args.successUrl,
           args.cancelUrl,
+          defaultDescriptor,
         );
 
         await ctx.runMutation(internal.invoiceActions.updateInvoiceCheckoutSession, {
@@ -4383,11 +4461,16 @@ export const sendDraftInvoice = action({
         }
 
         let emailSent = false;
+        let emailUsedPlatformFallback = false;
         let emailSkipped: string | undefined;
         const dueAt = resolveStoredInvoiceDueAt(invoice);
         try {
           const emailResult = await sendInvoiceEmailWithResend({
             invoiceNumber: invoice.invoiceNumber,
+            orgEmailMode: orgBranding?.emailMode,
+            orgSenderName: orgBranding?.senderName,
+            orgSenderEmail: orgBranding?.senderEmail,
+            orgSenderReplyTo: orgBranding?.senderReplyTo,
             participatingBrands: invoice.participatingBrands,
             client: {
               email: client.email,
@@ -4399,10 +4482,18 @@ export const sendDraftInvoice = action({
             issueAt: invoice.createdAt,
             dueAt,
             checkoutUrl: checkoutSession.url ?? undefined,
-            pdfDownloadUrl: buildInvoicePdfDownloadUrl(invoice._id, checkoutSession.id),
+            pdfDownloadUrl: buildInvoicePdfDownloadUrl(
+              invoice._id,
+              checkoutSession.id,
+              orgBranding?.slug,
+            ),
+            senderDisplayName,
           });
 
           emailSent = emailResult.sent;
+          if (emailResult.sent && emailResult.usedPlatformFallback) {
+            emailUsedPlatformFallback = true;
+          }
           if (!emailResult.sent && "skipped" in emailResult) {
             emailSkipped = emailResult.skipped;
           }
@@ -4421,6 +4512,7 @@ export const sendDraftInvoice = action({
           checkoutSessionId: checkoutSession.id,
           checkoutUrl: checkoutSession.url ?? undefined,
           emailSent,
+          emailUsedPlatformFallback,
           emailSkipped,
         };
       }
@@ -5102,7 +5194,10 @@ export const createInvoicePaymentIntent = action({
         ...new Set(lineItems.map((item) => item.brand)),
       ];
       const statementDescriptorSuffix =
-        resolveStatementDescriptorSuffix(participatingBrands);
+        resolveStatementDescriptorSuffix(
+          participatingBrands,
+          resolveStatementDescriptorToken(PARENT_ORGANIZATION)
+        );
 
       const stripe = getStripeClient();
       const context = getStripeContext(PARENT_ORGANIZATION as StripeBrand);
@@ -5195,10 +5290,16 @@ export const getInvoiceForPdfDownload = internalQuery({
       )
       .collect();
 
+    const orgBranding = await ctx.db
+      .query("orgBranding")
+      .withIndex("by_org", (q) => q.eq("orgId", invoice.orgId))
+      .first();
+
     return {
       invoice,
       client,
       lineItems,
+      orgBranding,
     };
   },
 });
@@ -5839,20 +5940,12 @@ export const getRevenueByBrand = query({
 
     const invoiceIds = new Set(filteredInvoices.map((invoice) => invoice._id));
 
-    const brandRevenueCents: Record<string, number> = {
-      Sankofa: 0,
-      Lighthouse: 0,
-      Centex: 0,
-      "GFAM Media Studios": 0,
-    };
+    const brandRevenueCents: Record<string, number> = {};
 
     if (invoiceIds.size === 0) {
       return {
         totalRevenueCents: 0,
-        brands: Object.entries(brandRevenueCents).map(([brand, revenueCents]) => ({
-          brand,
-          revenueCents,
-        })),
+        brands: [],
       };
     }
 
@@ -5873,7 +5966,7 @@ export const getRevenueByBrand = query({
     const brands = Object.entries(brandRevenueCents).map(([brand, revenueCents]) => ({
       brand,
       revenueCents,
-    }));
+    })).sort((a, b) => b.revenueCents - a.revenueCents);
     const totalRevenueCents = brands.reduce((sum, brand) => sum + brand.revenueCents, 0);
 
     return {

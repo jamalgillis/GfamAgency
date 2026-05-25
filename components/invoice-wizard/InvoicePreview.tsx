@@ -3,6 +3,8 @@
 import { FileText, Tag } from "lucide-react";
 import { BrandBadge } from "@/components/BrandBadge";
 import type { WizardClient, SelectedServiceItem } from "@/data/wizard-sample";
+import { useAuthQuery } from "@/hooks/useAuthQuery";
+import { api } from "@/convex/_generated/api";
 
 interface InvoicePreviewProps {
   client: WizardClient;
@@ -19,6 +21,12 @@ export function InvoicePreview({
   notes,
   onNotesChange,
 }: InvoicePreviewProps) {
+  const tenantPrimaryColor = "var(--tenant-primary, #10B981)";
+  const tenantSecondaryColor = "var(--tenant-secondary, #3B82F6)";
+  const orgBranding = useAuthQuery(api.orgBranding.getCurrent, {});
+  const orgDisplayName =
+    orgBranding?.displayName?.trim() || orgBranding?.shortName?.trim() || "Agency";
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -60,7 +68,7 @@ export function InvoicePreview({
 
   // Determine participating brands
   const brands = [...new Set(items.map((item) => item.service.brand))];
-  const primaryBrand = brands.length === 1 ? brands[0] : "Sankofa";
+  const primaryBrand = brands.length === 1 ? brands[0] : orgDisplayName;
 
   return (
     <div className="space-y-6">
@@ -68,7 +76,12 @@ export function InvoicePreview({
       <div className="card p-6">
         <div className="flex items-start justify-between mb-6">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-brand-sankofa to-brand-gfam flex items-center justify-center">
+            <div
+              className="w-12 h-12 rounded-lg flex items-center justify-center"
+              style={{
+                background: `linear-gradient(135deg, ${tenantPrimaryColor}, ${tenantSecondaryColor})`,
+              }}
+            >
               <FileText className="w-6 h-6 text-white" />
             </div>
             <div>
@@ -82,7 +95,7 @@ export function InvoicePreview({
             <p className="text-2xl font-semibold text-content">{formatCurrency(total)}</p>
             <p className="text-sm text-content-muted">{items.length} item(s)</p>
             {discountAmount > 0 && (
-              <p className="text-xs text-brand-sankofa mt-1">
+              <p className="text-xs mt-1" style={{ color: tenantPrimaryColor }}>
                 Includes {normalizedDiscountPercent.toFixed(2).replace(/\.00$/, "")}% discount
               </p>
             )}
@@ -113,7 +126,7 @@ export function InvoicePreview({
         <div className="p-4 border-b border-border flex items-center justify-between">
           <h4 className="font-medium text-content">Line Items</h4>
           {hasCustomPricing && (
-            <span className="text-meta text-brand-sankofa flex items-center gap-1">
+            <span className="text-meta flex items-center gap-1" style={{ color: tenantPrimaryColor }}>
               <Tag className="w-3 h-3" />
               Includes custom pricing
             </span>
@@ -134,7 +147,13 @@ export function InvoicePreview({
                     <p className="font-medium text-content flex items-center gap-2">
                       {service.name}
                       {isCustomItem && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-brand-sankofa/10 text-brand-sankofa">
+                        <span
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium"
+                          style={{
+                            background: `color-mix(in srgb, ${tenantPrimaryColor} 10%, transparent)`,
+                            color: tenantPrimaryColor,
+                          }}
+                        >
                           <Tag className="w-2.5 h-2.5" />
                           Custom
                         </span>
@@ -144,7 +163,7 @@ export function InvoicePreview({
                       {formatItemDescription(item)}
                     </p>
                     <p className="text-sm text-content-muted">
-                      <span className={hasCustomRate ? "text-brand-sankofa" : ""}>
+                      <span style={hasCustomRate ? { color: tenantPrimaryColor } : undefined}>
                         {formatCurrency(effectiveRate)}
                       </span>
                       <span>/ea x {quantity}</span>
@@ -156,7 +175,10 @@ export function InvoicePreview({
                     </p>
                   </div>
                 </div>
-                <span className={`font-semibold ${hasCustomRate || isCustomItem ? "text-brand-sankofa" : "text-content"}`}>
+                <span
+                  className="font-semibold text-content"
+                  style={hasCustomRate || isCustomItem ? { color: tenantPrimaryColor } : undefined}
+                >
                   {formatCurrency(effectiveRate * quantity)}
                 </span>
               </div>
@@ -169,7 +191,7 @@ export function InvoicePreview({
             <span>{formatCurrency(subtotal)}</span>
           </div>
           {discountAmount > 0 && (
-            <div className="flex justify-between items-center text-sm text-brand-sankofa">
+            <div className="flex justify-between items-center text-sm" style={{ color: tenantPrimaryColor }}>
               <span>
                 Discount ({normalizedDiscountPercent.toFixed(2).replace(/\.00$/, "")}%)
               </span>
@@ -193,7 +215,7 @@ export function InvoicePreview({
         </div>
         {brands.length > 1 && (
           <p className="text-meta text-content-muted mt-3">
-            Mixed-brand invoices display Sankofa as the billing brand.
+            Mixed-brand invoices display {orgDisplayName} as the billing brand.
           </p>
         )}
       </div>

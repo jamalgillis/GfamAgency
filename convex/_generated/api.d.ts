@@ -9,6 +9,7 @@
  */
 
 import type * as clients from "../clients.js";
+import type * as feedback from "../feedback.js";
 import type * as http from "../http.js";
 import type * as invoiceActions from "../invoiceActions.js";
 import type * as lib_invoicePdf from "../lib/invoicePdf.js";
@@ -28,6 +29,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   clients: typeof clients;
+  feedback: typeof feedback;
   http: typeof http;
   invoiceActions: typeof invoiceActions;
   "lib/invoicePdf": typeof lib_invoicePdf;

@@ -16,8 +16,8 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "GFAM Agency Dashboard",
-  description: "Internal management system for GFAM Agency ecosystem",
+  title: "Agency Dashboard",
+  description: "Internal management system for teams, services, and billing",
 };
 
 export default function RootLayout({

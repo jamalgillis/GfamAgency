@@ -12,7 +12,8 @@ const paidSettlementSourceValidator = v.union(
   v.literal("checkout.session.async_payment_succeeded"),
   v.literal("manual")
 );
-const checkoutSettlementSourceValidator = v.union(
+const payoutSettlementSourceValidator = v.union(
+  v.literal("invoice.paid"),
   v.literal("checkout.session.completed"),
   v.literal("checkout.session.async_payment_succeeded")
 );
@@ -424,7 +425,7 @@ export const markBrandLedgerTransferForInvoiceBrand = internalMutation({
 export const processCheckoutSessionTransferPayout = internalAction({
   args: {
     invoiceId: v.id("invoices"),
-    settlementSource: checkoutSettlementSourceValidator,
+    settlementSource: payoutSettlementSourceValidator,
     settlementId: v.string(),
     stripePaymentIntentId: v.string(),
   },

@@ -4,8 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, Plus, X, DollarSign, Tag, FileText } from "lucide-react";
 import { ServiceCard } from "./ServiceCard";
 import type { WizardService, SelectedServiceItem } from "@/data/wizard-sample";
-import { brandTabs } from "@/data/wizard-sample";
-import type { BrandType } from "@/lib/brand-theme";
+import { getBrandColor, getBrandDisplayName, type BrandType } from "@/components/BrandBadge";
 
 interface ServicePickerProps {
   services: WizardService[];
@@ -98,7 +97,8 @@ export function ServicePicker({
   allowCustomItems = true,
   allowCustomRateOverrides = true,
 }: ServicePickerProps) {
-  const [activeBrand, setActiveBrand] = useState<BrandType>("Sankofa");
+  const tenantPrimaryColor = "var(--tenant-primary, #10B981)";
+  const [activeBrand, setActiveBrand] = useState<BrandType>("");
   const [search, setSearch] = useState("");
   const [showCustomForm, setShowCustomForm] = useState(false);
   const hasInitializedBrandFromSelection = useRef(false);
@@ -107,20 +107,51 @@ export function ServicePicker({
   const [customName, setCustomName] = useState("");
   const [customDescription, setCustomDescription] = useState("");
   const [customRate, setCustomRate] = useState("");
-  const [customBrand, setCustomBrand] = useState<BrandType>("Sankofa");
+  const [customBrand, setCustomBrand] = useState<BrandType>("");
   const [customCategory, setCustomCategory] = useState("custom");
 
   const availableBrandTabs = useMemo(() => {
-    const catalogBrands = new Set(services.map((service) => service.brand));
-    return brandTabs.filter((tab) => catalogBrands.has(tab.id));
+    const brandCounts = new Map<string, number>();
+
+    for (const service of services) {
+      brandCounts.set(service.brand, (brandCounts.get(service.brand) ?? 0) + 1);
+    }
+
+    return Array.from(brandCounts.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([brand, count]) => ({
+        id: brand,
+        label: getBrandDisplayName(brand),
+        subtitle: `${count} ${count === 1 ? "service" : "services"}`,
+        color: getBrandColor(brand),
+      }));
   }, [services]);
 
   useEffect(() => {
-    if (availableBrandTabs.length === 0) return;
+    if (availableBrandTabs.length === 0) {
+      if (activeBrand !== "") {
+        setActiveBrand("");
+      }
+      return;
+    }
+
     if (!availableBrandTabs.some((tab) => tab.id === activeBrand)) {
       setActiveBrand(availableBrandTabs[0].id);
     }
   }, [activeBrand, availableBrandTabs]);
+
+  useEffect(() => {
+    if (availableBrandTabs.length === 0) {
+      if (customBrand !== "") {
+        setCustomBrand("");
+      }
+      return;
+    }
+
+    if (!availableBrandTabs.some((tab) => tab.id === customBrand)) {
+      setCustomBrand(availableBrandTabs[0].id);
+    }
+  }, [availableBrandTabs, customBrand]);
 
   useEffect(() => {
     if (hasInitializedBrandFromSelection.current) {
@@ -182,6 +213,10 @@ export function ServicePicker({
   const handleAddCustomService = () => {
     if (!customName.trim() || !customRate) return;
 
+    if (!customBrand) {
+      return;
+    }
+
     const customService: WizardService = {
       id: `custom-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       brand: customBrand,
@@ -210,9 +245,18 @@ export function ServicePicker({
             onClick={() => setShowCustomForm(!showCustomForm)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
               showCustomForm
-                ? "border-brand-sankofa bg-brand-sankofa/10 text-brand-sankofa"
+                ? ""
                 : "border-border hover:border-content-muted text-content-secondary hover:text-content"
             }`}
+            style={
+              showCustomForm
+                ? {
+                    borderColor: tenantPrimaryColor,
+                    color: tenantPrimaryColor,
+                    background: `color-mix(in srgb, ${tenantPrimaryColor} 10%, transparent)`,
+                  }
+                : undefined
+            }
           >
             {showCustomForm ? (
               <X className="w-4 h-4" />
@@ -238,9 +282,15 @@ export function ServicePicker({
 
       {/* Custom Service Form */}
       {allowCustomItems && showCustomForm && (
-        <div className="card p-5 border-2 border-dashed border-brand-sankofa/30 bg-brand-sankofa/5 animate-fade-in-up">
+        <div
+          className="card p-5 border-2 border-dashed animate-fade-in-up"
+          style={{
+            borderColor: `color-mix(in srgb, ${tenantPrimaryColor} 30%, transparent)`,
+            background: `color-mix(in srgb, ${tenantPrimaryColor} 5%, transparent)`,
+          }}
+        >
           <div className="flex items-center gap-2 mb-4">
-            <Tag className="w-4 h-4 text-brand-sankofa" />
+            <Tag className="w-4 h-4" style={{ color: tenantPrimaryColor }} />
             <h4 className="font-medium text-content">Custom Line Item</h4>
           </div>
 
@@ -277,7 +327,7 @@ export function ServicePicker({
                 onChange={(e) => setCustomBrand(e.target.value as BrandType)}
                 className="input-field"
               >
-                {(availableBrandTabs.length > 0 ? availableBrandTabs : brandTabs).map((tab) => (
+                {availableBrandTabs.map((tab) => (
                   <option key={tab.id} value={tab.id}>
                     {tab.label} - {tab.subtitle}
                   </option>
@@ -313,10 +363,15 @@ export function ServicePicker({
                 <option value="custom">Custom</option>
                 <option value="social-media">Social Media</option>
                 <option value="website">Website</option>
+                <option value="marketing">Marketing</option>
+                <option value="seo">SEO & AI Search</option>
                 <option value="video">Video</option>
                 <option value="podcast">Podcast</option>
                 <option value="bundle">Bundle</option>
-                <option value="retainer">Retainer</option>
+                <option value="membership">Membership</option>
+                <option value="membership-upgrade">Membership Upgrade</option>
+                <option value="photo-room">Photo Room</option>
+                <option value="fees">Policies & Fees</option>
               </select>
             </div>
 
@@ -324,7 +379,7 @@ export function ServicePicker({
             <div className="form-group flex items-end">
               <button
                 onClick={handleAddCustomService}
-                disabled={!customName.trim() || !customRate}
+                disabled={!customName.trim() || !customRate || !customBrand}
                 className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Plus className="w-4 h-4" />
@@ -351,12 +406,20 @@ export function ServicePicker({
         {availableBrandTabs.map((tab) => {
           const count = getSelectedCount(tab.id);
           const isActive = activeBrand === tab.id;
+          const activeStyle = isActive
+            ? {
+                borderColor: tab.color,
+                color: tab.color,
+                backgroundColor: `${tab.color}14`,
+              }
+            : undefined;
 
           return (
             <button
               key={tab.id}
               onClick={() => setActiveBrand(tab.id)}
-              className={`brand-tab brand-tab-${tab.color} ${isActive ? "active" : ""} flex-shrink-0`}
+              className={`brand-tab ${isActive ? "active" : ""} flex-shrink-0`}
+              style={activeStyle}
             >
               <span>{tab.label}</span>
               {count > 0 && (
@@ -374,7 +437,11 @@ export function ServicePicker({
         <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-content-muted" />
         <input
           type="text"
-          placeholder={`Search ${activeBrand} services...`}
+          placeholder={
+            activeBrand
+              ? `Search ${getBrandDisplayName(activeBrand)} services...`
+              : "Search services..."
+          }
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="input-field w-full pl-10 py-2 text-sm"

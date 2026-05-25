@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import {
   Search,
   Plus,
@@ -9,13 +10,15 @@ import {
   Zap,
 } from "lucide-react";
 import { ThemeSwitch } from "@/components/ThemeSwitch";
-import { BrandBadge, type BrandType } from "@/components/BrandBadge";
+import {
+  BrandBadge,
+  getBrandColor,
+  getBrandDisplayName,
+  type BrandType,
+} from "@/components/BrandBadge";
 import { api } from "@/convex/_generated/api";
 import { useAuthQuery } from "@/hooks/useAuthQuery";
-import {
-  serviceBrandFilters,
-  type ServiceData,
-} from "@/data/services-sample";
+import { type ServiceData } from "@/data/services-sample";
 
 export default function ServicesPage() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -42,6 +45,21 @@ export default function ServicesPage() {
       category: service.category,
     }));
   }, [servicesFromDb]);
+
+  const serviceBrandFilters = useMemo<Array<{ key: string; label: string; color?: string }>>(() => {
+    const brands = Array.from(new Set(services.map((service) => service.brand))).sort((a, b) =>
+      a.localeCompare(b)
+    );
+
+    return [
+      { key: "all", label: "All Services" },
+      ...brands.map((brand) => ({
+        key: brand,
+        label: getBrandDisplayName(brand),
+        color: getBrandColor(brand),
+      })),
+    ];
+  }, [services]);
 
   // Filter services
   const filteredServices = useMemo(() => {
@@ -246,10 +264,10 @@ function ServiceCard({
         </div>
 
         {/* Edit Button */}
-        <button className="btn-secondary">
+        <Link href={`/dashboard/services/${service.id}`} className="btn-secondary">
           <Pencil className="w-3.5 h-3.5" />
           Edit
-        </button>
+        </Link>
       </div>
     </div>
   );

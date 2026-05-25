@@ -17,7 +17,7 @@ import {
   CreditCard,
 } from "lucide-react";
 import { ThemeSwitch } from "@/components/ThemeSwitch";
-import { BrandBadge, type BrandType } from "@/components/BrandBadge";
+import { BrandBadge, getBrandDisplayName } from "@/components/BrandBadge";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useAuthQuery } from "@/hooks/useAuthQuery";
@@ -55,16 +55,6 @@ interface SubscriptionRow {
   nextBillingAt?: number;
   stripeSubscriptionId: string;
 }
-
-const knownBrands: BrandType[] = [
-  "Sankofa",
-  "Lighthouse",
-  "Centex",
-  "GFAM Media Studios",
-];
-
-const isBrandType = (brand: string): brand is BrandType =>
-  knownBrands.includes(brand as BrandType);
 
 const statusOptions: Array<{ key: "all" | SubscriptionStatus; label: string }> = [
   { key: "all", label: "All statuses" },
@@ -124,8 +114,7 @@ const formatStatusLabel = (status: SubscriptionStatus) =>
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
 
-const formatBrandFilterLabel = (brand: string) =>
-  brand === "GFAM Media Studios" ? "GFAM Media" : brand;
+const formatBrandFilterLabel = (brand: string) => getBrandDisplayName(brand);
 
 const formatCollectionLabel = (value: CollectionMethodWithUnknown) => {
   switch (value) {
@@ -257,14 +246,7 @@ export default function SubscriptionsPage() {
       }
     }
 
-    const ordered: string[] = [...knownBrands.filter((brand) => dynamic.has(brand))];
-    for (const brand of dynamic) {
-      if (!ordered.includes(brand)) {
-        ordered.push(brand);
-      }
-    }
-
-    return ordered;
+    return Array.from(dynamic).sort((a, b) => a.localeCompare(b));
   }, [rows]);
 
   useEffect(() => {
@@ -622,8 +604,7 @@ export default function SubscriptionsPage() {
                         <p className="text-sm text-content-muted">{row.clientEmail}</p>
                       </td>
                       <td className="px-4 py-4">
-                        {row.participatingBrands.length === 1 &&
-                        isBrandType(row.participatingBrands[0]) ? (
+                        {row.participatingBrands.length === 1 ? (
                           <BrandBadge
                             brand={row.participatingBrands[0]}
                             variant="pill"

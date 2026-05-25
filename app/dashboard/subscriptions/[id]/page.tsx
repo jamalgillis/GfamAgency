@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useAction, useQuery } from "convex/react";
+import { useAction } from "convex/react";
 import {
   ArrowLeft,
   ChevronDown,
@@ -15,9 +15,10 @@ import {
   XCircle,
 } from "lucide-react";
 import { ThemeSwitch } from "@/components/ThemeSwitch";
-import { BrandBadge, type BrandType } from "@/components/BrandBadge";
+import { BrandBadge } from "@/components/BrandBadge";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { useAuthQuery } from "@/hooks/useAuthQuery";
 
 type SubscriptionStatus =
   | "active"
@@ -32,16 +33,6 @@ type SubscriptionStatus =
 type DunningAction = "none" | "pause" | "cancel";
 type ProrationBehavior = "always_invoice" | "create_prorations" | "none";
 type CollectionMethod = "send_invoice" | "charge_automatically";
-
-const knownBrands: BrandType[] = [
-  "Sankofa",
-  "Lighthouse",
-  "Centex",
-  "GFAM Media Studios",
-];
-
-const isBrandType = (brand: string): brand is BrandType =>
-  knownBrands.includes(brand as BrandType);
 
 const statusClassMap: Record<SubscriptionStatus, string> = {
   active: "bg-emerald-500/15 text-emerald-300",
@@ -86,7 +77,7 @@ export default function SubscriptionDetailPage() {
     : subscriptionIdParam;
   const isValidId = typeof subscriptionId === "string" && subscriptionId.length > 10;
 
-  const subscription = useQuery(
+  const subscription = useAuthQuery(
     api.invoiceActions.getSubscriptionWithInvoices,
     isValidId
       ? {
@@ -625,16 +616,7 @@ export default function SubscriptionDetailPage() {
         <h2 className="text-lg font-semibold text-content mb-3">Brands</h2>
         <div className="flex flex-wrap gap-2">
           {subscription.participatingBrands.map((brand) => (
-            isBrandType(brand) ? (
-              <BrandBadge key={brand} brand={brand} variant="pill" />
-            ) : (
-              <span
-                key={brand}
-                className="px-2.5 py-1 rounded-full bg-surface-tertiary text-content-muted text-sm"
-              >
-                {brand}
-              </span>
-            )
+            <BrandBadge key={brand} brand={brand} variant="pill" />
           ))}
         </div>
       </section>

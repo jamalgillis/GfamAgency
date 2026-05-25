@@ -49,10 +49,10 @@ const config: Config = {
         },
         // Brand accent colors (constant across themes)
         brand: {
-          sankofa: "#10B981",
-          lighthouse: "#8B5CF6",
-          centex: "#F59E0B",
-          gfam: "#3B82F6",
+          sankofa: "var(--brand-sankofa)",
+          lighthouse: "var(--brand-lighthouse)",
+          centex: "var(--brand-centex)",
+          gfam: "var(--brand-gfam)",
         },
         // Feedback colors
         success: "#10B981",

@@ -1,10 +1,10 @@
 /**
  * Brand Theme Configuration
- * Defines colors, logos, and styling for each GFAM Agency sub-brand
- * Single Stripe account with metadata-based revenue tracking
+ * Includes optional curated themes and deterministic dynamic fallbacks
+ * so tenant-defined brands render safely without hardcoded assumptions.
  */
 
-export type BrandType = "Sankofa" | "Lighthouse" | "Centex" | "GFAM Media Studios";
+export type BrandType = string;
 
 export interface BrandTheme {
   name: BrandType;
@@ -32,6 +32,100 @@ export interface BrandTheme {
   logo: string;
   icon: string;
   gradient: string;
+}
+
+const FALLBACK_PALETTE = [
+  "#0EA5E9",
+  "#14B8A6",
+  "#22C55E",
+  "#F59E0B",
+  "#F97316",
+  "#EF4444",
+  "#EC4899",
+  "#8B5CF6",
+] as const;
+
+function hashBrand(value: string): number {
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = ((hash << 5) - hash + value.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash);
+}
+
+function clampChannel(value: number): number {
+  return Math.min(255, Math.max(0, Math.round(value)));
+}
+
+function adjustHexColor(hex: string, ratio: number): string {
+  const normalized = hex.replace("#", "").trim();
+  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) {
+    return hex;
+  }
+  const base = parseInt(normalized, 16);
+  const r = (base >> 16) & 0xff;
+  const g = (base >> 8) & 0xff;
+  const b = base & 0xff;
+  const to = ratio >= 0 ? 255 : 0;
+  const mix = Math.abs(ratio);
+
+  const nr = clampChannel(r + (to - r) * mix);
+  const ng = clampChannel(g + (to - g) * mix);
+  const nb = clampChannel(b + (to - b) * mix);
+
+  return `#${[nr, ng, nb].map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function shortenBrandName(brand: string): string {
+  if (brand.length <= 14) {
+    return brand;
+  }
+  return `${brand.slice(0, 13).trim()}…`;
+}
+
+function brandMonogram(brand: string): string {
+  const parts = brand
+    .split(/\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length === 0) return "B";
+  if (parts.length === 1) return parts[0][0]?.toUpperCase() ?? "B";
+  return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
+}
+
+function createDynamicBrandTheme(input: string): BrandTheme {
+  const brand = input.trim() || "Brand";
+  const hash = hashBrand(brand);
+  const primary = FALLBACK_PALETTE[hash % FALLBACK_PALETTE.length];
+  const secondary = FALLBACK_PALETTE[(hash + 3) % FALLBACK_PALETTE.length];
+  const accent = FALLBACK_PALETTE[(hash + 5) % FALLBACK_PALETTE.length];
+
+  return {
+    name: brand,
+    shortName: shortenBrandName(brand),
+    tagline: "Service Brand",
+    services: [],
+    colors: {
+      primary,
+      primaryHover: adjustHexColor(primary, -0.15),
+      secondary,
+      accent,
+      background: adjustHexColor(primary, 0.9),
+      text: "#0F172A",
+      muted: "#64748B",
+      tailwind: {
+        bg: "bg-slate-700",
+        bgLight: "bg-slate-50",
+        text: "text-slate-700",
+        border: "border-slate-200",
+        pill: "bg-slate-100 text-slate-800",
+        dot: "bg-slate-600",
+      },
+    },
+    logo: "",
+    icon: brandMonogram(brand),
+    gradient: "from-slate-900 via-slate-700 to-slate-500",
+  };
 }
 
 /**
@@ -147,15 +241,16 @@ export const BRAND_THEMES: Record<BrandType, BrandTheme> = {
 /**
  * Parent organization name
  */
-export const PARENT_ORGANIZATION = "GFAM Agency";
+export const PARENT_ORGANIZATION =
+  process.env.NEXT_PUBLIC_PARENT_ORGANIZATION?.trim() || "Agency";
 
 /**
- * GFAM Agency parent theme (used for multi-brand contexts)
+ * Parent theme used for multi-brand contexts.
  */
 export const AGENCY_THEME: Omit<BrandTheme, "name"> & { name: string } = {
   name: PARENT_ORGANIZATION,
-  shortName: "GFAM",
-  tagline: "Full-Service Media Agency",
+  shortName: "AGENCY",
+  tagline: "Multi-Brand Services",
   services: ["All Services"],
   colors: {
     primary: "#0F172A",
@@ -183,7 +278,12 @@ export const AGENCY_THEME: Omit<BrandTheme, "name"> & { name: string } = {
  * Get the theme for a specific brand
  */
 export function getBrandTheme(brand: BrandType | string): BrandTheme {
-  return BRAND_THEMES[brand as BrandType] ?? (AGENCY_THEME as BrandTheme);
+  const normalized = brand.trim();
+  if (!normalized) {
+    return AGENCY_THEME as BrandTheme;
+  }
+
+  return BRAND_THEMES[normalized as BrandType] ?? createDynamicBrandTheme(normalized);
 }
 
 /**

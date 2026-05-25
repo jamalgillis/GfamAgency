@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { useAction, useQuery } from "convex/react";
+import { useAction } from "convex/react";
 import {
   ArrowLeft,
   Download,
@@ -20,7 +20,8 @@ import {
 import { ThemeSwitch } from "@/components/ThemeSwitch";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import type { BrandType } from "@/components/BrandBadge";
+import { getBrandColor, getBrandDisplayName, type BrandType } from "@/components/BrandBadge";
+import { useAuthQuery } from "@/hooks/useAuthQuery";
 
 type InvoiceStatus = "paid" | "pending" | "overdue" | "draft" | "void";
 
@@ -32,13 +33,6 @@ interface LineItem {
   qty: number;
   rate: number;
 }
-
-const brandClasses: Record<BrandType, string> = {
-  Sankofa: "invoice-brand-sankofa",
-  Lighthouse: "invoice-brand-lighthouse",
-  Centex: "invoice-brand-centex",
-  "GFAM Media Studios": "invoice-brand-gfam",
-};
 
 const statusColors: Record<InvoiceStatus, string> = {
   paid: "paid",
@@ -113,7 +107,8 @@ export default function InvoiceDetailPage() {
   const invoiceIdParam = params.id;
   const invoiceId = Array.isArray(invoiceIdParam) ? invoiceIdParam[0] : invoiceIdParam;
   const hasValidInvoiceId = typeof invoiceId === "string" && invoiceId.length > 10;
-  const invoiceWithDetails = useQuery(
+  const orgBranding = useAuthQuery(api.orgBranding.getCurrent, {});
+  const invoiceWithDetails = useAuthQuery(
     api.invoiceActions.getInvoiceWithLineItems,
     hasValidInvoiceId ? { invoiceId: invoiceId as Id<"invoices"> } : "skip"
   );
@@ -142,6 +137,8 @@ export default function InvoiceDetailPage() {
   const notes =
     invoiceWithDetails?.notes ||
     "Please include the invoice number in your payment reference.";
+  const billingDisplayName =
+    orgBranding?.displayName?.trim() || orgBranding?.shortName?.trim() || "Agency";
 
   const lineItems = useMemo<LineItem[]>(() => {
     if (!invoiceWithDetails) return [];
@@ -234,8 +231,15 @@ export default function InvoiceDetailPage() {
     }).format(amount);
   };
 
-  const getEmailStatusMessage = (emailSent?: boolean, emailSkipped?: string) => {
+  const getEmailStatusMessage = (
+    emailSent?: boolean,
+    emailSkipped?: string,
+    emailUsedPlatformFallback?: boolean
+  ) => {
     if (emailSent) {
+      if (emailUsedPlatformFallback) {
+        return "Invoice sent and email delivered via platform sender after org sender fallback.";
+      }
       return "Invoice sent and email delivered via Resend.";
     }
     if (!emailSkipped) {
@@ -274,7 +278,11 @@ export default function InvoiceDetailPage() {
       }
 
       setSendStatusMessage(
-        getEmailStatusMessage(result.emailSent, result.emailSkipped)
+        getEmailStatusMessage(
+          result.emailSent,
+          result.emailSkipped,
+          result.emailUsedPlatformFallback
+        )
       );
     } catch (err) {
       setSendError(err instanceof Error ? err.message : "Failed to send invoice");
@@ -709,11 +717,8 @@ export default function InvoiceDetailPage() {
           {/* Invoice Header */}
           <div className="invoice-header">
             <div>
-              <h2 className="invoice-company-name">Sankofa Marketing Group</h2>
-              <p className="invoice-client-detail mt-2">
-                813 Lake Air Dr Suite B<br />
-                Waco, TX 76710
-              </p>
+              <h2 className="invoice-company-name">{billingDisplayName}</h2>
+              <p className="invoice-client-detail mt-2">Billing Department</p>
             </div>
             <div className="text-left sm:text-right">
               <p className="invoice-label">Invoice</p>
@@ -767,23 +772,33 @@ export default function InvoiceDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {lineItems.map((item) => (
-                  <tr key={item.id} className="invoice-table-row">
-                    <td>
-                      <div className="invoice-item-name">{item.name}</div>
-                      <div className="invoice-item-description">{item.description}</div>
-                      <span className={`invoice-item-brand ${brandClasses[item.brand]}`}>
-                        <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                        {item.brand === "GFAM Media Studios" ? "GFAM Media" : item.brand}
-                      </span>
-                    </td>
-                    <td className="text-center">{item.qty}</td>
-                    <td className="text-right">{formatCurrency(item.rate)}</td>
-                    <td className="text-right font-semibold">
-                      {formatCurrency(item.qty * item.rate)}
-                    </td>
-                  </tr>
-                ))}
+                {lineItems.map((item) => {
+                  const brandColor = getBrandColor(item.brand);
+
+                  return (
+                    <tr key={item.id} className="invoice-table-row">
+                      <td>
+                        <div className="invoice-item-name">{item.name}</div>
+                        <div className="invoice-item-description">{item.description}</div>
+                        <span
+                          className="invoice-item-brand"
+                          style={{
+                            color: brandColor,
+                            background: `${brandColor}1A`,
+                          }}
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                          {getBrandDisplayName(item.brand)}
+                        </span>
+                      </td>
+                      <td className="text-center">{item.qty}</td>
+                      <td className="text-right">{formatCurrency(item.rate)}</td>
+                      <td className="text-right font-semibold">
+                        {formatCurrency(item.qty * item.rate)}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -817,7 +832,7 @@ export default function InvoiceDetailPage() {
           {/* Footer */}
           <div className="invoice-footer">
             <p className="invoice-footer-text">Thank you for your business!</p>
-            <p className="invoice-footer-brand">Sankofa Marketing Group</p>
+            <p className="invoice-footer-brand">{billingDisplayName}</p>
           </div>
         </div>
       </div>

@@ -1,0 +1,926 @@
+{
+  "brand": "GFAM Media Studios",
+  "source": {
+    "type": "convex",
+    "deployment": "adamant-wren-983 (ownDev)",
+    "exportedAt": "2026-05-15"
+  },
+  "orgIds": [
+    "org_39eRnrfzOCy0ea7c5RbafovLjWS"
+  ],
+  "total": 52,
+  "services": [
+    {
+      "_creationTime": 1769123626439.8955,
+      "_id": "j97ajq6cvzzq8ha2e7z9tq7zdn7zqa55",
+      "brand": "GFAM Media Studios",
+      "category": "studio-rental",
+      "description": "90 minutes recording time (plus 30 min setup), engineer/producer, multi-camera setup, and basic post-production editing. Ideal for 45-60 minute episodes.",
+      "name": "2-Hour Studio Session",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "$225",
+      "priceValue": 225,
+      "status": "active",
+      "stripeSynced": true,
+      "tags": [
+        "Studio",
+        "Rental",
+        "Podcast"
+      ]
+    },
+    {
+      "_creationTime": 1771223330860.1025,
+      "_id": "j97fng71a44bw8zsxv12mt27dx8182j5",
+      "brand": "GFAM Media Studios",
+      "category": "studio-rental",
+      "description": "Perfect for standard podcast episodes. Includes 90 minutes recording time (plus 30 minutes setup/breakdown), engineer/producer, multi-camera setup, and basic post-production editing. Ideal for 45-60 minute finished episodes. Includes: 90min Recording | Engineer | Multi-Cam | Basic Edit.",
+      "name": "2-Hour Studio Session",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "$225",
+      "priceValue": 225,
+      "status": "active",
+      "stripeSynced": false,
+      "tags": [
+        "Studio Session Rentals"
+      ]
+    },
+    {
+      "_creationTime": 1769123626439.8958,
+      "_id": "j97b17ctmys6scmtnew3j599b57zpnad",
+      "brand": "GFAM Media Studios",
+      "category": "studio-rental",
+      "description": "Up to 3.5 hours recording time (plus 30 min setup), engineer/producer, multi-camera setup, and premium post-production. For longer content or multiple guests.",
+      "name": "4-Hour Studio Session",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "$400",
+      "priceValue": 400,
+      "status": "active",
+      "stripeSynced": true,
+      "tags": [
+        "Studio",
+        "Rental",
+        "Extended"
+      ]
+    },
+    {
+      "_creationTime": 1771223330860.1028,
+      "_id": "j97fbxjaeyddrp3j9cbtxjhp65818wbz",
+      "brand": "GFAM Media Studios",
+      "category": "studio-rental",
+      "description": "Extended sessions for longer content (60-90+ min episodes), multiple guests, back-to-back recordings, or special productions. Includes up to 3.5 hours recording time (plus 30 minutes setup), engineer/producer, multi-camera setup, and premium post-production. Includes: 3.5hr Recording | Engineer | Multi-Cam | Premium Edit.",
+      "name": "4-Hour Studio Session",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "$400",
+      "priceValue": 400,
+      "status": "active",
+      "stripeSynced": false,
+      "tags": [
+        "Studio Session Rentals"
+      ]
+    },
+    {
+      "_creationTime": 1769123626439.8992,
+      "_id": "j970j0bmegc0zke5gzvda7w6k17zps05",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Upgrade to 4K resolution for your final video output.",
+      "name": "4K Editing",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "$40",
+      "priceValue": 40,
+      "status": "active",
+      "stripeSynced": true,
+      "tags": [
+        "4K",
+        "Video"
+      ]
+    },
+    {
+      "_creationTime": 1771223330860.1064,
+      "_id": "j97bz5eqn9q7w266eb1vss1mp181935e",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Technical Upgrades add-on for podcast production.",
+      "name": "4K Editing",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "+$40",
+      "priceValue": 40,
+      "status": "active",
+      "stripeSynced": false,
+      "tags": [
+        "Technical Upgrades",
+        "Add-On"
+      ]
+    },
+    {
+      "_creationTime": 1769123626439.8962,
+      "_id": "j9704zf93tt3ph5dtzeqvw5f5n7zq38w",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Extend your recording session by 15 minutes.",
+      "name": "Additional Recording Time (15 min)",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "$25",
+      "priceValue": 25,
+      "status": "active",
+      "stripeSynced": true,
+      "tags": [
+        "Add-On",
+        "Recording"
+      ]
+    },
+    {
+      "_creationTime": 1771223330860.1033,
+      "_id": "j972qfmfw5y8dasg11gr8jtxyn81817g",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Production Add-Ons add-on for podcast production.",
+      "name": "Additional Recording Time (15 min)",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "+$25",
+      "priceValue": 25,
+      "status": "active",
+      "stripeSynced": false,
+      "tags": [
+        "Production Add-Ons",
+        "Add-On"
+      ]
+    },
+    {
+      "_creationTime": 1769123626439.896,
+      "_id": "j97c4hmyc45mp4qsd3c2rp60gn7zq6vz",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Extend your recording session by 30 minutes.",
+      "name": "Additional Recording Time (30 min)",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "$50",
+      "priceValue": 50,
+      "status": "active",
+      "stripeSynced": true,
+      "tags": [
+        "Add-On",
+        "Recording"
+      ]
+    },
+    {
+      "_creationTime": 1771223330860.103,
+      "_id": "j9715qdd51vhy2kg1da6qd4gz981886c",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Production Add-Ons add-on for podcast production.",
+      "name": "Additional Recording Time (30 min)",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "+$50",
+      "priceValue": 50,
+      "status": "active",
+      "stripeSynced": false,
+      "tags": [
+        "Production Add-Ons",
+        "Add-On"
+      ]
+    },
+    {
+      "_creationTime": 1769123626439.8997,
+      "_id": "j97a2aa0mt5v9xy2rm842pe7357zp8ba",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Cinematic color grading for premium visual quality.",
+      "name": "Advanced Color Grading",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "$135",
+      "priceValue": 135,
+      "status": "active",
+      "stripeSynced": true,
+      "tags": [
+        "Color",
+        "Cinematic"
+      ]
+    },
+    {
+      "_creationTime": 1771223330860.107,
+      "_id": "j974d0erbspqshqjseaqxzr1v98196j5",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Technical Upgrades add-on for podcast production.",
+      "name": "Advanced Color Grading",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "+$135",
+      "priceValue": 135,
+      "status": "active",
+      "stripeSynced": false,
+      "tags": [
+        "Technical Upgrades",
+        "Add-On"
+      ]
+    },
+    {
+      "_creationTime": 1769123626439.899,
+      "_id": "j9731c9p87e03d3jvg9t2g7q1s7zppm1",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Custom animated intro and outro for your podcast brand.",
+      "name": "Animated Intro/Outro",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "$100",
+      "priceValue": 100,
+      "status": "active",
+      "stripeSynced": true,
+      "tags": [
+        "Animation",
+        "Branding"
+      ]
+    },
+    {
+      "_creationTime": 1771223330860.1062,
+      "_id": "j973fhh58dqcfctx4hdb9emef1819r55",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Technical Upgrades add-on for podcast production.",
+      "name": "Animated Intro/Outro",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "+$100",
+      "priceValue": 100,
+      "status": "active",
+      "stripeSynced": false,
+      "tags": [
+        "Technical Upgrades",
+        "Add-On"
+      ]
+    },
+    {
+      "_creationTime": 1769123626439.9,
+      "_id": "j9743wt92mnk11p4c0dg7hdsas7zqcs9",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Professional audio enhancement including noise reduction and clarity improvements.",
+      "name": "Audio Enhancement",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "$40",
+      "priceValue": 40,
+      "status": "active",
+      "stripeSynced": true,
+      "tags": [
+        "Audio",
+        "Enhancement"
+      ]
+    },
+    {
+      "_creationTime": 1771223330860.1072,
+      "_id": "j974vst4j7d7qkv1qynr34eqm5819hjk",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Technical Upgrades add-on for podcast production.",
+      "name": "Audio Enhancement",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "+$40",
+      "priceValue": 40,
+      "status": "active",
+      "stripeSynced": false,
+      "tags": [
+        "Technical Upgrades",
+        "Add-On"
+      ]
+    },
+    {
+      "_creationTime": 1769123626439.897,
+      "_id": "j97cgev0hzhwjhseydy7rz3he57zq1mn",
+      "brand": "GFAM Media Studios",
+      "category": "photography",
+      "description": "Extended behind-the-scenes photography coverage.",
+      "name": "BTS Photography (1 hour)",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "$120",
+      "priceValue": 120,
+      "status": "active",
+      "stripeSynced": true,
+      "tags": [
+        "Photography",
+        "BTS"
+      ]
+    },
+    {
+      "_creationTime": 1771223330860.104,
+      "_id": "j976g8n2wf1gpb9dpcmmpqc4ch819sw1",
+      "brand": "GFAM Media Studios",
+      "category": "photography",
+      "description": "Production Add-Ons add-on for podcast production.",
+      "name": "BTS Photography (1 hour)",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "+$120",
+      "priceValue": 120,
+      "status": "active",
+      "stripeSynced": false,
+      "tags": [
+        "Production Add-Ons",
+        "Add-On"
+      ]
+    },
+    {
+      "_creationTime": 1769123626439.8967,
+      "_id": "j973wgn9cd1bf25w3myvxdd43x7zq0vc",
+      "brand": "GFAM Media Studios",
+      "category": "photography",
+      "description": "Behind-the-scenes photography during your recording session.",
+      "name": "BTS Photography (30 min)",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "$60",
+      "priceValue": 60,
+      "status": "active",
+      "stripeSynced": true,
+      "tags": [
+        "Photography",
+        "BTS"
+      ]
+    },
+    {
+      "_creationTime": 1771223330860.1038,
+      "_id": "j9743gq5c3gaxbdtrejf8vnsyx819ykv",
+      "brand": "GFAM Media Studios",
+      "category": "photography",
+      "description": "Production Add-Ons add-on for podcast production.",
+      "name": "BTS Photography (30 min)",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "+$60",
+      "priceValue": 60,
+      "status": "active",
+      "stripeSynced": false,
+      "tags": [
+        "Production Add-Ons",
+        "Add-On"
+      ]
+    },
+    {
+      "_creationTime": 1769123626439.8994,
+      "_id": "j97fg5j6gvwnrc20rr6fhtt1wh7zq8yj",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Basic color correction and grading for consistent, polished look.",
+      "name": "Color Correction/Grading",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "$55",
+      "priceValue": 55,
+      "status": "active",
+      "stripeSynced": true,
+      "tags": [
+        "Color",
+        "Post-Production"
+      ]
+    },
+    {
+      "_creationTime": 1771223330860.1067,
+      "_id": "j977xmv0c68f92g0dame0wj2ys81803w",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Technical Upgrades add-on for podcast production.",
+      "name": "Color Correction/Grading",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "+$55",
+      "priceValue": 55,
+      "status": "active",
+      "stripeSynced": false,
+      "tags": [
+        "Technical Upgrades",
+        "Add-On"
+      ]
+    },
+    {
+      "_creationTime": 1769123626439.8984,
+      "_id": "j97bxp51hqqdvsrh2mjdggq2bd7zpgb7",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Professional custom thumbnails for YouTube and podcast platforms.",
+      "name": "Custom Thumbnails",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "$18",
+      "priceSuffix": "/each",
+      "priceValue": 18,
+      "status": "active",
+      "stripeSynced": true,
+      "tags": [
+        "Design",
+        "Thumbnails"
+      ]
+    },
+    {
+      "_creationTime": 1771223330860.1055,
+      "_id": "j976sdznsjv6hwy3nk26wsqvt5818337",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Content Creation Add-Ons add-on for podcast production.",
+      "name": "Custom Thumbnails",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "+$18 each",
+      "priceSuffix": "/each",
+      "priceValue": 18,
+      "status": "active",
+      "stripeSynced": false,
+      "tags": [
+        "Content Creation Add-Ons",
+        "Add-On"
+      ]
+    },
+    {
+      "_creationTime": 1771223330860.108,
+      "_id": "j977wk075r0ces9apvcfc2ybah818hz6",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Includes: Multi-angle editing + live switching, Social media clip package, Custom thumbnails, Guest photo capture, Multi-platform distribution, Audio enhancement. $438 value - Save $73 with bundle.",
+      "name": "Full-Service Bundle",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "$365",
+      "priceValue": 365,
+      "status": "active",
+      "stripeSynced": false,
+      "tags": [
+        "Package Deal"
+      ]
+    },
+    {
+      "_creationTime": 1769123626439.9006,
+      "_id": "j976fdybw3fxrzxwgne3r8ngf97zpmgm",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Multi-angle editing + live switching, social media clips, custom thumbnails, guest photos, multi-platform distribution, and audio enhancement. $438 value.",
+      "name": "Full-Service Podcast Bundle",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "$365",
+      "priceSuffix": "/episode",
+      "priceValue": 365,
+      "status": "active",
+      "stripeSynced": true,
+      "tags": [
+        "Bundle",
+        "Full-Service",
+        "Value"
+      ]
+    },
+    {
+      "_creationTime": 1769123626439.8972,
+      "_id": "j97fxe1kmpaqn1bjd2s7gmvfe17zq0q5",
+      "brand": "GFAM Media Studios",
+      "category": "photography",
+      "description": "Professional headshots and photos of guests during the session.",
+      "name": "Guest Photo Capture",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "$25",
+      "priceValue": 25,
+      "status": "active",
+      "stripeSynced": true,
+      "tags": [
+        "Photography",
+        "Headshots"
+      ]
+    },
+    {
+      "_creationTime": 1771223330860.1042,
+      "_id": "j9726sgtegf39z2hr81ektmas1819rwv",
+      "brand": "GFAM Media Studios",
+      "category": "photography",
+      "description": "Production Add-Ons add-on for podcast production.",
+      "name": "Guest Photo Capture",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "+$25",
+      "priceValue": 25,
+      "status": "active",
+      "stripeSynced": false,
+      "tags": [
+        "Production Add-Ons",
+        "Add-On"
+      ]
+    },
+    {
+      "_creationTime": 1769123626439.8982,
+      "_id": "j976sbrt2rhcc0rg7d6dgg29h97zqrjw",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Curated highlight video showcasing the best moments of your episode.",
+      "name": "Highlight Reel",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "$75",
+      "priceValue": 75,
+      "status": "active",
+      "stripeSynced": true,
+      "tags": [
+        "Video",
+        "Highlights"
+      ]
+    },
+    {
+      "_creationTime": 1771223330860.1052,
+      "_id": "j971x11er7b0y4w5vv662e2fsh819c5d",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Content Creation Add-Ons add-on for podcast production.",
+      "name": "Highlight Reel",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "+$75",
+      "priceValue": 75,
+      "status": "active",
+      "stripeSynced": false,
+      "tags": [
+        "Content Creation Add-Ons",
+        "Add-On"
+      ]
+    },
+    {
+      "_creationTime": 1769123626439.8975,
+      "_id": "j977rc2q10hwz5f2mw7jcj8qg17zppq0",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Individual isolated camera feeds delivered separately for your own editing.",
+      "name": "ISO Video Recordings",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "$50",
+      "priceValue": 50,
+      "status": "active",
+      "stripeSynced": true,
+      "tags": [
+        "Video",
+        "ISO",
+        "Raw"
+      ]
+    },
+    {
+      "_creationTime": 1771223330860.1045,
+      "_id": "j97fna8zwtjg7hj7f4zjhts8zn8194e4",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Production Add-Ons add-on for podcast production.",
+      "name": "ISO Video Recordings",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "+$50",
+      "priceValue": 50,
+      "status": "active",
+      "stripeSynced": false,
+      "tags": [
+        "Production Add-Ons",
+        "Add-On"
+      ]
+    },
+    {
+      "_creationTime": 1771223330860.1023,
+      "_id": "j97atfh7w72p2tspdmn40esvg5819k26",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Professional live streaming for events, conferences, and special broadcasts. Includes travel within 50 miles, setup, and multi-platform streaming. Includes: Equipment | Engineer | Travel | Streaming Setup.",
+      "name": "Live Event Streaming",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "$450",
+      "priceSuffix": "/episode",
+      "priceValue": 450,
+      "status": "active",
+      "stripeSynced": false,
+      "tags": [
+        "Full-Service Podcast Production"
+      ]
+    },
+    {
+      "_creationTime": 1771223330860.1074,
+      "_id": "j970v912tgndcqzsgs8ddafjsn818nxk",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Includes: 4 episodes per month, Priority scheduling, Consistent delivery dates, Dedicated project manager.",
+      "name": "Monthly Retainer",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "15% OFF",
+      "priceSuffix": "/month",
+      "priceValue": 15,
+      "status": "active",
+      "stripeSynced": false,
+      "tags": [
+        "Package Deal"
+      ]
+    },
+    {
+      "_creationTime": 1769123626439.9001,
+      "_id": "j97fx4h4gyasqk80mqntkj6af17zq9fp",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "4 episodes per month with priority scheduling, consistent delivery dates, and dedicated project manager. 15% OFF regular pricing.",
+      "name": "Monthly Retainer (4 episodes)",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "15% OFF",
+      "priceSuffix": "/month",
+      "priceValue": 765,
+      "status": "active",
+      "stripePriceId": "price_1T2gAfHQSHLLzYC8L79TEHUE",
+      "stripeProductId": "prod_U0hZcri6Ok3tMJ",
+      "stripeRecurringPriceId": "price_1T2gAfHQSHLLzYC8VQwH2Y4w",
+      "stripeSynced": true,
+      "tags": [
+        "Package",
+        "Retainer",
+        "Discount"
+      ]
+    },
+    {
+      "_creationTime": 1771223330860.1018,
+      "_id": "j97dvyt41h101zp8dnwrb2cgax818kyj",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Includes 90-minute studio recording session with multiple camera angles, professional audio production, and real-time camera switching during recording. Ideal for 45-60 minute finished episodes. Our most popular choice for interview-style shows. Includes: 90min Recording | Studio | Engineer | Multi-Cam | Editing.",
+      "name": "Multi-Angle + Producer + Live Switching",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "$225",
+      "priceSuffix": "/episode",
+      "priceValue": 225,
+      "status": "active",
+      "stripeSynced": false,
+      "tags": [
+        "Full-Service Podcast Production",
+        "Featured"
+      ]
+    },
+    {
+      "_creationTime": 1769123626439.895,
+      "_id": "j9760d9fs4h9e9c7ffa6e87wzn7zqty8",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "90-minute studio recording with multiple camera angles, professional audio, and real-time camera switching. Ideal for 45-60 minute finished episodes.",
+      "name": "Multi-Angle Podcast Production",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "$225",
+      "priceSuffix": "/episode",
+      "priceValue": 225,
+      "status": "active",
+      "stripeSynced": true,
+      "tags": [
+        "Podcast",
+        "Multi-Cam",
+        "Interview"
+      ]
+    },
+    {
+      "_creationTime": 1769123626439.8987,
+      "_id": "j97d19345ttn2dns285fz48dxn7zqjx9",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Distribution of your episode to multiple podcast and video platforms.",
+      "name": "Multi-Platform Upload",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "$40",
+      "priceValue": 40,
+      "status": "active",
+      "stripeSynced": true,
+      "tags": [
+        "Distribution",
+        "Upload"
+      ]
+    },
+    {
+      "_creationTime": 1771223330860.1057,
+      "_id": "j97dxzsy0crvr8gp57ss2hckgx8194w9",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Content Creation Add-Ons add-on for podcast production.",
+      "name": "Multi-Platform Upload",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "+$40",
+      "priceValue": 40,
+      "status": "active",
+      "stripeSynced": false,
+      "tags": [
+        "Content Creation Add-Ons",
+        "Add-On"
+      ]
+    },
+    {
+      "_creationTime": 1771223330860.102,
+      "_id": "j9734p8tzq0fz7wg2jghsf7cy1818fer",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Includes 90-minute studio recording session with multi-angle + live switching, advanced editing, motion graphics, captions, guest photos, and priority 48-hour delivery. Ideal for 45-60+ minute finished episodes with maximum polish. Includes: 90min Recording | Studio | Multi-Cam | Premium Edit.",
+      "name": "Premium Multi-Angle",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "$300",
+      "priceSuffix": "/episode",
+      "priceValue": 300,
+      "status": "active",
+      "stripeSynced": false,
+      "tags": [
+        "Full-Service Podcast Production"
+      ]
+    },
+    {
+      "_creationTime": 1769123626439.8953,
+      "_id": "j977znv1t0wxw9dr74vf375dkx7zqv8q",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "90-minute session with multi-angle + live switching, advanced editing, motion graphics, captions, guest photos, and priority 48-hour delivery.",
+      "name": "Premium Multi-Angle Podcast",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "$300",
+      "priceSuffix": "/episode",
+      "priceValue": 300,
+      "status": "active",
+      "stripeSynced": true,
+      "tags": [
+        "Podcast",
+        "Premium",
+        "Motion Graphics"
+      ]
+    },
+    {
+      "_creationTime": 1769123626439.8977,
+      "_id": "j97eqs46230abwkep8n5whxa417zq7zs",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Book a studio session for same-day or next-day based on availability.",
+      "name": "Same-Day Booking",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "$40",
+      "priceValue": 40,
+      "status": "active",
+      "stripePriceId": "price_1T1yYpHQSHLLzYC8jteelz6d",
+      "stripeProductId": "prod_TzyVXwBbiDezls",
+      "stripeRecurringPriceId": "price_1T1yYpHQSHLLzYC8IIeBQQr1",
+      "stripeSynced": true,
+      "tags": [
+        "Add-On",
+        "Rush"
+      ]
+    },
+    {
+      "_creationTime": 1771223330860.1047,
+      "_id": "j97awve3yx9f9b3rdh561x0c5n819hg3",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Production Add-Ons add-on for podcast production.",
+      "name": "Same-Day Booking",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "+$40",
+      "priceValue": 40,
+      "status": "active",
+      "stripeSynced": false,
+      "tags": [
+        "Production Add-Ons",
+        "Add-On"
+      ]
+    },
+    {
+      "_creationTime": 1771223330860.106,
+      "_id": "j971bq88qs6w8hwqwcqhs0gqzd819bbw",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Technical Upgrades add-on for podcast production.",
+      "name": "Same-Day Delivery",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "+50% Rush Fee",
+      "priceValue": 50,
+      "status": "active",
+      "stripeSynced": false,
+      "tags": [
+        "Technical Upgrades",
+        "Add-On"
+      ]
+    },
+    {
+      "_creationTime": 1771223330860.1077,
+      "_id": "j97fnchdsdmr2rnb9cetkejq2d81854q",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Includes: 10+ episodes, Brand consistency, Bulk delivery options, Free revisions included.",
+      "name": "Season Package",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "20% OFF",
+      "priceValue": 20,
+      "status": "active",
+      "stripeSynced": false,
+      "tags": [
+        "Package Deal"
+      ]
+    },
+    {
+      "_creationTime": 1769123626439.9004,
+      "_id": "j97bkvfejxy41tmt531q46s2k97zqjb9",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "10+ episodes with brand consistency, bulk delivery options, and free revisions included. 20% OFF regular pricing.",
+      "name": "Season Package (10+ episodes)",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "20% OFF",
+      "priceValue": 1800,
+      "status": "active",
+      "stripeSynced": true,
+      "tags": [
+        "Package",
+        "Season",
+        "Discount"
+      ]
+    },
+    {
+      "_creationTime": 1771223330860.1016,
+      "_id": "j979mvpby7xqbnnpm276rkxb7s819nkq",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Includes 60-minute studio recording session with single camera angle and basic editing. Ideal for 30-45 minute finished episodes. Perfect for solo creators and entry-level podcasters. Includes: 60min Recording | Studio | Engineer | Equipment | Editing.",
+      "name": "Single Angle Basic",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "$150",
+      "priceSuffix": "/episode",
+      "priceValue": 150,
+      "status": "active",
+      "stripeSynced": false,
+      "tags": [
+        "Full-Service Podcast Production"
+      ]
+    },
+    {
+      "_creationTime": 1769123626439.8948,
+      "_id": "j97eyaszy7gaa7ywed1n2yy1ad7zq2kf",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "60-minute studio recording session with single camera angle and basic editing. Ideal for 30-45 minute finished episodes. Perfect for solo creators.",
+      "name": "Single Angle Basic Podcast",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "$150",
+      "priceSuffix": "/episode",
+      "priceValue": 150,
+      "status": "active",
+      "stripePriceId": "price_1T1yYnHQSHLLzYC8QAXmUlsf",
+      "stripeProductId": "prod_TzyV9cAvkMNpm9",
+      "stripeRecurringPriceId": "price_1T1yYoHQSHLLzYC8mDvhADx7",
+      "stripeSynced": true,
+      "tags": [
+        "Podcast",
+        "Basic",
+        "Solo"
+      ]
+    },
+    {
+      "_creationTime": 1769123626439.898,
+      "_id": "j97bsr5wzgnz6fg11pe84tgpph7zpeh7",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Short-form clips optimized for social media platforms from your episode.",
+      "name": "Social Media Clip Package",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "$50",
+      "priceValue": 50,
+      "status": "active",
+      "stripeSynced": true,
+      "tags": [
+        "Social Media",
+        "Clips"
+      ]
+    },
+    {
+      "_creationTime": 1771223330860.105,
+      "_id": "j9776h4pmarnt55te9p0sr2d9x818xda",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Content Creation Add-Ons add-on for podcast production.",
+      "name": "Social Media Clip Package",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "+$50",
+      "priceValue": 50,
+      "status": "active",
+      "stripeSynced": false,
+      "tags": [
+        "Content Creation Add-Ons",
+        "Add-On"
+      ]
+    },
+    {
+      "_creationTime": 1769123626439.8965,
+      "_id": "j97d8zzasja6az6jshcwbnn6657zp49b",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Technical setup and management for remote guests joining via video call.",
+      "name": "Virtual Guest Setup",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "$20",
+      "priceSuffix": "/guest",
+      "priceValue": 20,
+      "status": "active",
+      "stripePriceId": "price_1T1yYoHQSHLLzYC8nbj5j388",
+      "stripeProductId": "prod_TzyVanGuuTC5yz",
+      "stripeRecurringPriceId": "price_1T1yYoHQSHLLzYC8C6wgzpHM",
+      "stripeSynced": true,
+      "tags": [
+        "Add-On",
+        "Virtual",
+        "Remote"
+      ]
+    },
+    {
+      "_creationTime": 1771223330860.1035,
+      "_id": "j97afe0arb9ftshre19ddneksx819trk",
+      "brand": "GFAM Media Studios",
+      "category": "podcast",
+      "description": "Production Add-Ons add-on for podcast production.",
+      "name": "Virtual Guest Setup",
+      "orgId": "org_39eRnrfzOCy0ea7c5RbafovLjWS",
+      "price": "+$20 each",
+      "priceSuffix": "/each",
+      "priceValue": 20,
+      "status": "active",
+      "stripeSynced": false,
+      "tags": [
+        "Production Add-Ons",
+        "Add-On"
+      ]
+    }
+  ]
+}

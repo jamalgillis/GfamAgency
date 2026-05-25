@@ -1,24 +1,21 @@
 "use client";
 
-import { useState } from "react";
-
-type Brand = "all" | "sankofa" | "lighthouse" | "centex" | "gfam";
-
-interface BrandItem {
-  id: Brand;
-  name: string;
-  color: string;
-}
-
-const brands: BrandItem[] = [
-  { id: "sankofa", name: "Sankofa", color: "bg-brand-sankofa" },
-  { id: "lighthouse", name: "Lighthouse", color: "bg-brand-lighthouse" },
-  { id: "centex", name: "Centex", color: "bg-brand-centex" },
-  { id: "gfam", name: "GFAM Media", color: "bg-brand-gfam" },
-];
+import { useMemo, useState } from "react";
+import { api } from "@/convex/_generated/api";
+import { useAuthQuery } from "@/hooks/useAuthQuery";
+import { getBrandColor, getBrandDisplayName } from "@/components/BrandBadge";
 
 export function BrandFilter() {
-  const [activeBrand, setActiveBrand] = useState<Brand>("all");
+  const services = useAuthQuery(api.services.list, { limit: 5000 });
+  const [activeBrand, setActiveBrand] = useState("all");
+  const brands = useMemo(() => {
+    const brandSet = new Set<string>();
+    for (const service of services ?? []) {
+      brandSet.add(service.brand);
+    }
+
+    return Array.from(brandSet).sort((a, b) => a.localeCompare(b));
+  }, [services]);
 
   return (
     <div>
@@ -27,24 +24,24 @@ export function BrandFilter() {
       </p>
       <div className="space-y-2">
         {brands.map((brand) => {
-          const isActive = activeBrand === brand.id;
+          const isActive = activeBrand === brand;
           return (
             <button
-              key={brand.id}
-              onClick={() => setActiveBrand(isActive ? "all" : brand.id)}
+              key={brand}
+              onClick={() => setActiveBrand(isActive ? "all" : brand)}
               className={`brand-item flex items-center gap-3 py-2 px-3 rounded-lg cursor-pointer w-full text-left transition-all ${
                 isActive
                   ? "bg-sidebar-active"
                   : "hover:opacity-80"
               }`}
             >
-              <div className={`brand-dot ${brand.color}`} />
+              <div className="brand-dot" style={{ background: getBrandColor(brand) }} />
               <span
                 className={`text-sm ${
                   isActive ? "text-sidebar-text-active" : "text-sidebar-text"
                 }`}
               >
-                {brand.name}
+                {getBrandDisplayName(brand)}
               </span>
             </button>
           );

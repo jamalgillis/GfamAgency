@@ -1,13 +1,8 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
-// Define the brand union for consistency
-export const brandUnion = v.union(
-  v.literal("Sankofa"),
-  v.literal("Lighthouse"),
-  v.literal("Centex"),
-  v.literal("GFAM Media Studios"),
-);
+// Tenant-defined brand names are stored as plain strings.
+export const brandUnion = v.string();
 
 // Define service status
 export const serviceStatusUnion = v.union(
@@ -75,7 +70,7 @@ export default defineSchema({
     orgId: v.string(),
 
     invoiceNumber: v.string(),
-    // Primary brand - single brand if all items from one, "GFAM Agency" if mixed
+    // Primary brand - single brand if all items from one, parent organization label if mixed
     primaryBrand: v.string(),
     // All brands represented in this invoice
     participatingBrands: v.array(v.string()),
@@ -247,9 +242,59 @@ export default defineSchema({
     logoUrl: v.optional(v.string()), // Optional hosted logo URL
     primaryColor: v.optional(v.string()),
     secondaryColor: v.optional(v.string()),
+    emailMode: v.optional(v.union(v.literal("platform"), v.literal("org_sender"))),
+    senderName: v.optional(v.string()),
+    senderEmail: v.optional(v.string()),
+    senderReplyTo: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_org", ["orgId"])
     .index("by_slug", ["slug"]),
+
+  feedback: defineTable({
+    orgId: v.string(),
+    orgDisplayName: v.string(),
+    submittedByUserId: v.optional(v.string()),
+    submittedByName: v.string(),
+    submittedByEmail: v.optional(v.string()),
+    topic: v.union(
+      v.literal("bug"),
+      v.literal("feature_request"),
+      v.literal("usability"),
+      v.literal("billing"),
+      v.literal("general"),
+    ),
+    sentiment: v.optional(
+      v.union(
+        v.literal("frustrated"),
+        v.literal("neutral"),
+        v.literal("excited"),
+        v.literal("love_it"),
+      ),
+    ),
+    message: v.string(),
+    pagePath: v.optional(v.string()),
+    pageUrl: v.optional(v.string()),
+    flaggedForReview: v.boolean(),
+    status: v.union(
+      v.literal("new"),
+      v.literal("reviewed"),
+      v.literal("resolved"),
+    ),
+    notificationStatus: v.union(
+      v.literal("pending"),
+      v.literal("sent"),
+      v.literal("failed"),
+      v.literal("skipped"),
+    ),
+    notificationError: v.optional(v.string()),
+    notificationSentAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_status", ["orgId", "status"])
+    .index("by_org_flagged", ["orgId", "flaggedForReview"])
+    .index("by_org_created_at", ["orgId", "createdAt"]),
 });

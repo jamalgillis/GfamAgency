@@ -67,6 +67,12 @@ export type InvoicePdfDocumentInput = {
   issueDate: number;
   dueDate: number;
   participatingBrands: string[];
+  sender?: {
+    displayName: string;
+    shortName?: string;
+    email?: string;
+    addressLines?: string[];
+  };
   client: {
     name: string;
     company: string;
@@ -234,6 +240,12 @@ function buildPdfDocumentFromPageStreams(pageStreams: string[]): Uint8Array {
 }
 
 function brandColor(brand: string): Rgb {
+  const normalized = sanitizeText(brand).toLowerCase();
+
+  if (normalized.length === 0) {
+    return COLORS.info;
+  }
+
   switch (brand) {
     case "Sankofa":
       return COLORS.sankofa;
@@ -244,7 +256,20 @@ function brandColor(brand: string): Rgb {
     case "GFAM Media Studios":
       return COLORS.gfam;
     default:
-      return COLORS.gfam;
+      // Deterministic fallback for arbitrary tenant-defined brands.
+      // Keeps PDF highlights stable for the same brand name.
+      const palette: Rgb[] = [
+        COLORS.info,
+        COLORS.success,
+        COLORS.warning,
+        COLORS.lighthouse,
+        COLORS.gfam,
+      ];
+      let hash = 0;
+      for (let i = 0; i < normalized.length; i += 1) {
+        hash = ((hash << 5) - hash + normalized.charCodeAt(i)) | 0;
+      }
+      return palette[Math.abs(hash) % palette.length];
   }
 }
 
@@ -420,7 +445,7 @@ export function buildInvoicePdfDocument(input: InvoicePdfDocumentInput): Uint8Ar
       lineWidth: 1,
     });
 
-    drawText("GFAM Agency", {
+    drawText(senderDisplayName, {
       x: CONTENT_X,
       y: SHEET_Y + 10,
       size: 8,
@@ -502,12 +527,18 @@ export function buildInvoicePdfDocument(input: InvoicePdfDocumentInput): Uint8Ar
 
   const statusLabel = prettyStatus(input.status);
   const badgeColor = statusColor(input.status);
+  const senderDisplayName = input.sender?.displayName?.trim() || "Agency";
+  const senderShortName = input.sender?.shortName?.trim() || senderDisplayName;
+  const senderEmail = input.sender?.email?.trim() || "billing@example.com";
+  const senderAddressLines =
+    input.sender?.addressLines?.map((line) => line.trim()).filter((line) => line.length > 0) ??
+    [];
   const participatingBrands =
-    input.participatingBrands.length > 0 ? input.participatingBrands : ["GFAM Agency"];
+    input.participatingBrands.length > 0 ? input.participatingBrands : [senderDisplayName];
   const checkoutUrl = input.checkoutUrl?.trim() || null;
 
   const companyName =
-    participatingBrands.length === 1 ? participatingBrands[0] : "GFAM Agency";
+    participatingBrands.length === 1 ? participatingBrands[0] : senderDisplayName;
   const invoiceTitle = "INVOICE";
 
   const drawHeader = () => {
@@ -528,7 +559,7 @@ export function buildInvoicePdfDocument(input: InvoicePdfDocumentInput): Uint8Ar
     drawText(
       participatingBrands.length > 1
         ? participatingBrands.join(" • ")
-        : "GFAM Agency Billing",
+        : `${senderShortName} Billing`,
       {
         x: headerX,
         y: headerTop - 18,
@@ -625,12 +656,7 @@ export function buildInvoicePdfDocument(input: InvoicePdfDocumentInput): Uint8Ar
     const rightX = leftX + panelWidth + gap;
     const panelTop = cursorY;
 
-    const senderLines = [
-      "GFAM Agency",
-      "813 Lake Air Dr Suite B",
-      "Waco, TX 76710",
-      "billing@gfamagency.com",
-    ];
+    const senderLines = [senderDisplayName, ...senderAddressLines, senderEmail];
 
     const clientLines = [
       input.client.company || "Unknown Company",
@@ -1159,7 +1185,7 @@ export function buildInvoicePdfDocument(input: InvoicePdfDocumentInput): Uint8Ar
       size: BODY_SMALL_SIZE,
       color: COLORS.textFaint,
     });
-    drawText("GFAM Agency", {
+    drawText(senderDisplayName, {
       x: CONTENT_RIGHT,
       y: cursorY - 20,
       size: BODY_SMALL_SIZE,

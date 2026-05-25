@@ -762,8 +762,15 @@ export function WizardContainer({
 
     try {
       const lineItems = buildLineItems();
-      const getEmailStatusMessage = (emailSent?: boolean, emailSkipped?: string) => {
+      const getEmailStatusMessage = (
+        emailSent?: boolean,
+        emailSkipped?: string,
+        emailUsedPlatformFallback?: boolean
+      ) => {
         if (emailSent) {
+          if (emailUsedPlatformFallback) {
+            return "Invoice sent and email delivered via platform sender after org sender fallback.";
+          }
           return "Invoice sent and email delivered via Resend.";
         }
         if (!emailSkipped) {
@@ -859,7 +866,11 @@ export function WizardContainer({
           setIssueAtMs(issueAtForSend);
           setCheckoutUrl(sendResult.checkoutUrl || null);
           setEmailStatusMessage(
-            getEmailStatusMessage(sendResult.emailSent, sendResult.emailSkipped)
+            getEmailStatusMessage(
+              sendResult.emailSent,
+              sendResult.emailSkipped,
+              sendResult.emailUsedPlatformFallback
+            )
           );
           setShowInvoiceDocument(true);
         } else {
@@ -900,7 +911,11 @@ export function WizardContainer({
         setDraftSaveMode("ledger");
         setCheckoutUrl(sendResult.checkoutUrl || null);
         setEmailStatusMessage(
-          getEmailStatusMessage(sendResult.emailSent, sendResult.emailSkipped)
+          getEmailStatusMessage(
+            sendResult.emailSent,
+            sendResult.emailSkipped,
+            sendResult.emailUsedPlatformFallback
+          )
         );
         setShowInvoiceDocument(true);
       }

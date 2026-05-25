@@ -3,14 +3,15 @@
 import { useState } from "react";
 import { Download, ArrowLeft, Printer, Plus, Minus, Trash2, Edit2, Check, X } from "lucide-react";
 import type { WizardClient, WizardService } from "@/data/wizard-sample";
+import { useAuthQuery } from "@/hooks/useAuthQuery";
+import { api } from "@/convex/_generated/api";
+import { getBrandColor, getBrandDisplayName } from "@/components/BrandBadge";
 
 interface SelectedService {
   service: WizardService;
   quantity: number;
   customRate?: number; // Allow custom rate override
 }
-
-type BrandType = "Sankofa" | "Lighthouse" | "Centex" | "GFAM Media Studios";
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
@@ -61,6 +62,10 @@ export function InvoiceDocument({
   isRevising = false,
   editable = true,
 }: InvoiceDocumentProps) {
+  const orgBranding = useAuthQuery(api.orgBranding.getCurrent, {});
+  const orgDisplayName =
+    orgBranding?.displayName?.trim() || orgBranding?.shortName?.trim() || "Agency";
+  const statementMerchantLabel = orgBranding?.shortName?.trim() || orgDisplayName;
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingRate, setEditingRate] = useState<number>(0);
   const [editingNotes, setEditingNotes] = useState(false);
@@ -93,7 +98,7 @@ export function InvoiceDocument({
   const total = subtotal + tax - discount;
 
   const brands = [...new Set(items.map((item) => item.service.brand))];
-  const primaryBrand = brands.length === 1 ? brands[0] : "Sankofa";
+  const primaryBrand = brands.length === 1 ? brands[0] : orgDisplayName;
 
   const issueAtMs =
     typeof issueAt === "number" && Number.isFinite(issueAt) ? issueAt : Date.now();
@@ -110,14 +115,12 @@ export function InvoiceDocument({
   const paymentTermsLabel =
     paymentTermsDays === 0 ? "Due on issue date" : `Net ${paymentTermsDays}`;
 
-  const getBrandClass = (brand: BrandType) => {
-    const brandClasses: Record<BrandType, string> = {
-      Sankofa: "invoice-brand-sankofa",
-      Lighthouse: "invoice-brand-lighthouse",
-      Centex: "invoice-brand-centex",
-      "GFAM Media Studios": "invoice-brand-gfam",
+  const getBrandStyle = (brand: string) => {
+    const color = getBrandColor(brand);
+    return {
+      color,
+      background: `${color}1A`,
     };
-    return brandClasses[brand] || "invoice-brand-gfam";
   };
 
   const handlePrint = () => {
@@ -243,7 +246,7 @@ export function InvoiceDocument({
               {checkoutUrl}
             </div>
             <div className="mt-2 text-sm text-green-100/90">
-              Bank statement uses GFAM as merchant with a brand-specific suffix when possible.
+              Bank statement uses {statementMerchantLabel} as merchant with a brand-specific suffix when possible.
             </div>
           </div>
         )}
@@ -264,7 +267,7 @@ export function InvoiceDocument({
           <div>
             <h1 className="invoice-company-name">{primaryBrand}</h1>
             <p className="text-sm text-gray-400 mt-1">
-              {brands.length > 1 ? "Mixed-brand invoice billed via Sankofa" : `${primaryBrand} Services`}
+              {brands.length > 1 ? `Mixed-brand invoice billed via ${orgDisplayName}` : `${primaryBrand} Services`}
             </p>
           </div>
           <div className="text-right">
@@ -337,8 +340,11 @@ export function InvoiceDocument({
                     {service.description && (
                       <div className="invoice-item-description">{service.description}</div>
                     )}
-                    <span className={`invoice-item-brand ${getBrandClass(service.brand as BrandType)}`}>
-                      {service.brand}
+                    <span
+                      className="invoice-item-brand"
+                      style={getBrandStyle(service.brand)}
+                    >
+                      {getBrandDisplayName(service.brand)}
                     </span>
                   </td>
 
@@ -531,8 +537,12 @@ export function InvoiceDocument({
             </p>
             <div className="flex flex-wrap gap-2">
               {brands.map((brand) => (
-                <span key={brand} className={`invoice-item-brand ${getBrandClass(brand as BrandType)}`}>
-                  {brand}
+                <span
+                  key={brand}
+                  className="invoice-item-brand"
+                  style={getBrandStyle(brand)}
+                >
+                  {getBrandDisplayName(brand)}
                 </span>
               ))}
             </div>
@@ -541,10 +551,10 @@ export function InvoiceDocument({
 
         {/* Footer */}
         <footer className="invoice-footer">
-          <p className="invoice-footer-text">Thank you for your business Sankfoa Marketing Group</p>
-          <p className="invoice-footer-brand">Sankfoa Marketing Group</p>
+          <p className="invoice-footer-text">Thank you for your business</p>
+          <p className="invoice-footer-brand">{orgDisplayName}</p>
           <p className="text-xs text-gray-600 mt-2">
-            Sankofa • Lighthouse • Centex • GFAM Media Studios
+            {brands.length > 0 ? brands.join(" • ") : orgDisplayName}
           </p>
         </footer>
       </main>

@@ -1,7 +1,7 @@
 import type { Id } from "@/convex/_generated/dataModel";
 
 // Re-export BrandType for convenience
-export type BrandType = "Sankofa" | "Lighthouse" | "Centex" | "GFAM Media Studios";
+export type BrandType = string;
 
 // Invoice status matching schema
 export type InvoiceStatus = "draft" | "open" | "paid" | "void" | "uncollectible";
@@ -119,11 +119,11 @@ export function getLineItemTotal(item: InvoiceLineItem): number {
 
 /**
  * Determine primary brand based on line items
- * Returns single brand if all items are from one brand, "GFAM Agency" if mixed
+ * Returns single brand if all items are from one brand, "Agency" if mixed
  */
 export function determinePrimaryBrand(lineItems: InvoiceLineItem[]): string {
   const brands = new Set(lineItems.map((item) => item.brand));
-  return brands.size === 1 ? [...brands][0] : "GFAM Agency";
+  return brands.size === 1 ? [...brands][0] : "Agency";
 }
 
 /**

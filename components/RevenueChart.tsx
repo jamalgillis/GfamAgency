@@ -3,23 +3,7 @@
 import { useMemo, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { useAuthQuery } from "@/hooks/useAuthQuery";
-
-const brandOrder = ["Sankofa", "Lighthouse", "Centex", "GFAM Media Studios"] as const;
-type BrandName = (typeof brandOrder)[number];
-
-const brandColorMap: Record<BrandName, string> = {
-  Sankofa: "#10B981",
-  Lighthouse: "#8B5CF6",
-  Centex: "#F59E0B",
-  "GFAM Media Studios": "#3B82F6",
-};
-
-const brandLabelMap: Record<BrandName, string> = {
-  Sankofa: "Sankofa",
-  Lighthouse: "Lighthouse",
-  Centex: "Centex",
-  "GFAM Media Studios": "GFAM Media",
-};
+import { getBrandColor, getBrandDisplayName } from "@/components/BrandBadge";
 
 const timeRanges = [
   { key: "this_month", label: "This Month" },
@@ -59,17 +43,14 @@ export function RevenueChart() {
 
   const chartData = useMemo(
     () =>
-      brandOrder.map((brand) => {
-        const revenueCents =
-          revenueByBrand?.brands.find((entry) => entry.brand === brand)?.revenueCents ?? 0;
-
-        return {
-          brand,
-          label: brandLabelMap[brand],
-          color: brandColorMap[brand],
-          revenue: revenueCents / 100,
-        };
-      }),
+      (revenueByBrand?.brands ?? [])
+        .map((entry) => ({
+          brand: entry.brand,
+          label: getBrandDisplayName(entry.brand),
+          color: getBrandColor(entry.brand),
+          revenue: entry.revenueCents / 100,
+        }))
+        .sort((a, b) => b.revenue - a.revenue),
     [revenueByBrand],
   );
 
@@ -77,10 +58,7 @@ export function RevenueChart() {
   const hasRevenue = chartData.some((item) => item.revenue > 0);
   const isLoading = revenueByBrand === undefined;
   const selectedRangeLabel = timeRanges.find((range) => range.key === timeRange)?.label ?? "This Month";
-  const maxRevenue = Math.max(
-    ...chartData.map((item) => item.revenue),
-    1,
-  );
+  const maxRevenue = Math.max(...chartData.map((item) => item.revenue), 1);
 
   const getBarHeight = (revenue: number) => {
     if (revenue <= 0) {
@@ -124,6 +102,10 @@ export function RevenueChart() {
       {isLoading ? (
         <div className="h-48 mt-8 px-4 flex items-center justify-center text-sm text-content-muted">
           Loading chart data...
+        </div>
+      ) : chartData.length === 0 ? (
+        <div className="h-48 mt-8 px-4 flex items-center justify-center text-sm text-content-muted">
+          No revenue recorded for this period.
         </div>
       ) : (
         <div className="flex items-end justify-around h-44 mt-8 px-4">

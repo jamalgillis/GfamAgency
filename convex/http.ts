@@ -25,6 +25,19 @@ function endOfDayTimestamp(timestampMs: number): number {
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
+function isValidEmailAddress(value?: string): value is string {
+  return typeof value === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+function extractSenderEmail(fromAddress?: string): string | undefined {
+  const trimmed = fromAddress?.trim();
+  if (!trimmed) return undefined;
+
+  const bracketMatch = trimmed.match(/<([^>]+)>/);
+  const extracted = bracketMatch?.[1]?.trim() || trimmed;
+  return isValidEmailAddress(extracted) ? extracted.toLowerCase() : undefined;
+}
+
 http.route({
   path: "/invoice-pdf",
   method: "GET",
@@ -67,6 +80,14 @@ http.route({
             customPriceCents?: number;
             isCustomItem: boolean;
           }>;
+          orgBranding?: {
+            displayName: string;
+            shortName?: string;
+            emailMode?: "platform" | "org_sender";
+            senderName?: string;
+            senderEmail?: string;
+            senderReplyTo?: string;
+          } | null;
         }
       | null = null;
 
@@ -87,6 +108,30 @@ http.route({
       data.invoice.sourceType === "subscription" ||
       !!data.invoice.subscriptionId ||
       !!data.invoice.stripeSubscriptionId;
+    const orgDisplayName =
+      data.orgBranding?.displayName?.trim() ||
+      data.orgBranding?.shortName?.trim() ||
+      "Agency";
+    const orgShortName =
+      data.orgBranding?.shortName?.trim() ||
+      data.orgBranding?.displayName?.trim() ||
+      orgDisplayName;
+    const platformSenderEmail =
+      extractSenderEmail(process.env.RESEND_FROM_EMAIL) || "billing@example.com";
+    const orgSenderEmail = data.orgBranding?.senderEmail?.trim().toLowerCase();
+    const useOrgSenderForPdf =
+      data.orgBranding?.emailMode === "org_sender" && isValidEmailAddress(orgSenderEmail);
+    const senderDisplayName = useOrgSenderForPdf
+      ? data.orgBranding?.senderName?.trim() || orgDisplayName
+      : orgDisplayName;
+    const senderEmail = useOrgSenderForPdf && orgSenderEmail
+      ? orgSenderEmail
+      : platformSenderEmail;
+    const senderAddress = [
+      process.env.BILLING_ADDRESS_LINE1?.trim(),
+      process.env.BILLING_ADDRESS_LINE2?.trim(),
+      process.env.BILLING_ADDRESS_LINE3?.trim(),
+    ].filter((line): line is string => !!line);
     const dueAt =
       !isSubscriptionInvoice &&
       typeof data.invoice.billingPeriodEnd === "number" &&
@@ -126,6 +171,12 @@ http.route({
         company: data.client.company,
         email: data.client.email,
       },
+      sender: {
+        displayName: senderDisplayName,
+        shortName: orgShortName,
+        email: senderEmail,
+        addressLines: senderAddress,
+      },
       notes: data.invoice.notes,
       checkoutUrl,
       lineItems: data.lineItems.map((item) => ({
@@ -156,8 +207,8 @@ http.route({
 });
 
 /**
- * Single webhook endpoint for GFAM Agency Stripe account
- * All brands use metadata for tracking, but payments flow through one account
+ * Single webhook endpoint for the configured Stripe account.
+ * All brands use metadata for tracking, but payments flow through one account.
  */
 http.route({
   path: "/stripe/webhook",
@@ -377,16 +428,16 @@ async function handleInvoicePaid(ctx: any, invoice: Stripe.Invoice) {
 
   if (!stripePaymentIntentId) {
     console.warn(
-      `[${brand}] Invoice ${invoice.id} paid but missing payment_intent; skipping brandLedger attribution`
+      `[${brand}] Invoice ${invoice.id} paid but missing payment_intent; using invoice fallback for attribution`
     );
-  } else {
-    await ctx.runMutation(internal.webhooks.processPaidInvoiceLedgerAttribution, {
-      invoiceId: convexInvoiceId as any,
-      settlementSource: "invoice.paid",
-      settlementId: invoice.id,
-      stripePaymentIntentId,
-    });
   }
+
+  await ctx.runAction("webhooks:processCheckoutSessionTransferPayout" as any, {
+    invoiceId: convexInvoiceId as any,
+    settlementSource: "invoice.paid",
+    settlementId: invoice.id,
+    stripePaymentIntentId: stripePaymentIntentId ?? `invoice:${invoice.id}`,
+  });
 
   if (stripeSubscriptionId) {
     await ctx.runMutation(internal.invoiceActions.resetSubscriptionDunningFailureState, {

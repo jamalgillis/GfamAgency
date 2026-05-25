@@ -10,6 +10,7 @@ import { KpiCard } from "@/components/KpiCard";
 import { RevenueChart } from "@/components/RevenueChart";
 import { QuickActions } from "@/components/QuickActions";
 import { InvoiceTable, type Invoice } from "@/components/InvoiceTable";
+import { getBrandDisplayName } from "@/components/BrandBadge";
 
 const formatInvoiceDate = (timestamp: number) =>
   new Intl.DateTimeFormat("en-US", {
@@ -97,6 +98,22 @@ export default function DashboardPage() {
   }, [recentInvoicesFromDb, clients]);
 
   const isLoadingRecentInvoices = recentInvoicesFromDb === undefined || clients === undefined;
+  const quickActionBrands = useMemo(() => {
+    if (!activeServices) {
+      return [];
+    }
+
+    const counts = new Map<string, number>();
+    for (const service of activeServices) {
+      counts.set(service.brand, (counts.get(service.brand) ?? 0) + 1);
+    }
+
+    return Array.from(counts.entries())
+      .sort((a, b) =>
+        getBrandDisplayName(a[0]).localeCompare(getBrandDisplayName(b[0])),
+      )
+      .map(([brand, serviceCount]) => ({ brand, serviceCount }));
+  }, [activeServices]);
 
   const handleNewInvoice = () => {
     router.push("/dashboard/invoices/new");
@@ -158,7 +175,10 @@ export default function DashboardPage() {
         <div className="lg:col-span-2">
           <RevenueChart />
         </div>
-        <QuickActions onAction={handleQuickAction} />
+        <QuickActions
+          brandSummaries={quickActionBrands}
+          onAction={handleQuickAction}
+        />
       </div>
 
       {/* Recent Invoices Table */}
